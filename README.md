@@ -36,6 +36,15 @@ A pre-commit hook (Husky + lint-staged) runs Prettier and `eslint --fix` on stag
 | `NODE_ENV`             | `development`, `test`, `production` | Set by Next.js and Vitest. Don't set it in `.env` files.                                                                                                                                   |
 | `ENABLE_DEMO_LOGIN`    | `true` / `false` (default `false`)  | Demo sign-in, development only (AU-09). The app refuses to start with `true` in production. For now it is only validated; the demo panel still follows `NODE_ENV` until Better Auth (B05). |
 | `CEYLIVING_STORE_PATH` | file path                           | Dev store file. Default `.data/dev-store.json`; tests use a temp file.                                                                                                                     |
+| `LOG_LEVEL`            | `fatal` … `trace`, `silent`         | Log level (OPS-01). Default `info`, or `silent` under tests.                                                                                                                               |
+
+## Logging and request IDs
+
+- **Logger:** `lib/server/observability/logger.ts` (Pino) writes one JSON line per event to stdout: `level`, `time`, `service`, `msg`, `requestId`, plus fields such as `route`, `status`, `durationMs` and `err` (OPS-01). For readable logs in development, run `npm run dev | npx pino-pretty`.
+- **Redaction:** passwords, tokens, cookies, authorization headers, account numbers, email, phone and address fields are replaced with `[REDACTED]` up to two levels deep. Email addresses inside error messages and stacks are masked as `[EMAIL]`.
+- **Request IDs (OPS-02):** `proxy.ts` runs on every request. It uses Cloudflare's `cf-ray` when it is well formed, otherwise a new UUID, and never trusts a client-sent `x-request-id`. The ID travels upstream in `x-request-id` and comes back on every response.
+- **Error wrappers (OPS-03):** `runAction` (server actions) and `withRoute` (route handlers, `lib/server/observability/route.ts`) log each outcome with its duration. Unexpected errors are logged with the stack, and people see a generic message ending in `Reference: <request ID>`. Errors Next.js catches itself go through `onRequestError` in `instrumentation.ts`, which logs the request ID together with the digest that the error page shows as its reference.
+- **No console:** ESLint's `no-console` rule applies to `app/`, `lib/`, `components/` and `proxy.ts`. `instrumentation.ts` keeps one `console.error` for a bad environment, because the logger needs a valid environment.
 
 ## CI
 
@@ -93,7 +102,7 @@ Requests follow the feature spec (section 7.2): **form → server action → ser
 - **Response headers:** Content-Security-Policy, HSTS (production), X-Frame-Options, X-Content-Type-Options, Referrer-Policy and Permissions-Policy are set in `next.config.ts`.
   - The CSP allows `'unsafe-inline'` scripts because nonces are incompatible with Partial Prerendering.
   - Images are limited to the Unsplash CDN, and photo links are validated to that host.
-- **Errors:** unexpected errors are logged on the server and shown to people as a generic message (CS-14).
+- **Errors:** unexpected errors are logged on the server and shown to people as a generic message with a reference ID (CS-14, OPS-02).
 
 **Also included:**
 
@@ -105,12 +114,13 @@ Requests follow the feature spec (section 7.2): **form → server action → ser
 
 ## Tests
 
-`npm test` runs 141 tests:
+`npm test` runs 157 tests:
 
 - **Unit tests:** every business rule, named with its ID (for example `RULE-R1 blocks a review without a delivered order`).
 - **Permission tests:** every server action is called as a guest, plus wrong-role and other-owner cases.
 - **Production guards:** the demo session and dev store are refused in production.
 - **Environment:** `lib/env.ts` refuses demo login in production (AU-09) and names bad keys without echoing values.
+- **Logging (OPS-01 to OPS-03):** redaction of secrets and personal data, request-ID rules, the proxy's header and redirects, and the `runAction` and `withRoute` references.
 - **Header components:** the header's sign-in states and menus.
 - **Full journey:** apply → approve → set up → post → approve item → buy → deliver → review → ask → answer → report → hide.
 

@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 
-export default function ErrorPage({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function ErrorPage({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <div className="mx-auto max-w-xl px-4 pt-20 text-center">
       <h1 className="text-[2.2rem]">This page didn’t load</h1>
       <p className="mt-3 text-lg text-ink-soft">
         Something went wrong on our side. Try again, or go back to the home page.
       </p>
+      {/* OPS-02: the digest is logged with the request ID by onRequestError in instrumentation.ts. */}
+      {error.digest && <p className="mt-2 text-sm text-ink-soft">Reference: {error.digest}</p>}
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <button
           type="button"

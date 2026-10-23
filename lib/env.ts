@@ -16,6 +16,8 @@ export const envSchema = z
     ENABLE_DEMO_LOGIN: flag,
     // Dev store file (feature spec 7.4); tests point it at a temp file.
     CEYLIVING_STORE_PATH: z.string().min(1).optional(),
+    // OPS-01: log level. Default: info, or silent under NODE_ENV=test (see lib/server/observability/logger.ts).
+    LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).optional(),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === "production" && env.ENABLE_DEMO_LOGIN) {

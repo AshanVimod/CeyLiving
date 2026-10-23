@@ -1,21 +1,41 @@
 import "server-only";
+import { headers } from "next/headers";
 import { unstable_rethrow } from "next/navigation";
 import type { z } from "zod";
 import type { ActionResult } from "@/lib/action-result";
 import { DomainError, ValidationError } from "./errors";
+import { requestLogger } from "./observability/logger";
 
 /**
  * Wraps an action body: domain errors become safe messages, unexpected errors are logged
- * server-side and shown generically (CS-14). Next.js redirects pass through untouched.
+ * server-side with the request ID and shown generically with that ID as a reference (CS-14, OPS-03).
+ * Next.js redirects pass through untouched.
  */
 export async function runAction(body: () => Promise<ActionResult | void>): Promise<ActionResult> {
+  const started = performance.now();
+  const { requestId, log } = requestLogger(await requestHeaders());
+  const durationMs = () => Math.round(performance.now() - started);
   try {
-    return (await body()) ?? { ok: true };
+    const result = (await body()) ?? { ok: true };
+    log.debug({ durationMs: durationMs() }, "action.completed");
+    return result;
   } catch (error) {
     unstable_rethrow(error);
-    if (error instanceof DomainError) return { ok: false, message: error.message, fieldErrors: error.fieldErrors };
-    console.error("[action] unexpected error", error);
-    return { ok: false, message: "Something went wrong on our side. Please try again." };
+    if (error instanceof DomainError) {
+      log.info({ durationMs: durationMs(), code: error.code }, "action.rejected");
+      return { ok: false, message: error.message, fieldErrors: error.fieldErrors };
+    }
+    log.error({ err: error, durationMs: durationMs() }, "action.failed");
+    return { ok: false, message: `Something went wrong on our side. Please try again. Reference: ${requestId}` };
+  }
+}
+
+/** Logging must never break an action: outside a request (tests, scripts) a fresh ID is used instead. */
+async function requestHeaders(): Promise<Headers> {
+  try {
+    return new Headers(await headers());
+  } catch {
+    return new Headers();
   }
 }
 
