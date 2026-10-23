@@ -18,6 +18,11 @@ export const envSchema = z
     CEYLIVING_STORE_PATH: z.string().min(1).optional(),
     // OPS-01: log level. Default: info, or silent under NODE_ENV=test (see lib/server/observability/logger.ts).
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).optional(),
+    // Feature-02 public demo: in-memory store, demo sign-in, banner and noindex, even in production.
+    // A separate, deliberate switch from ENABLE_DEMO_LOGIN, which AU-09 keeps out of production.
+    DEMO_MODE: flag,
+    // Feature-02: the external form the demo banner links to. Ignored unless DEMO_MODE=true.
+    FEEDBACK_URL: z.url({ protocol: /^https$/, error: "must be an https:// URL" }).optional(),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === "production" && env.ENABLE_DEMO_LOGIN) {

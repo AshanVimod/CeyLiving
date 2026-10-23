@@ -31,4 +31,16 @@ describe("SEC-A8 production guard", () => {
     vi.stubEnv("NODE_ENV", "production");
     await expect(transaction(() => "write")).rejects.toThrow(/isn’t available/);
   });
+
+  it("AU-09 production with DEMO_MODE=false still ignores the demo cookie", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DEMO_MODE", "false");
+    expect(await getSession()).toBeNull();
+  });
+
+  it("AU-09 DEMO_MODE allows demo sign-in in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DEMO_MODE", "true");
+    expect((await getSession())?.user.id).toBe("user_admin");
+  });
 });
