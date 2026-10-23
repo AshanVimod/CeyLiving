@@ -85,10 +85,13 @@ let queue: Promise<unknown> = Promise.resolve();
 
 const DEMO_RESET_MS = DEMO_RESET_HOURS * 3_600_000;
 
-/** The demo's in-memory data: the seed on cold start, and again once it is DEMO_RESET_HOURS old. */
+/**
+ * The demo's in-memory data: the seed on cold start, and again once it is DEMO_RESET_HOURS old. The age uses
+ * performance.now() because Next.js refuses Date.now() while prerendering; it only needs to measure elapsed time.
+ */
 function demoState(): { seededAt: number; data: StoreData } {
-  if (!demoMemory || Date.now() - demoMemory.seededAt >= DEMO_RESET_MS) {
-    demoMemory = { seededAt: Date.now(), data: deepFreeze(buildSeed(new Date(SEED_TIME))) };
+  if (!demoMemory || performance.now() - demoMemory.seededAt >= DEMO_RESET_MS) {
+    demoMemory = { seededAt: performance.now(), data: deepFreeze(buildSeed(new Date(SEED_TIME))) };
   }
   return demoMemory;
 }
