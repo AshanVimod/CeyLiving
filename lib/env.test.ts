@@ -30,6 +30,11 @@ describe("lib/env", () => {
     expect(parseEnv({ NODE_ENV: "production" })).toEqual({ NODE_ENV: "production", ENABLE_DEMO_LOGIN: false });
   });
 
+  it("OPS-01 accepts a known LOG_LEVEL and rejects anything else", () => {
+    expect(parseEnv({ LOG_LEVEL: "debug" }).LOG_LEVEL).toBe("debug");
+    expect(problems(() => parseEnv({ LOG_LEVEL: "verbose" }))[0]).toMatch(/^LOG_LEVEL:/);
+  });
+
   it("A02/12.3 a missing or malformed value names the key and never echoes the value", () => {
     const withRequired = envSchema.and(z.object({ PAYHERE_MERCHANT_SECRET: z.string().min(1) }));
     const found = problems(() => parseEnv({ NODE_ENV: "staging-secret-x", ENABLE_DEMO_LOGIN: "yes" }, withRequired));
