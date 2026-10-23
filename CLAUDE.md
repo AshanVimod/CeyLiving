@@ -1,5 +1,15 @@
 @AGENTS.md
 
+## Repository and git rules
+
+These apply to every session.
+
+- **Two folders:** this repo is checked out in two folders.
+  - `ceyliving-f01` has `Feature-01`, the real product. All B and CR tasks happen here, and backend work always does.
+  - `ceyliving` has `Feature-02`, the public demo only.
+- **Commits:** always show the diff and wait for approval before committing.
+- **Pushes:** never push without asking first.
+
 ## Backend rules
 
 The backend follows `docs/backend-plan.docx`. It builds on `docs/build-spec.docx` (BR-, CS-, SEC-) and `docs/feature-spec.docx` (FR-, RULE-, SEC-A).
