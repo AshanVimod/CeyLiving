@@ -9,9 +9,11 @@
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "check": "npm run lint && npm run typecheck && npm test",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
     "setup": "node scripts/setup.mjs",
-    "prepare": "husky"
+    "prepare": "husky",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "engines": {
     "node": ">=22.12 <23",
@@ -37,11 +39,16 @@
     "husky": "9.1.7",
     "jsdom": "^29.1.1",
     "lint-staged": "17.6.0",
+    "prettier": "3.9.10",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^5.0.5"
   },
   "lint-staged": {
-    "*.{ts,tsx,mts,mjs,js}": "node node_modules/eslint/bin/eslint.js --fix"
+    "*.{ts,tsx,mts,mjs,js}": [
+      "node node_modules/prettier/bin/prettier.cjs --write",
+      "node node_modules/eslint/bin/eslint.js --fix"
+    ],
+    "*.{json,css,md,yml,yaml}": "node node_modules/prettier/bin/prettier.cjs --write"
   }
 }
