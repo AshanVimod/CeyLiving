@@ -20,11 +20,12 @@ Open http://localhost:3000. On first run the dev store seeds `.data/dev-store.js
 | --- | --- |
 | `npm run setup` | Checks the Node version and copies `.env.example` to `.env.local` if it doesn't exist. Later backend tasks add Docker services, migrations and the seed. |
 | `npm run dev` | Starts Next.js in development. |
-| `npm run check` | Lint + typecheck + tests. Run it before every commit; CI runs the same command. |
-| `npm run lint`, `npm run typecheck`, `npm test` | The three parts of `check` on their own. |
+| `npm run check` | Format check + lint + typecheck + tests. Run it before every commit; CI runs the same command. |
+| `npm run format` | Formats every file with Prettier (`.prettierrc.json`, 120 columns). |
+| `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test` | The parts of `check` on their own. |
 | `npm run build` / `npm start` | Production build and start. |
 
-A pre-commit hook (Husky + lint-staged) runs `eslint --fix` on staged files.
+A pre-commit hook (Husky + lint-staged) runs Prettier and `eslint --fix` on staged files. `.editorconfig` and `.gitattributes` keep indentation and LF line endings the same on every OS.
 
 ## Environment variables
 

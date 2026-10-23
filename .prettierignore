@@ -1,0 +1,11 @@
+# Generated, local or binary content
+.next/
+.data/
+coverage/
+public/
+docs/
+package-lock.json
+next-env.d.ts
+
+# Written and re-added by `next dev`; formatting it would only create churn
+AGENTS.md
