@@ -31,12 +31,13 @@ A pre-commit hook (Husky + lint-staged) runs Prettier and `eslint --fix` on stag
 
 `lib/env.ts` checks every variable with zod when the server starts (`instrumentation.ts`). A missing or malformed value stops the app with a message naming the key (never the value). `.env.example` lists every key; put real values in `.env.local` (git-ignored). Empty values count as not set.
 
-| Variable               | Values                              | Purpose                                                                                                                                                                                    |
-| ---------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `NODE_ENV`             | `development`, `test`, `production` | Set by Next.js and Vitest. Don't set it in `.env` files.                                                                                                                                   |
-| `ENABLE_DEMO_LOGIN`    | `true` / `false` (default `false`)  | Demo sign-in, development only (AU-09). The app refuses to start with `true` in production. For now it is only validated; the demo panel still follows `NODE_ENV` until Better Auth (B05). |
-| `CEYLIVING_STORE_PATH` | file path                           | Dev store file. Default `.data/dev-store.json`; tests use a temp file.                                                                                                                     |
-| `LOG_LEVEL`            | `fatal` … `trace`, `silent`         | Log level (OPS-01). Default `info`, or `silent` under tests.                                                                                                                               |
+| Variable               | Values                                                | Purpose                                                                                                                                                                                    |
+| ---------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NODE_ENV`             | `development`, `test`, `production`                   | Set by Next.js and Vitest. Don't set it in `.env` files.                                                                                                                                   |
+| `ENABLE_DEMO_LOGIN`    | `true` / `false` (default `false`)                    | Demo sign-in, development only (AU-09). The app refuses to start with `true` in production. For now it is only validated; the demo panel still follows `NODE_ENV` until Better Auth (B05). |
+| `CEYLIVING_STORE_PATH` | file path                                             | Dev store file. Default `.data/dev-store.json`; tests use a temp file.                                                                                                                     |
+| `LOG_LEVEL`            | `fatal` … `trace`, `silent`                           | Log level (OPS-01). Default `info`, or `silent` under tests.                                                                                                                               |
+| `SITE_URL`             | `https://…` address (default `http://localhost:3000`) | The site's public address for `sitemap.xml` and `robots.txt`. Must be `https://` in production, except on localhost.                                                                       |
 
 ## Logging and request IDs
 
