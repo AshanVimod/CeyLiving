@@ -63,7 +63,6 @@ Go to `/signin`. A **Demo accounts** panel signs you in with one click; it is no
 | Seller (Ruwan, Ambalangoda Mask House)       | `/seller`: accept and dispatch the new order, answer the open question, reply to reviews, add items (publish straight away).           |
 | Seller, suspended (Chaminda, Pol Katu Lanka) | Shop hidden everywhere; dashboard explains why.                                                                                        |
 | Admin (Dilani)                               | `/admin`: approve the application, suspend shops, review items, moderate posts, mute users, read the audit log.                        |
-| Muted customer (Nuwan)                       | Can browse and buy, can't post for 7 days.                                                                                             |
 
 ## Routes
 
