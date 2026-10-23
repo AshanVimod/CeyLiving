@@ -48,7 +48,10 @@ export function Gallery({ images, slug }: { images: Photo[]; slug: string }) {
           style={zoom ? { transform: "scale(2)", transformOrigin: `${zoom.x}% ${zoom.y}%` } : undefined}
         />
       </button>
-      <span className="pointer-events-none absolute right-3 bottom-3 grid size-10 place-items-center rounded-full bg-paper-raised/90 text-ink" aria-hidden="true">
+      <span
+        className="pointer-events-none absolute right-3 bottom-3 grid size-10 place-items-center rounded-full bg-paper-raised/90 text-ink"
+        aria-hidden="true"
+      >
         <ZoomIcon size={18} />
       </span>
     </div>

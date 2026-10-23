@@ -4,7 +4,10 @@ import { DEMO_ACCOUNTS } from "@/lib/server/store/seed";
 /** Development only (D-05): sign in as a seeded account without the browser console. */
 export function DemoAccountsPanel({ next, currentUserId }: { next: string; currentUserId?: string }) {
   return (
-    <section aria-labelledby="demo-heading" className="mx-auto mt-10 max-w-md rounded-lg border border-dashed border-ink/25 bg-paper-raised p-5">
+    <section
+      aria-labelledby="demo-heading"
+      className="mx-auto mt-10 max-w-md rounded-lg border border-dashed border-ink/25 bg-paper-raised p-5"
+    >
       <h2 id="demo-heading" className="font-sans text-base font-semibold">
         Demo accounts
       </h2>

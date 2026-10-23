@@ -24,7 +24,10 @@ export function CheckoutView() {
     return (
       <div className="rounded-lg border border-dashed border-line px-6 py-16 text-center">
         <h2 className="text-2xl">There’s nothing to check out</h2>
-        <Link href="/shop" className="mt-6 inline-flex h-12 items-center rounded-full bg-forest px-7 font-semibold text-paper">
+        <Link
+          href="/shop"
+          className="mt-6 inline-flex h-12 items-center rounded-full bg-forest px-7 font-semibold text-paper"
+        >
           Shop creations
         </Link>
       </div>
@@ -34,7 +37,9 @@ export function CheckoutView() {
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
-    form.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select").forEach((el) => el.setAttribute("aria-invalid", String(!el.checkValidity())));
+    form
+      .querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select")
+      .forEach((el) => el.setAttribute("aria-invalid", String(!el.checkValidity())));
     if (!form.checkValidity()) {
       setStatus("invalid");
       form.querySelector<HTMLElement>(":invalid")?.focus();
@@ -55,7 +60,16 @@ export function CheckoutView() {
           <legend className="mb-4 font-display text-2xl">Contact</legend>
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label="Email" name="email" type="email" autoComplete="email" required />
-            <Field label="Mobile number" name="phone" type="tel" autoComplete="tel" inputMode="tel" pattern="^(\+94|0)7\d{8}$" required helper="For example 0771234567" />
+            <Field
+              label="Mobile number"
+              name="phone"
+              type="tel"
+              autoComplete="tel"
+              inputMode="tel"
+              pattern="^(\+94|0)7\d{8}$"
+              required
+              helper="For example 0771234567"
+            />
           </div>
         </fieldset>
         <fieldset className="space-y-5">
@@ -69,7 +83,14 @@ export function CheckoutView() {
               <label htmlFor="district" className="mb-1.5 block text-[0.95rem] font-medium">
                 District <span className="text-lacquer">*</span>
               </label>
-              <select id="district" name="district" required defaultValue="" autoComplete="address-level1" className="h-12 w-full rounded-md border border-line bg-paper-raised px-3 focus:border-forest focus:outline-none aria-[invalid=true]:border-lacquer">
+              <select
+                id="district"
+                name="district"
+                required
+                defaultValue=""
+                autoComplete="address-level1"
+                className="h-12 w-full rounded-md border border-line bg-paper-raised px-3 focus:border-forest focus:outline-none aria-[invalid=true]:border-lacquer"
+              >
                 <option value="" disabled>
                   Choose
                 </option>
@@ -120,7 +141,10 @@ export function CheckoutView() {
             <dd className="tabular-nums">{formatLkr(totalCents)}</dd>
           </div>
         </dl>
-        <button type="submit" className="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-forest font-semibold text-paper transition-[background-color,transform] hover:bg-forest-deep active:scale-[0.98]">
+        <button
+          type="submit"
+          className="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-forest font-semibold text-paper transition-[background-color,transform] hover:bg-forest-deep active:scale-[0.98]"
+        >
           Continue to payment
         </button>
         <p className="mt-3 flex items-start gap-2 text-sm text-ink-soft">

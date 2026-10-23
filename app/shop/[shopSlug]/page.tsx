@@ -46,7 +46,14 @@ async function ShopContent({ params }: { params: PageProps<"/shop/[shopSlug]">["
   return (
     <>
       <div className="relative h-[220px] bg-sage sm:h-[320px]">
-        <Image src={photoUrl(shop.banner.id)} alt={shop.banner.alt} fill priority sizes="100vw" className="object-cover" />
+        <Image
+          src={photoUrl(shop.banner.id)}
+          alt={shop.banner.alt}
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-ink/35 to-transparent" />
       </div>
       <Container>
@@ -82,7 +89,9 @@ async function ShopContent({ params }: { params: PageProps<"/shop/[shopSlug]">["
               The story
             </h2>
             <p className="mt-3 text-lg leading-relaxed text-ink-soft">{shop.story}</p>
-            <blockquote className="mt-6 border-l-[3px] border-turmeric pl-5 font-display text-xl leading-snug">“{shop.quote}”</blockquote>
+            <blockquote className="mt-6 border-l-[3px] border-turmeric pl-5 font-display text-xl leading-snug">
+              “{shop.quote}”
+            </blockquote>
           </section>
           <aside aria-labelledby="policies-heading" className="h-fit rounded-lg border border-line bg-paper-raised p-5">
             <h2 id="policies-heading" className="font-sans text-base font-semibold">
@@ -93,7 +102,8 @@ async function ShopContent({ params }: { params: PageProps<"/shop/[shopSlug]">["
                 <ClockIcon size={19} className="mt-0.5 shrink-0 text-forest" /> {shop.dispatchDays}
               </li>
               <li className="flex gap-3">
-                <TruckIcon size={19} className="mt-0.5 shrink-0 text-forest" /> Delivery {formatLkr(SHIPPING_FEE_PER_SHOP_CENTS)} per order
+                <TruckIcon size={19} className="mt-0.5 shrink-0 text-forest" /> Delivery{" "}
+                {formatLkr(SHIPPING_FEE_PER_SHOP_CENTS)} per order
               </li>
               <li className="flex gap-3">
                 <ReturnIcon size={19} className="mt-0.5 shrink-0 text-forest" /> {shop.returnPolicy}
@@ -104,7 +114,8 @@ async function ShopContent({ params }: { params: PageProps<"/shop/[shopSlug]">["
 
         <section aria-labelledby="work-heading" className="mt-16">
           <h2 id="work-heading" className="mb-8 text-[1.85rem]">
-            Work by {shop.ownerName.split(" ")[0]} <span className="font-sans text-lg text-ink-soft">({items.length})</span>
+            Work by {shop.ownerName.split(" ")[0]}{" "}
+            <span className="font-sans text-lg text-ink-soft">({items.length})</span>
           </h2>
           {items.length ? (
             <ProductGrid products={items} morph />

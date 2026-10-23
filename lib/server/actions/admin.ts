@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import type { ActionResult, ActionState } from "@/lib/action-result";
 import { decisionSchema } from "@/lib/validation/application";
-import { moderationSchema, officialReplySchema, reportResolutionSchema, restrictionSchema } from "@/lib/validation/content";
+import {
+  moderationSchema,
+  officialReplySchema,
+  reportResolutionSchema,
+  restrictionSchema,
+} from "@/lib/validation/content";
 import { productDecisionSchema } from "@/lib/validation/product";
 import { shopDecisionSchema } from "@/lib/validation/shop";
 import { requireActor } from "../auth";
@@ -24,7 +29,10 @@ export async function decideApplicationAction(_: ActionState, form: FormData): P
   return runAction(async () => {
     const app = await decideApplication(await requireActor(), parseInput(decisionSchema, formToObject(form)));
     refreshAll();
-    return { ok: true, message: `Application ${app.status === "NEEDS_CHANGES" ? "sent back for changes" : app.status.toLowerCase()}.` };
+    return {
+      ok: true,
+      message: `Application ${app.status === "NEEDS_CHANGES" ? "sent back for changes" : app.status.toLowerCase()}.`,
+    };
   });
 }
 
@@ -50,7 +58,10 @@ export async function moderateAction(_: ActionState, form: FormData): Promise<Ac
     const input = parseInput(moderationSchema, formToObject(form));
     await moderateContent(actor, input);
     refreshAll();
-    return { ok: true, message: `Post ${input.action === "hide" ? "hidden" : input.action === "restore" ? "restored" : "deleted"}.` };
+    return {
+      ok: true,
+      message: `Post ${input.action === "hide" ? "hidden" : input.action === "restore" ? "restored" : "deleted"}.`,
+    };
   });
 }
 
@@ -68,7 +79,15 @@ export async function restrictUserAction(_: ActionState, form: FormData): Promis
     const input = parseInput(restrictionSchema, formToObject(form));
     await restrictUser(actor, input);
     refreshAll();
-    return { ok: true, message: input.action === "lift" ? "Posting restored." : input.action === "ban" ? "User banned from posting." : `User muted for ${input.days} days.` };
+    return {
+      ok: true,
+      message:
+        input.action === "lift"
+          ? "Posting restored."
+          : input.action === "ban"
+            ? "User banned from posting."
+            : `User muted for ${input.days} days.`,
+    };
   });
 }
 

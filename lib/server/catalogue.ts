@@ -113,7 +113,9 @@ export function lookupProducts(slugs: string[]): LookupProduct[] {
         type: p.type,
         isCustomizable: p.isCustomizable,
         variants: p.variants,
-        customizationLabels: Object.fromEntries((p.customization ?? []).map((f) => [f.key, f.label.replace(" (optional)", "")])),
+        customizationLabels: Object.fromEntries(
+          (p.customization ?? []).map((f) => [f.key, f.label.replace(" (optional)", "")]),
+        ),
         shop: { slug: shop.slug, name: shop.name, dispatchDays: shop.dispatchDays },
       };
     });

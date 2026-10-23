@@ -11,7 +11,10 @@ export const shopSlug = z
   .min(SHOP_SLUG.min, `The web address needs at least ${SHOP_SLUG.min} characters.`)
   .max(SHOP_SLUG.max, `The web address can be at most ${SHOP_SLUG.max} characters.`)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers and single hyphens only.")
-  .refine((s) => !(SHOP_SLUG.reserved as readonly string[]).includes(s), "That web address is reserved. Choose another.");
+  .refine(
+    (s) => !(SHOP_SLUG.reserved as readonly string[]).includes(s),
+    "That web address is reserved. Choose another.",
+  );
 
 export const shopSchema = z.object({
   name: text("a shop name", 3, 60),
@@ -39,11 +42,19 @@ export const payoutSchema = z.object({
 export type PayoutInput = z.infer<typeof payoutSchema>;
 
 export const shopDecisionSchema = z.discriminatedUnion("decision", [
-  z.object({ decision: z.literal("suspend"), shopId: z.string().min(1), reason: reason(TEXT_LIMITS.reasonMin, TEXT_LIMITS.reasonMax) }),
+  z.object({
+    decision: z.literal("suspend"),
+    shopId: z.string().min(1),
+    reason: reason(TEXT_LIMITS.reasonMin, TEXT_LIMITS.reasonMax),
+  }),
   z.object({ decision: z.literal("reinstate"), shopId: z.string().min(1) }),
   z.object({ decision: z.literal("verify"), shopId: z.string().min(1) }),
   z.object({ decision: z.literal("unverify"), shopId: z.string().min(1) }),
-  z.object({ decision: z.literal("close"), shopId: z.string().min(1), reason: reason(TEXT_LIMITS.reasonMin, TEXT_LIMITS.reasonMax) }),
+  z.object({
+    decision: z.literal("close"),
+    shopId: z.string().min(1),
+    reason: reason(TEXT_LIMITS.reasonMin, TEXT_LIMITS.reasonMax),
+  }),
 ]);
 
 export type ShopDecisionInput = z.infer<typeof shopDecisionSchema>;

@@ -5,7 +5,17 @@ import type { ShopStatus } from "@/lib/types";
 import { ConfirmAction } from "./confirm-action";
 
 /** FR-4 actions on one shop, offered only where the status flow allows them. */
-export function ShopDecisions({ shopId, name, status, isVerified }: { shopId: string; name: string; status: ShopStatus; isVerified: boolean }) {
+export function ShopDecisions({
+  shopId,
+  name,
+  status,
+  isVerified,
+}: {
+  shopId: string;
+  name: string;
+  status: ShopStatus;
+  isVerified: boolean;
+}) {
   return (
     <div className="flex flex-wrap gap-3">
       {status === "ACTIVE" ? (
@@ -35,7 +45,11 @@ export function ShopDecisions({ shopId, name, status, isVerified }: { shopId: st
           action={decideShopAction}
           label={isVerified ? "Remove verified badge" : "Verify maker"}
           title={isVerified ? "Remove the verified badge?" : `Verify ${name}?`}
-          description={isVerified ? "The “Verified maker” badge disappears from the shop." : "Only verify after checking identity and bank details (spec BR-14)."}
+          description={
+            isVerified
+              ? "The “Verified maker” badge disappears from the shop."
+              : "Only verify after checking identity and bank details (spec BR-14)."
+          }
           fields={{ shopId, decision: isVerified ? "unverify" : "verify" }}
           confirmLabel={isVerified ? "Remove badge" : "Verify"}
           tone="secondary"

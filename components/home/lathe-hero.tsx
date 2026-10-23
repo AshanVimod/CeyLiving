@@ -43,16 +43,28 @@ export function LatheHero({ photoId, alt, caption }: LatheHeroProps) {
         </g>
       </svg>
       <div className="absolute inset-[14.6%] overflow-hidden rounded-full bg-sage">
-        <Image src={photoUrl(photoId)} alt={alt} fill priority sizes="(min-width: 1024px) 380px, 70vw" className="hero-photo object-cover" />
+        <Image
+          src={photoUrl(photoId)}
+          alt={alt}
+          fill
+          priority
+          sizes="(min-width: 1024px) 380px, 70vw"
+          className="hero-photo object-cover"
+        />
       </div>
       <Link
         href={caption.href}
         className="fade-late group absolute bottom-[3%] left-0 flex max-w-[260px] items-center gap-3 rounded-md border border-line bg-paper-raised/95 py-2.5 pl-3 pr-4 shadow-[0_16px_36px_-20px_rgb(19_36_28/0.55)] backdrop-blur-sm sm:left-[-2%]"
         style={{ "--delay": "1.15s" } as React.CSSProperties}
       >
-        <span className="h-9 w-1.5 shrink-0 rounded-full [background:linear-gradient(to_bottom,var(--color-ink)_0_20%,var(--color-turmeric)_20%_40%,var(--color-lacquer)_40%_75%,var(--color-turmeric)_75%_85%,var(--color-ink)_85%)]" aria-hidden="true" />
+        <span
+          className="h-9 w-1.5 shrink-0 rounded-full [background:linear-gradient(to_bottom,var(--color-ink)_0_20%,var(--color-turmeric)_20%_40%,var(--color-lacquer)_40%_75%,var(--color-turmeric)_75%_85%,var(--color-ink)_85%)]"
+          aria-hidden="true"
+        />
         <span className="min-w-0">
-          <span className="block truncate font-medium leading-tight group-hover:underline underline-offset-4">{caption.title}</span>
+          <span className="block truncate font-medium leading-tight group-hover:underline underline-offset-4">
+            {caption.title}
+          </span>
           <span className="block truncate text-sm text-ink-soft">
             {caption.maker}, {caption.place}
           </span>

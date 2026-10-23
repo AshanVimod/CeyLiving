@@ -38,7 +38,12 @@ describe("FR-7 seller orders (BR-07)", () => {
 
   it.each(moves)("BR-07 %s → %s allowed: %s", async (from, to, allowed) => {
     await setStatus(NEW_ORDER, from);
-    const input = orderTransitionSchema.parse({ sellerOrderId: NEW_ORDER, to, courierName: "Pronto Lanka", reason: "Out of stock, sorry." });
+    const input = orderTransitionSchema.parse({
+      sellerOrderId: NEW_ORDER,
+      to,
+      courierName: "Pronto Lanka",
+      reason: "Out of stock, sorry.",
+    });
     const attempt = transitionSellerOrder(user("user_seller"), input);
     if (allowed) await expect(attempt).resolves.toMatchObject({ status: to });
     else await expect(attempt).rejects.toBeInstanceOf(ConflictError);
@@ -50,7 +55,9 @@ describe("FR-7 seller orders (BR-07)", () => {
 
   it("a seller sees and moves only their own shop's orders", async () => {
     const other = readStore().sellerOrders.find((s) => s.shopId === "shop_nool-and-knot")!;
-    await expect(transitionSellerOrder(user("user_seller"), { sellerOrderId: other.id, to: "ACCEPTED" })).rejects.toBeInstanceOf(NotFoundError);
+    await expect(
+      transitionSellerOrder(user("user_seller"), { sellerOrderId: other.id, to: "ACCEPTED" }),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it("SEC-A5 a customer can't open someone else's order", () => {
@@ -60,7 +67,11 @@ describe("FR-7 seller orders (BR-07)", () => {
 
   it("SEC-A10 buyer details disappear 30 days after delivery", () => {
     const db = readStore();
-    const so = { ...db.sellerOrders.find((s) => s.id === DISPATCHED)!, status: "COMPLETED" as const, completedAt: "2026-01-01T00:00:00.000Z" };
+    const so = {
+      ...db.sellerOrders.find((s) => s.id === DISPATCHED)!,
+      status: "COMPLETED" as const,
+      completedAt: "2026-01-01T00:00:00.000Z",
+    };
     const order = db.orders.find((o) => o.id === so.orderId)!;
     expect(buyerContactFor(so, order, new Date("2026-01-20"))).toBeDefined();
     expect(buyerContactFor(so, order, new Date("2026-03-01"))).toBeUndefined();
@@ -71,9 +82,13 @@ describe("FR-3a reviews", () => {
   it("RULE-R1 blocks a review without a delivered order", async () => {
     const naga = getPublicProduct("naga-raksha-mask")!;
     expect(reviewEligibility(user("user_muted"), naga.id).canReview).toBe(false);
-    await expect(createReview(user("user_applicant"), { orderItemId: DELIVERED_ITEM, rating: 5 })).rejects.toBeInstanceOf(NotFoundError);
+    await expect(
+      createReview(user("user_applicant"), { orderItemId: DELIVERED_ITEM, rating: 5 }),
+    ).rejects.toBeInstanceOf(NotFoundError);
     const dispatchedItem = readStore().orderItems.find((i) => i.sellerOrderId === DISPATCHED)!;
-    await expect(createReview(user("user_customer"), { orderItemId: dispatchedItem.id, rating: 5 })).rejects.toBeInstanceOf(ConflictError);
+    await expect(
+      createReview(user("user_customer"), { orderItemId: dispatchedItem.id, rating: 5 }),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 
   it("FR-6 confirming delivery unlocks the review", async () => {
@@ -84,14 +99,22 @@ describe("FR-3a reviews", () => {
   });
 
   it("RULE-R1 allows one review per bought item", async () => {
-    const review = await createReview(user("user_customer"), reviewSchema.parse({ orderItemId: DELIVERED_ITEM, rating: "4", comment: "Strong knots and soft cord." }));
+    const review = await createReview(
+      user("user_customer"),
+      reviewSchema.parse({ orderItemId: DELIVERED_ITEM, rating: "4", comment: "Strong knots and soft cord." }),
+    );
     expect(review.orderItemId).toBe(DELIVERED_ITEM);
-    await expect(createReview(user("user_customer"), { orderItemId: DELIVERED_ITEM, rating: 5 })).rejects.toBeInstanceOf(ConflictError);
+    await expect(
+      createReview(user("user_customer"), { orderItemId: DELIVERED_ITEM, rating: 5 }),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 
   it("RULE-R3 a seller can't review their own items, and replies once (editable)", async () => {
     const naga = getPublicProduct("naga-raksha-mask")!;
-    expect(reviewEligibility(user("user_seller"), naga.id)).toMatchObject({ canReview: false, reason: expect.stringMatching(/own shop/) });
+    expect(reviewEligibility(user("user_seller"), naga.id)).toMatchObject({
+      canReview: false,
+      reason: expect.stringMatching(/own shop/),
+    });
     const review = readStore().reviews.find((r) => r.productId === naga.id)!;
     await replyToReview(user("user_seller"), review.id, "Thank you for the kind words!");
     await replyToReview(user("user_seller"), review.id, "Thank you, Anushka!");
@@ -102,21 +125,35 @@ describe("FR-3a reviews", () => {
 
   it("RULE-R2 edits are marked and allowed for 30 days only", async () => {
     const review = await createReview(user("user_customer"), { orderItemId: DELIVERED_ITEM, rating: 3 });
-    const edited = await editReview(user("user_customer"), { reviewId: review.id, rating: 5, comment: "Better than I first thought." });
+    const edited = await editReview(user("user_customer"), {
+      reviewId: review.id,
+      rating: 5,
+      comment: "Better than I first thought.",
+    });
     expect(edited.editedAt).toBeDefined();
     const later = new Date(Date.now() + 31 * 86_400_000);
-    await expect(editReview(user("user_customer"), { reviewId: review.id, rating: 4, comment: undefined }, later)).rejects.toBeInstanceOf(ConflictError);
+    await expect(
+      editReview(user("user_customer"), { reviewId: review.id, rating: 4, comment: undefined }, later),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 
   it("RULE-Q4 reviews can't carry contact details", () => {
-    expect(reviewSchema.safeParse({ orderItemId: DELIVERED_ITEM, rating: 5, comment: "Call me on 077 123 4567 for more" }).success).toBe(false);
+    expect(
+      reviewSchema.safeParse({ orderItemId: DELIVERED_ITEM, rating: 5, comment: "Call me on 077 123 4567 for more" })
+        .success,
+    ).toBe(false);
   });
 
   it("RULE-M3 a muted customer can't post a review", async () => {
     await transaction((db) => {
       const muted = db.users.find((u) => u.id === "user_customer")!;
-      Object.assign(muted, { postingRestriction: "MUTED", mutedUntil: new Date(Date.now() + 86_400_000).toISOString() });
+      Object.assign(muted, {
+        postingRestriction: "MUTED",
+        mutedUntil: new Date(Date.now() + 86_400_000).toISOString(),
+      });
     });
-    await expect(createReview(user("user_customer"), { orderItemId: DELIVERED_ITEM, rating: 5 })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(
+      createReview(user("user_customer"), { orderItemId: DELIVERED_ITEM, rating: 5 }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });

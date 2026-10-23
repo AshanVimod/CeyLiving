@@ -57,7 +57,9 @@ export function isProductionRuntime(): boolean {
 
 function storePath(): string {
   // The ignore comment stops the bundler from tracing the whole project for this runtime-only path.
-  return process.env.CEYLIVING_STORE_PATH ?? path.join(/* turbopackIgnore: true */ process.cwd(), ".data", "dev-store.json");
+  return (
+    process.env.CEYLIVING_STORE_PATH ?? path.join(/* turbopackIgnore: true */ process.cwd(), ".data", "dev-store.json")
+  );
 }
 
 let cache: { file: string; mtimeMs: number; data: StoreData } | null = null;
@@ -95,7 +97,13 @@ function loadFromDisk(file: string): StoreData {
 /** Upgrades an older store file in place so people keep their test data; unknown versions are reseeded. */
 function migrate(data: StoreData): StoreData {
   if (data.version === 1) {
-    return { ...data, version: 2, payouts: data.payouts ?? [], customRequests: data.customRequests ?? [], helpfulVotes: data.helpfulVotes ?? [] };
+    return {
+      ...data,
+      version: 2,
+      payouts: data.payouts ?? [],
+      customRequests: data.customRequests ?? [],
+      helpfulVotes: data.helpfulVotes ?? [],
+    };
   }
   return buildSeed(new Date());
 }

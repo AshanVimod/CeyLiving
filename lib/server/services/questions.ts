@@ -59,6 +59,12 @@ export function addAnswer(db: StoreData, actor: Actor, input: AnswerInput, now =
   };
   db.answers.push(answer);
   const product = db.products.find((p) => p.id === question.productId);
-  addNotification(db, question.authorId, "question.answered", `Your question about ${product?.title ?? "an item"} was answered`, `/p/${product?.slug ?? ""}#q-${question.id}`); // RULE-Q3
+  addNotification(
+    db,
+    question.authorId,
+    "question.answered",
+    `Your question about ${product?.title ?? "an item"} was answered`,
+    `/p/${product?.slug ?? ""}#q-${question.id}`,
+  ); // RULE-Q3
   return answer;
 }

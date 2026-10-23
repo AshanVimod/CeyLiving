@@ -37,8 +37,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-const button =
-  "inline-flex h-11 items-center rounded-full px-5 text-sm font-semibold transition-colors";
+const button = "inline-flex h-11 items-center rounded-full px-5 text-sm font-semibold transition-colors";
 
 function SellerCard({ user }: { user: User }) {
   const shop = findShopByOwner(user.id);
@@ -49,7 +48,9 @@ function SellerCard({ user }: { user: User }) {
         <span className="font-display text-xl">{shop.name}</span>
         <StatusBadge status={shop.status} />
       </p>
-      {shop.status === "SUSPENDED" && shop.statusReason ? <p className="mt-2 text-sm text-ink-soft">Reason: {shop.statusReason}</p> : null}
+      {shop.status === "SUSPENDED" && shop.statusReason ? (
+        <p className="mt-2 text-sm text-ink-soft">Reason: {shop.statusReason}</p>
+      ) : null}
       <div className="mt-4 flex flex-wrap gap-2">
         <Link href="/seller" className={`${button} bg-forest text-paper hover:bg-forest-deep`}>
           Seller dashboard
@@ -111,7 +112,10 @@ function CustomerLinks() {
     <ul className="grid gap-3 sm:grid-cols-2">
       {links.map((l) => (
         <li key={l.href}>
-          <Link href={l.href} className="block h-full rounded-lg border border-line bg-paper-raised p-5 transition-colors hover:border-forest">
+          <Link
+            href={l.href}
+            className="block h-full rounded-lg border border-line bg-paper-raised p-5 transition-colors hover:border-forest"
+          >
             <span className="block font-semibold">{l.title}</span>
             <span className="mt-1 block text-sm text-ink-soft">{l.text}</span>
           </Link>
@@ -130,7 +134,10 @@ async function Profile() {
       <div className="space-y-6">
         <section aria-label="Your details" className="rounded-lg border border-line bg-paper-raised p-5 sm:p-6">
           <div className="flex flex-wrap items-center gap-4">
-            <span className="grid size-16 shrink-0 place-items-center rounded-full bg-forest font-display text-2xl text-paper" aria-hidden="true">
+            <span
+              className="grid size-16 shrink-0 place-items-center rounded-full bg-forest font-display text-2xl text-paper"
+              aria-hidden="true"
+            >
               {initials(user.name)}
             </span>
             <div className="min-w-0 flex-1">
@@ -148,7 +155,10 @@ async function Profile() {
               </p>
             </div>
             <form action={signOut}>
-              <button type="submit" className={`${button} border border-ink/25 hover:border-lacquer hover:text-lacquer`}>
+              <button
+                type="submit"
+                className={`${button} border border-ink/25 hover:border-lacquer hover:text-lacquer`}
+              >
                 Sign out
               </button>
             </form>
@@ -161,7 +171,8 @@ async function Profile() {
         {user.role === "ADMIN" ? (
           <Card title="Admin">
             <p className="text-ink-soft">
-              <span className="font-semibold text-ink tabular-nums">{adminWaitingTotal()}</span> items are waiting for review.
+              <span className="font-semibold text-ink tabular-nums">{adminWaitingTotal()}</span> items are waiting for
+              review.
             </p>
             <Link href="/admin" className={`${button} mt-4 bg-forest text-paper hover:bg-forest-deep`}>
               Admin panel
@@ -173,14 +184,20 @@ async function Profile() {
         {user.role !== "ADMIN" ? <CustomerLinks /> : null}
 
         <Card title="Privacy">
-          <p className="text-ink-soft">Download a copy of everything we hold about you, or delete your account (Sri Lanka PDPA).</p>
+          <p className="text-ink-soft">
+            Download a copy of everything we hold about you, or delete your account (Sri Lanka PDPA).
+          </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <a href="/account/export" download className={`${button} border border-ink/25 hover:border-ink`}>
               Download my data
             </a>
             {user.role === "ADMIN" ? null : <DeleteAccountButton />}
           </div>
-          {user.role === "SELLER" ? <p className="mt-3 text-sm text-ink-soft">Sellers need to close their shop before deleting their account.</p> : null}
+          {user.role === "SELLER" ? (
+            <p className="mt-3 text-sm text-ink-soft">
+              Sellers need to close their shop before deleting their account.
+            </p>
+          ) : null}
         </Card>
       </div>
     </>

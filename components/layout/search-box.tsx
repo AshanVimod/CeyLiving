@@ -85,7 +85,9 @@ export function SearchBox({ defaultValue = "", size = "default", autoFocus }: Se
       <label htmlFor={`${listId}-input`} className="sr-only">
         Search CeyLiving
       </label>
-      <span className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-ink-soft ${large ? "left-5" : "left-3.5"}`}>
+      <span
+        className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-ink-soft ${large ? "left-5" : "left-3.5"}`}
+      >
         <SearchIcon size={large ? 22 : 18} />
       </span>
       <input

@@ -27,7 +27,10 @@ export default function MakersPage() {
 
       {first ? (
         <Container className="mt-8">
-          <Link href={`/shop/${first.slug}`} className="group grid overflow-hidden rounded-lg bg-forest-deep text-paper md:grid-cols-2">
+          <Link
+            href={`/shop/${first.slug}`}
+            className="group grid overflow-hidden rounded-lg bg-forest-deep text-paper md:grid-cols-2"
+          >
             <div className="relative aspect-[4/3] md:aspect-auto md:min-h-[440px]">
               <Image
                 src={photoUrl(first.banner.id)}
@@ -40,7 +43,9 @@ export default function MakersPage() {
             </div>
             <div className="flex flex-col justify-center p-7 sm:p-12">
               <p className="text-sm font-semibold text-turmeric-soft">Featured maker</p>
-              <blockquote className="mt-3 font-display text-[1.7rem] leading-snug sm:text-[2.1rem]">“{first.quote}”</blockquote>
+              <blockquote className="mt-3 font-display text-[1.7rem] leading-snug sm:text-[2.1rem]">
+                “{first.quote}”
+              </blockquote>
               <p className="mt-6 font-semibold">{first.ownerName}</p>
               <p className="text-paper/75">
                 {first.name}, {first.district}
@@ -74,7 +79,13 @@ export default function MakersPage() {
                   </div>
                   <div className="mt-4 flex items-start gap-3">
                     <span className="relative -mt-10 size-16 shrink-0 overflow-hidden rounded-full border-4 border-paper bg-sage">
-                      <Image src={photoUrl((s.portrait ?? s.logo).id)} alt="" fill sizes="64px" className="object-cover" />
+                      <Image
+                        src={photoUrl((s.portrait ?? s.logo).id)}
+                        alt=""
+                        fill
+                        sizes="64px"
+                        className="object-cover"
+                      />
                     </span>
                     <div className="min-w-0">
                       <h3 className="font-sans text-lg font-semibold group-hover:text-forest">{s.name}</h3>
@@ -89,7 +100,11 @@ export default function MakersPage() {
                     <span>
                       {count} {count === 1 ? "piece" : "pieces"}
                     </span>
-                    {rating ? <span className="tabular-nums">{rating.average.toFixed(1)} from {rating.count} reviews</span> : null}
+                    {rating ? (
+                      <span className="tabular-nums">
+                        {rating.average.toFixed(1)} from {rating.count} reviews
+                      </span>
+                    ) : null}
                     {s.isVerified ? (
                       <span className="inline-flex items-center gap-1 text-forest">
                         <BadgeCheckIcon size={15} /> Verified

@@ -16,14 +16,14 @@ npm run dev
 
 Open http://localhost:3000. On first run the dev store seeds `.data/dev-store.json` (git-ignored) from `lib/data/`. Delete that file to start again from the seed.
 
-| Command | What it does |
-| --- | --- |
-| `npm run setup` | Checks the Node version and copies `.env.example` to `.env.local` if it doesn't exist. Later backend tasks add Docker services, migrations and the seed. |
-| `npm run dev` | Starts Next.js in development. |
-| `npm run check` | Format check + lint + typecheck + tests. Run it before every commit; CI runs the same command. |
-| `npm run format` | Formats every file with Prettier (`.prettierrc.json`, 120 columns). |
-| `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test` | The parts of `check` on their own. |
-| `npm run build` / `npm start` | Production build and start. |
+| Command                                                                 | What it does                                                                                                                                             |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run setup`                                                         | Checks the Node version and copies `.env.example` to `.env.local` if it doesn't exist. Later backend tasks add Docker services, migrations and the seed. |
+| `npm run dev`                                                           | Starts Next.js in development.                                                                                                                           |
+| `npm run check`                                                         | Format check + lint + typecheck + tests. Run it before every commit; CI runs the same command.                                                           |
+| `npm run format`                                                        | Formats every file with Prettier (`.prettierrc.json`, 120 columns).                                                                                      |
+| `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test` | The parts of `check` on their own.                                                                                                                       |
+| `npm run build` / `npm start`                                           | Production build and start.                                                                                                                              |
 
 A pre-commit hook (Husky + lint-staged) runs Prettier and `eslint --fix` on staged files. `.editorconfig` and `.gitattributes` keep indentation and LF line endings the same on every OS.
 
@@ -31,11 +31,11 @@ A pre-commit hook (Husky + lint-staged) runs Prettier and `eslint --fix` on stag
 
 `lib/env.ts` checks every variable with zod when the server starts (`instrumentation.ts`). A missing or malformed value stops the app with a message naming the key (never the value). `.env.example` lists every key; put real values in `.env.local` (git-ignored). Empty values count as not set.
 
-| Variable | Values | Purpose |
-| --- | --- | --- |
-| `NODE_ENV` | `development`, `test`, `production` | Set by Next.js and Vitest. Don't set it in `.env` files. |
-| `ENABLE_DEMO_LOGIN` | `true` / `false` (default `false`) | Demo sign-in, development only (AU-09). The app refuses to start with `true` in production. For now it is only validated; the demo panel still follows `NODE_ENV` until Better Auth (B05). |
-| `CEYLIVING_STORE_PATH` | file path | Dev store file. Default `.data/dev-store.json`; tests use a temp file. |
+| Variable               | Values                              | Purpose                                                                                                                                                                                    |
+| ---------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `NODE_ENV`             | `development`, `test`, `production` | Set by Next.js and Vitest. Don't set it in `.env` files.                                                                                                                                   |
+| `ENABLE_DEMO_LOGIN`    | `true` / `false` (default `false`)  | Demo sign-in, development only (AU-09). The app refuses to start with `true` in production. For now it is only validated; the demo panel still follows `NODE_ENV` until Better Auth (B05). |
+| `CEYLIVING_STORE_PATH` | file path                           | Dev store file. Default `.data/dev-store.json`; tests use a temp file.                                                                                                                     |
 
 ## CI
 
@@ -47,27 +47,27 @@ A pre-commit hook (Husky + lint-staged) runs Prettier and `eslint --fix` on stag
 
 Go to `/signin`. A **Demo accounts** panel signs you in with one click; it is not rendered in production and the server refuses demo sign-in there.
 
-| Account | What to try |
-| --- | --- |
-| Customer (Anushka) | Orders: one delivered and ready to review, one on its way ("I received this"), one new. Ask questions, report content, save addresses. |
-| Applicant (Tharindu) | Application pending: see its status on `/account`. |
-| Seller (Ruwan, Ambalangoda Mask House) | `/seller`: accept and dispatch the new order, answer the open question, reply to reviews, add items (publish straight away). |
-| Seller, suspended (Chaminda, Pol Katu Lanka) | Shop hidden everywhere; dashboard explains why. |
-| Admin (Dilani) | `/admin`: approve the application, suspend shops, review items, moderate posts, mute users, read the audit log. |
-| Muted customer (Nuwan) | Can browse and buy, can't post for 7 days. |
+| Account                                      | What to try                                                                                                                            |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Customer (Anushka)                           | Orders: one delivered and ready to review, one on its way ("I received this"), one new. Ask questions, report content, save addresses. |
+| Applicant (Tharindu)                         | Application pending: see its status on `/account`.                                                                                     |
+| Seller (Ruwan, Ambalangoda Mask House)       | `/seller`: accept and dispatch the new order, answer the open question, reply to reviews, add items (publish straight away).           |
+| Seller, suspended (Chaminda, Pol Katu Lanka) | Shop hidden everywhere; dashboard explains why.                                                                                        |
+| Admin (Dilani)                               | `/admin`: approve the application, suspend shops, review items, moderate posts, mute users, read the audit log.                        |
+| Muted customer (Nuwan)                       | Can browse and buy, can't post for 7 days.                                                                                             |
 
 ## Routes
 
-| Route | Who | What |
-| --- | --- | --- |
-| `/`, `/shop`, `/c/[slug]`, `/search`, `/p/[slug]`, `/makers`, `/shop/[slug]`, `/heritage`, `/custom`, `/about`, `/sell`, `/help` | Everyone | Storefront. Only ACTIVE items of ACTIVE shops are shown (RULE-P4, RULE-S4). Item pages carry Q&A, reviews and report buttons. |
-| `/cart`, `/checkout`, `/account/wishlist` | Everyone | Cart and wishlist kept in the browser; summaries come from `/api/catalogue` so hidden items drop out. |
-| `/signin`, `/register` | Everyone | Sign-in forms (preview) and the demo accounts panel. |
-| `/account`, `/account/orders`, `/account/orders/[orderNumber]`, `/account/addresses`, `/account/questions`, `/account/requests`, `/account/notifications` | Signed in | Profile with role cards and privacy (FR-1, FR-17), orders and reviews (FR-6, FR-3a), addresses (FR-12), my questions, custom requests (FR-14), notifications (FR-11). |
-| `/account/export` | Signed in | Download my data as JSON (FR-17). Only the requester’s own data, never cached. |
-| `/sell/apply`, `/sell/apply/submitted` | Customers | Apply to sell (FR-2a). |
-| `/seller`, `/seller/shop`, `/seller/products`, `/seller/products/new`, `/seller/products/[id]/edit`, `/seller/orders`, `/seller/orders/[id]`, `/seller/questions`, `/seller/reviews`, `/seller/requests`, `/seller/payouts` | Sellers | Set-up checklist, shop profile and payout details, items, orders (BR-07), questions, review replies, custom requests, payout statements (FR-2b, FR-2c, FR-7, FR-13, FR-14, FR-18). |
-| `/admin`, `/admin/applications`, `/admin/applications/[id]`, `/admin/sellers`, `/admin/sellers/[shopId]`, `/admin/products`, `/admin/moderation`, `/admin/reports`, `/admin/users`, `/admin/users/[id]`, `/admin/payouts`, `/admin/audit-log` | Admins | Dashboard, applications, shops, item review, moderation, reports, users and role changes, payouts, audit log (FR-4, FR-5, FR-8 to FR-10, FR-13, FR-15, FR-16). |
+| Route                                                                                                                                                                                                                                         | Who       | What                                                                                                                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`, `/shop`, `/c/[slug]`, `/search`, `/p/[slug]`, `/makers`, `/shop/[slug]`, `/heritage`, `/custom`, `/about`, `/sell`, `/help`                                                                                                              | Everyone  | Storefront. Only ACTIVE items of ACTIVE shops are shown (RULE-P4, RULE-S4). Item pages carry Q&A, reviews and report buttons.                                                      |
+| `/cart`, `/checkout`, `/account/wishlist`                                                                                                                                                                                                     | Everyone  | Cart and wishlist kept in the browser; summaries come from `/api/catalogue` so hidden items drop out.                                                                              |
+| `/signin`, `/register`                                                                                                                                                                                                                        | Everyone  | Sign-in forms (preview) and the demo accounts panel.                                                                                                                               |
+| `/account`, `/account/orders`, `/account/orders/[orderNumber]`, `/account/addresses`, `/account/questions`, `/account/requests`, `/account/notifications`                                                                                     | Signed in | Profile with role cards and privacy (FR-1, FR-17), orders and reviews (FR-6, FR-3a), addresses (FR-12), my questions, custom requests (FR-14), notifications (FR-11).              |
+| `/account/export`                                                                                                                                                                                                                             | Signed in | Download my data as JSON (FR-17). Only the requester’s own data, never cached.                                                                                                     |
+| `/sell/apply`, `/sell/apply/submitted`                                                                                                                                                                                                        | Customers | Apply to sell (FR-2a).                                                                                                                                                             |
+| `/seller`, `/seller/shop`, `/seller/products`, `/seller/products/new`, `/seller/products/[id]/edit`, `/seller/orders`, `/seller/orders/[id]`, `/seller/questions`, `/seller/reviews`, `/seller/requests`, `/seller/payouts`                   | Sellers   | Set-up checklist, shop profile and payout details, items, orders (BR-07), questions, review replies, custom requests, payout statements (FR-2b, FR-2c, FR-7, FR-13, FR-14, FR-18). |
+| `/admin`, `/admin/applications`, `/admin/applications/[id]`, `/admin/sellers`, `/admin/sellers/[shopId]`, `/admin/products`, `/admin/moderation`, `/admin/reports`, `/admin/users`, `/admin/users/[id]`, `/admin/payouts`, `/admin/audit-log` | Admins    | Dashboard, applications, shops, item review, moderation, reports, users and role changes, payouts, audit log (FR-4, FR-5, FR-8 to FR-10, FR-13, FR-15, FR-16).                     |
 
 ## How the code is organised
 
@@ -96,6 +96,7 @@ Requests follow the feature spec (section 7.2): **form → server action → ser
 - **Errors:** unexpected errors are logged on the server and shown to people as a generic message (CS-14).
 
 **Also included:**
+
 - **Helpful votes:** reviews and questions can be voted helpful, and are sorted most helpful first (FR-19).
 - **Payouts:** the weekly payout job (BR-11) is a button on `/admin/payouts` until a background worker exists.
 - **Account deletion:** deleting an account anonymises it and keeps order records (FR-17).

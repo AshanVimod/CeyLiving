@@ -66,7 +66,10 @@ export function SiteFooter() {
               <ul className="space-y-2 text-paper/80">
                 {col.links.map((l) => (
                   <li key={l.href}>
-                    <Link href={l.href} className="inline-block py-0.5 hover:text-paper hover:underline underline-offset-4">
+                    <Link
+                      href={l.href}
+                      className="inline-block py-0.5 hover:text-paper hover:underline underline-offset-4"
+                    >
                       {l.label}
                     </Link>
                   </li>

@@ -20,7 +20,9 @@ export function payableFrom(sellerOrder: SellerOrder): Date | undefined {
 
 /** BR-11: delivered, past the hold period, and not yet in any payout. */
 function payableOrders(db: StoreData, now: Date): SellerOrder[] {
-  return db.sellerOrders.filter((so) => so.status === "COMPLETED" && !so.payoutId && (payableFrom(so)?.getTime() ?? Infinity) <= now.getTime());
+  return db.sellerOrders.filter(
+    (so) => so.status === "COMPLETED" && !so.payoutId && (payableFrom(so)?.getTime() ?? Infinity) <= now.getTime(),
+  );
 }
 
 function buildPayout(shop: Shop, orders: SellerOrder[], now: Date): Payout {
@@ -59,7 +61,9 @@ export async function generatePayouts(actor: Actor, now = new Date()): Promise<P
       db.payouts.push(payout);
       orders.forEach((so) => (so.payoutId = payout.id));
       addNotification(db, shop.ownerId, "payout.scheduled", "A new payout statement is ready", "/seller/payouts");
-      audit(db, actor, "payout.generated", "PAYOUT", payout.id, { after: { shopId, netCents: payout.netCents, orders: orders.length } });
+      audit(db, actor, "payout.generated", "PAYOUT", payout.id, {
+        after: { shopId, netCents: payout.netCents, orders: orders.length },
+      });
       created.push(payout);
     }
     return created;
@@ -67,7 +71,12 @@ export async function generatePayouts(actor: Actor, now = new Date()): Promise<P
 }
 
 /** An admin records the bank transfer; the reference is kept for reconciliation (SEC-A9 audit). */
-export async function markPayoutPaid(actor: Actor, payoutId: string, reference: string, now = new Date()): Promise<Payout> {
+export async function markPayoutPaid(
+  actor: Actor,
+  payoutId: string,
+  reference: string,
+  now = new Date(),
+): Promise<Payout> {
   assertRole(actor, ["ADMIN"]);
   return transaction((db) => {
     const payout = db.payouts.find((p) => p.id === payoutId);
@@ -75,7 +84,8 @@ export async function markPayoutPaid(actor: Actor, payoutId: string, reference: 
     if (payout.status !== "SCHEDULED") throw new ConflictError("Only scheduled payouts can be marked paid.");
     Object.assign(payout, { status: "PAID", paidAt: now.toISOString(), reference });
     const shop = db.shops.find((s) => s.id === payout.shopId);
-    if (shop) addNotification(db, shop.ownerId, "payout.paid", "Your payout has been sent to your bank", "/seller/payouts");
+    if (shop)
+      addNotification(db, shop.ownerId, "payout.paid", "Your payout has been sent to your bank", "/seller/payouts");
     audit(db, actor, "payout.paid", "PAYOUT", payout.id, { reason: `Bank reference ${reference}` });
     return payout;
   });
@@ -87,7 +97,11 @@ export function sellerPayoutSummary(actor: Actor, now = new Date(), db: StoreDat
   const payouts = db.payouts.filter((p) => p.shopId === shop.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const upcoming = db.sellerOrders
     .filter((so) => so.shopId === shop.id && so.status === "COMPLETED" && !so.payoutId)
-    .map((so) => ({ sellerOrder: so, payableFrom: payableFrom(so)!, netCents: so.subtotalCents + so.shippingCents - commissionFor(so) }));
+    .map((so) => ({
+      sellerOrder: so,
+      payableFrom: payableFrom(so)!,
+      netCents: so.subtotalCents + so.shippingCents - commissionFor(so),
+    }));
   const onHold = upcoming.filter((u) => u.payableFrom.getTime() > now.getTime());
   const ready = upcoming.filter((u) => u.payableFrom.getTime() <= now.getTime());
   return { shop, payouts, onHold, ready, rateBps: COMMISSION_RATE_BPS };

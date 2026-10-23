@@ -38,9 +38,31 @@ const slugId = (s: string) => s.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
 function seedUsers(now: Date): User[] {
   const base = { emailVerified: true, postingRestriction: "NONE" as const, createdAt: iso(now, -400) };
   return [
-    { ...base, id: "user_customer", name: "Anushka Perera", email: "anushka@example.lk", phone: "0771234567", role: "CUSTOMER" },
-    { ...base, id: "user_applicant", name: "Tharindu Silva", email: "tharindu@example.lk", phone: "0712345678", role: "CUSTOMER", createdAt: iso(now, -40) },
-    { ...base, id: "user_seller", name: "Ruwan Wijesuriya", email: "ruwan@example.lk", phone: "0779876543", role: "SELLER" },
+    {
+      ...base,
+      id: "user_customer",
+      name: "Anushka Perera",
+      email: "anushka@example.lk",
+      phone: "0771234567",
+      role: "CUSTOMER",
+    },
+    {
+      ...base,
+      id: "user_applicant",
+      name: "Tharindu Silva",
+      email: "tharindu@example.lk",
+      phone: "0712345678",
+      role: "CUSTOMER",
+      createdAt: iso(now, -40),
+    },
+    {
+      ...base,
+      id: "user_seller",
+      name: "Ruwan Wijesuriya",
+      email: "ruwan@example.lk",
+      phone: "0779876543",
+      role: "SELLER",
+    },
     { ...base, id: "user_seller_suspended", name: "Chaminda Silva", email: "chaminda@example.lk", role: "SELLER" },
     { ...base, id: "user_admin", name: "Dilani Fernando", email: "dilani@ceyliving.example", role: "ADMIN" },
     {
@@ -90,7 +112,13 @@ function seedShops(now: Date): { shops: Shop[]; owners: User[] } {
 function toProduct(seed: ProductSeed, now: Date): Product {
   const { reviews, ...rest } = seed;
   void reviews;
-  return { ...rest, id: `prod_${slugId(seed.slug)}`, status: "ACTIVE", createdAt: rest.publishedAt + "T08:00:00.000Z", updatedAt: iso(now, -5) };
+  return {
+    ...rest,
+    id: `prod_${slugId(seed.slug)}`,
+    status: "ACTIVE",
+    createdAt: rest.publishedAt + "T08:00:00.000Z",
+    updatedAt: iso(now, -5),
+  };
 }
 
 interface OrderSpec {
@@ -188,7 +216,13 @@ export function buildSeed(now: Date): StoreData {
 type AddOrder = (spec: Omit<OrderSpec, "number">) => OrderItem;
 
 /** Each existing review becomes a verified review on a completed demo order (fixes D-06). */
-function seedReviews(data: StoreData, now: Date, productBySlug: (s: string) => Product, shopBySlug: (s: string) => Shop, addOrder: AddOrder) {
+function seedReviews(
+  data: StoreData,
+  now: Date,
+  productBySlug: (s: string) => Product,
+  shopBySlug: (s: string) => Shop,
+  addOrder: AddOrder,
+) {
   const reviewerIds = new Map<string, string>([["Anushka P.", "user_customer"]]);
   productSeeds.forEach((seed) => {
     seed.reviews.forEach((r) => {
@@ -235,7 +269,12 @@ function seedReviews(data: StoreData, now: Date, productBySlug: (s: string) => P
 }
 
 /** The demo customer's own orders: one delivered and unreviewed, one on its way, one new for the demo seller. */
-function seedCustomerOrders(now: Date, productBySlug: (s: string) => Product, shopBySlug: (s: string) => Shop, addOrder: AddOrder) {
+function seedCustomerOrders(
+  now: Date,
+  productBySlug: (s: string) => Product,
+  shopBySlug: (s: string) => Shop,
+  addOrder: AddOrder,
+) {
   addOrder({
     customerId: "user_customer",
     product: productBySlug("macrame-plant-hanger"),

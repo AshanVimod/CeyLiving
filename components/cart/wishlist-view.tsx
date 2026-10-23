@@ -22,7 +22,10 @@ export function WishlistView() {
       <div className="rounded-lg border border-dashed border-line px-6 py-16 text-center">
         <h2 className="text-2xl">Nothing saved yet</h2>
         <p className="mx-auto mt-2 max-w-md text-ink-soft">Tap the heart on any piece to save it here.</p>
-        <Link href="/shop" className="mt-6 inline-flex h-12 items-center rounded-full bg-forest px-7 font-semibold text-paper hover:bg-forest-deep">
+        <Link
+          href="/shop"
+          className="mt-6 inline-flex h-12 items-center rounded-full bg-forest px-7 font-semibold text-paper hover:bg-forest-deep"
+        >
           Shop creations
         </Link>
       </div>
@@ -37,7 +40,13 @@ export function WishlistView() {
           <li key={p.slug} className="flex flex-col">
             <Link href={`/p/${p.slug}`} className="group block">
               <div className="relative aspect-[4/5] overflow-hidden rounded-[3px] bg-sage">
-                <Image src={photoUrl(p.image.id)} alt={p.image.alt} fill sizes="(min-width: 1024px) 300px, (min-width: 640px) 48vw, 92vw" className="object-cover" />
+                <Image
+                  src={photoUrl(p.image.id)}
+                  alt={p.image.alt}
+                  fill
+                  sizes="(min-width: 1024px) 300px, (min-width: 640px) 48vw, 92vw"
+                  className="object-cover"
+                />
               </div>
               <p className="mt-3 font-medium group-hover:underline underline-offset-4">{p.title}</p>
             </Link>
@@ -59,7 +68,10 @@ export function WishlistView() {
                   Add to cart
                 </button>
               ) : (
-                <Link href={`/p/${p.slug}`} className="flex h-11 flex-1 items-center justify-center rounded-full border border-forest px-4 text-sm font-semibold text-forest hover:bg-forest hover:text-paper">
+                <Link
+                  href={`/p/${p.slug}`}
+                  className="flex h-11 flex-1 items-center justify-center rounded-full border border-forest px-4 text-sm font-semibold text-forest hover:bg-forest hover:text-paper"
+                >
                   {p.isCustomizable ? "Personalize" : "Choose option"}
                 </Link>
               )}

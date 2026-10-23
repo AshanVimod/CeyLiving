@@ -12,7 +12,12 @@ withTestStore();
 
 describe("seller applications", () => {
   it("FR-2a validates the form: story length, 3–6 photos, terms", () => {
-    const result = applicationSchema.safeParse({ ...validApplication(), story: "Too short", workPhotoUrls: ["https://example.com/a.jpg"], acceptTerms: undefined });
+    const result = applicationSchema.safeParse({
+      ...validApplication(),
+      story: "Too short",
+      workPhotoUrls: ["https://example.com/a.jpg"],
+      acceptTerms: undefined,
+    });
     expect(result.success).toBe(false);
     const paths = result.error!.issues.map((i) => i.path.join("."));
     expect(paths).toEqual(expect.arrayContaining(["story", "workPhotoUrls.0", "acceptTerms"]));
@@ -23,7 +28,14 @@ describe("seller applications", () => {
   });
 
   it("RULE-A1 makes a rejected applicant wait before applying again", async () => {
-    await decideApplication(user("user_admin"), decisionSchema.parse({ decision: "reject", applicationId: "app_tharindu", reason: "Photos show factory-made items." }));
+    await decideApplication(
+      user("user_admin"),
+      decisionSchema.parse({
+        decision: "reject",
+        applicationId: "app_tharindu",
+        reason: "Photos show factory-made items.",
+      }),
+    );
     await expect(submitApplication(user("user_applicant"), validApplication())).rejects.toThrow(/apply again from/);
   });
 
@@ -38,8 +50,12 @@ describe("seller applications", () => {
   });
 
   it("RULE-A2 only admins decide, and reject needs a reason", async () => {
-    await expect(decideApplication(user("user_customer"), { decision: "approve", applicationId: "app_tharindu" })).rejects.toBeInstanceOf(ForbiddenError);
-    expect(decisionSchema.safeParse({ decision: "reject", applicationId: "app_tharindu", reason: "no" }).success).toBe(false);
+    await expect(
+      decideApplication(user("user_customer"), { decision: "approve", applicationId: "app_tharindu" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    expect(decisionSchema.safeParse({ decision: "reject", applicationId: "app_tharindu", reason: "no" }).success).toBe(
+      false,
+    );
   });
 
   it("RULE-A3 approval makes the applicant a seller with a DRAFT shop, with an audit row", async () => {
@@ -57,7 +73,9 @@ describe("seller applications", () => {
       db.users.find((u) => u.id === "user_applicant")!.role = "ADMIN"; // can't become a seller
     });
     const shopsBefore = readStore().shops.length;
-    await expect(decideApplication(user("user_admin"), { decision: "approve", applicationId: "app_tharindu" })).rejects.toBeInstanceOf(ConflictError);
+    await expect(
+      decideApplication(user("user_admin"), { decision: "approve", applicationId: "app_tharindu" }),
+    ).rejects.toBeInstanceOf(ConflictError);
     const db = readStore();
     expect(db.applications.find((a) => a.id === "app_tharindu")!.status).toBe("PENDING");
     expect(db.shops.length).toBe(shopsBefore);
@@ -65,7 +83,11 @@ describe("seller applications", () => {
   });
 
   it("request changes lets the applicant resubmit the same application", async () => {
-    await decideApplication(user("user_admin"), { decision: "changes", applicationId: "app_tharindu", reason: "Add photos of finished pieces." });
+    await decideApplication(user("user_admin"), {
+      decision: "changes",
+      applicationId: "app_tharindu",
+      reason: "Add photos of finished pieces.",
+    });
     const resubmitted = await submitApplication(user("user_applicant"), validApplication());
     expect(resubmitted.id).toBe("app_tharindu");
     expect(resubmitted.status).toBe("PENDING");

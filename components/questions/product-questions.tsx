@@ -13,12 +13,26 @@ import { AnswerForm, AskQuestionForm } from "./question-forms";
  * FR-3b: "Questions about this item". Everyone reads the thread; signed-in customers ask;
  * only this shop's seller or an admin can answer (RULE-Q2). Hidden posts are shown only to their author.
  */
-export async function ProductQuestions({ productId, productSlug, shop }: { productId: string; productSlug: string; shop: Shop }) {
+export async function ProductQuestions({
+  productId,
+  productSlug,
+  shop,
+}: {
+  productId: string;
+  productSlug: string;
+  shop: Shop;
+}) {
   const user = await currentUser();
   const isOwner = user?.id === shop.ownerId;
   const isAdmin = user?.role === "ADMIN";
-  const listed = questionsOfProduct(productId).filter((q) => q.status === "VISIBLE" || (q.status === "HIDDEN" && q.authorId === user?.id));
-  const { counts, mine } = helpfulCounts("QUESTION", listed.map((q) => q.id), user?.id);
+  const listed = questionsOfProduct(productId).filter(
+    (q) => q.status === "VISIBLE" || (q.status === "HIDDEN" && q.authorId === user?.id),
+  );
+  const { counts, mine } = helpfulCounts(
+    "QUESTION",
+    listed.map((q) => q.id),
+    user?.id,
+  );
   const questions = byHelpfulness(listed, counts); // FR-19: most useful first
 
   return (
@@ -34,22 +48,36 @@ export async function ProductQuestions({ productId, productSlug, shop }: { produ
             const answers = answersOf(q.id).filter((a) => a.status === "VISIBLE");
             return (
               <li key={q.id} id={`q-${q.id}`} className="scroll-mt-40 border-t border-line pt-5">
-                {q.status === "HIDDEN" ? <p className="mb-2 text-sm font-semibold text-lacquer">Hidden by a moderator. Only you can see this.</p> : null}
+                {q.status === "HIDDEN" ? (
+                  <p className="mb-2 text-sm font-semibold text-lacquer">
+                    Hidden by a moderator. Only you can see this.
+                  </p>
+                ) : null}
                 <p className="font-medium [overflow-wrap:anywhere]">{q.body}</p>
                 <p className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-ink-soft">
                   <span>
                     {q.authorName}, {formatDate(q.createdAt)}
                   </span>
-                  {q.status === "VISIBLE" ? <ReportButton targetType="QUESTION" targetId={q.id} label="this question" /> : null}
+                  {q.status === "VISIBLE" ? (
+                    <ReportButton targetType="QUESTION" targetId={q.id} label="this question" />
+                  ) : null}
                 </p>
                 {q.status === "VISIBLE" ? (
                   <div className="mt-2">
-                    <HelpfulButton targetType="QUESTION" targetId={q.id} count={counts.get(q.id) ?? 0} voted={mine.has(q.id)} disabled={q.authorId === user?.id} />
+                    <HelpfulButton
+                      targetType="QUESTION"
+                      targetId={q.id}
+                      count={counts.get(q.id) ?? 0}
+                      voted={mine.has(q.id)}
+                      disabled={q.authorId === user?.id}
+                    />
                   </div>
                 ) : null}
                 {answers.map((a) => (
                   <div key={a.id} className="mt-3 border-l-2 border-forest pl-4">
-                    <p className="text-sm font-semibold">{a.authorRole === "ADMIN" ? "CeyLiving team" : `${shop.name} (Seller)`}</p>
+                    <p className="text-sm font-semibold">
+                      {a.authorRole === "ADMIN" ? "CeyLiving team" : `${shop.name} (Seller)`}
+                    </p>
                     <p className="mt-1 whitespace-pre-line [overflow-wrap:anywhere]">{a.body}</p>
                     <p className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-ink-soft">
                       <span>{formatDate(a.createdAt)}</span>
@@ -59,7 +87,9 @@ export async function ProductQuestions({ productId, productSlug, shop }: { produ
                 ))}
                 {(isOwner || isAdmin) && q.status === "VISIBLE" && user && canPost(user) ? (
                   <details className="mt-3 rounded-md border border-line p-4" open={isOwner && answers.length === 0}>
-                    <summary className="cursor-pointer font-semibold text-forest">{isAdmin ? "Answer as CeyLiving" : "Answer this question"}</summary>
+                    <summary className="cursor-pointer font-semibold text-forest">
+                      {isAdmin ? "Answer as CeyLiving" : "Answer this question"}
+                    </summary>
                     <div className="mt-3">
                       <AnswerForm questionId={q.id} asTeam={isAdmin} />
                     </div>
@@ -76,7 +106,10 @@ export async function ProductQuestions({ productId, productSlug, shop }: { produ
       <div className="mt-8 max-w-2xl">
         {!user ? (
           <p>
-            <Link href={`/signin?next=${encodeURIComponent(`/p/${productSlug}#questions`)}`} className="font-semibold text-forest underline underline-offset-4">
+            <Link
+              href={`/signin?next=${encodeURIComponent(`/p/${productSlug}#questions`)}`}
+              className="font-semibold text-forest underline underline-offset-4"
+            >
               Sign in to ask
             </Link>{" "}
             <span className="text-ink-soft">a question about this item.</span>

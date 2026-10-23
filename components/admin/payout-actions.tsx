@@ -6,7 +6,13 @@ import { ConfirmAction } from "./confirm-action";
 
 /** Runs the weekly payout job by hand until a background worker exists (BR-11). */
 export function GeneratePayoutsButton() {
-  return <ActionForm action={async () => generatePayoutsAction()} submitLabel="Create this week’s statements" pendingLabel="Creating…" />;
+  return (
+    <ActionForm
+      action={async () => generatePayoutsAction()}
+      submitLabel="Create this week’s statements"
+      pendingLabel="Creating…"
+    />
+  );
 }
 
 export function MarkPaidButton({ payoutId, shopName }: { payoutId: string; shopName: string }) {

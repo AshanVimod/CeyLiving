@@ -1,7 +1,13 @@
 import "server-only";
 import { AUTO_HIDE_REPORT_THRESHOLD } from "@/lib/config";
 import type { ContentStatus, ProductAnswer, ProductQuestion, Report, ReportTargetType, Review } from "@/lib/types";
-import type { ModerationInput, OfficialReplyInput, ReportInput, ReportResolutionInput, RestrictionInput } from "@/lib/validation/content";
+import type {
+  ModerationInput,
+  OfficialReplyInput,
+  ReportInput,
+  ReportResolutionInput,
+  RestrictionInput,
+} from "@/lib/validation/content";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
 import { assertRole, type Actor } from "../permissions";
 import { addNotification, newId } from "../repositories/people";
@@ -40,16 +46,34 @@ function resolveOpenReports(db: StoreData, actor: Actor, type: ReportTargetType,
 /** FR-8: any signed-in person reports content or a shop, once per target. RULE-M4 auto-hides heavily reported content. */
 export async function reportContent(actor: Actor, input: ReportInput, now = new Date()): Promise<Report> {
   return transaction((db) => {
-    if (!targetExists(db, input.targetType, input.targetId)) throw new NotFoundError("That content isn’t available any more.");
-    const duplicate = db.reports.some((r) => r.reporterId === actor.id && r.targetType === input.targetType && r.targetId === input.targetId && r.status === "OPEN");
+    if (!targetExists(db, input.targetType, input.targetId))
+      throw new NotFoundError("That content isn’t available any more.");
+    const duplicate = db.reports.some(
+      (r) =>
+        r.reporterId === actor.id &&
+        r.targetType === input.targetType &&
+        r.targetId === input.targetId &&
+        r.status === "OPEN",
+    );
     if (duplicate) throw new ConflictError("You’ve already reported this. We’ll look at it soon.");
     assertRateLimit(db, actor.id, "report", now);
-    const report: Report = { id: newId("report"), reporterId: actor.id, ...input, status: "OPEN", createdAt: now.toISOString() };
+    const report: Report = {
+      id: newId("report"),
+      reporterId: actor.id,
+      ...input,
+      status: "OPEN",
+      createdAt: now.toISOString(),
+    };
     db.reports.push(report);
-    const open = db.reports.filter((r) => r.targetType === input.targetType && r.targetId === input.targetId && r.status === "OPEN").length;
+    const open = db.reports.filter(
+      (r) => r.targetType === input.targetType && r.targetId === input.targetId && r.status === "OPEN",
+    ).length;
     if (input.targetType !== "PRODUCT" && input.targetType !== "SHOP" && open >= AUTO_HIDE_REPORT_THRESHOLD) {
       const content = findContent(db, input.targetType, input.targetId)!;
-      Object.assign(content, { status: "HIDDEN", statusReason: `Hidden automatically after ${open} reports, waiting for review.` });
+      Object.assign(content, {
+        status: "HIDDEN",
+        statusReason: `Hidden automatically after ${open} reports, waiting for review.`,
+      });
     }
     return report;
   });
@@ -69,15 +93,26 @@ export async function moderateContent(actor: Actor, input: ModerationInput): Pro
     if (to === "DELETED") eraseBody(content);
     if (to !== "VISIBLE") {
       resolveOpenReports(db, actor, input.targetType, content.id, `${input.action}: ${input.reason}`);
-      addNotification(db, content.authorId, `content.${input.action}`, `A moderator ${to === "HIDDEN" ? "hid" : "deleted"} one of your posts`, "/account/questions");
+      addNotification(
+        db,
+        content.authorId,
+        `content.${input.action}`,
+        `A moderator ${to === "HIDDEN" ? "hid" : "deleted"} one of your posts`,
+        "/account/questions",
+      );
     }
-    audit(db, actor, `content.${input.action}`, input.targetType, content.id, { reason: input.reason || undefined, before, after: to });
+    audit(db, actor, `content.${input.action}`, input.targetType, content.id, {
+      reason: input.reason || undefined,
+      before,
+      after: to,
+    });
   });
 }
 
 /** Deleted rows stay for the audit trail, but the text is erased (personal data, illegal content). */
 function eraseBody(content: Content) {
-  if ("comment" in content) Object.assign(content, { comment: undefined, sellerReply: undefined, ceylivingReply: undefined });
+  if ("comment" in content)
+    Object.assign(content, { comment: undefined, sellerReply: undefined, ceylivingReply: undefined });
   if ("body" in content) content.body = "";
 }
 
@@ -105,17 +140,25 @@ export async function restrictUser(actor: Actor, input: RestrictionInput, now = 
   await transaction((db) => {
     const target = db.users.find((u) => u.id === input.userId);
     if (!target) throw new NotFoundError("User not found.");
-    if (target.id === actor.id || target.role === "ADMIN") throw new ForbiddenError("Admins can’t mute or ban another admin or themselves.");
+    if (target.id === actor.id || target.role === "ADMIN")
+      throw new ForbiddenError("Admins can’t mute or ban another admin or themselves.");
     const before = { restriction: target.postingRestriction, mutedUntil: target.mutedUntil };
-    if (input.action === "lift") Object.assign(target, { postingRestriction: "NONE", mutedUntil: undefined, restrictionReason: undefined });
-    if (input.action === "ban") Object.assign(target, { postingRestriction: "BANNED", mutedUntil: undefined, restrictionReason: input.reason });
+    if (input.action === "lift")
+      Object.assign(target, { postingRestriction: "NONE", mutedUntil: undefined, restrictionReason: undefined });
+    if (input.action === "ban")
+      Object.assign(target, { postingRestriction: "BANNED", mutedUntil: undefined, restrictionReason: input.reason });
     if (input.action === "mute") {
       const until = new Date(now.getTime() + (input.days ?? 7) * 86_400_000).toISOString();
       Object.assign(target, { postingRestriction: "MUTED", mutedUntil: until, restrictionReason: input.reason });
     }
-    const title = input.action === "lift" ? "You can post reviews and questions again" : "Your posting access has been limited";
+    const title =
+      input.action === "lift" ? "You can post reviews and questions again" : "Your posting access has been limited";
     addNotification(db, target.id, `user.${input.action}`, title, "/account");
-    audit(db, actor, `user.${input.action}`, "USER", target.id, { reason: input.reason, before, after: { restriction: target.postingRestriction, mutedUntil: target.mutedUntil } });
+    audit(db, actor, `user.${input.action}`, "USER", target.id, {
+      reason: input.reason,
+      before,
+      after: { restriction: target.postingRestriction, mutedUntil: target.mutedUntil },
+    });
   });
 }
 

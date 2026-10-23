@@ -10,7 +10,10 @@ export async function ProductReviewSlot({ productId, productSlug }: { productId:
     return (
       <p className="text-ink-soft">
         Bought this?{" "}
-        <Link href={`/signin?next=${encodeURIComponent(`/p/${productSlug}#reviews`)}`} className="font-semibold text-forest underline underline-offset-4">
+        <Link
+          href={`/signin?next=${encodeURIComponent(`/p/${productSlug}#reviews`)}`}
+          className="font-semibold text-forest underline underline-offset-4"
+        >
           Sign in to review it
         </Link>
         .

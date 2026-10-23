@@ -42,7 +42,15 @@ export function AreaSkeleton() {
   );
 }
 
-export function PageTitle({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
+export function PageTitle({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+}) {
   return (
     <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-2xl">

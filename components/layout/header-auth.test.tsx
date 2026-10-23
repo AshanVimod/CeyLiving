@@ -6,8 +6,12 @@ import { HeaderActions } from "./header-actions";
 import { HeaderAuthView } from "./header-auth-view";
 
 const base = { emailVerified: true, postingRestriction: "NONE" as const, createdAt: "2026-01-01T00:00:00.000Z" };
-const customer: Session = { user: { ...base, id: "user_customer", name: "Anushka Perera", email: "anushka@example.lk", role: "CUSTOMER" } };
-const seller: Session = { user: { ...base, id: "user_seller", name: "Ruwan Wijesuriya", email: "ruwan@example.lk", role: "SELLER" } };
+const customer: Session = {
+  user: { ...base, id: "user_customer", name: "Anushka Perera", email: "anushka@example.lk", role: "CUSTOMER" },
+};
+const seller: Session = {
+  user: { ...base, id: "user_seller", name: "Ruwan Wijesuriya", email: "ruwan@example.lk", role: "SELLER" },
+};
 const signOut = vi.fn(async () => {});
 
 describe("header auth, signed out", () => {
@@ -104,7 +108,9 @@ describe("header auth, signed in", () => {
 describe("header for admins and notifications", () => {
   it("D-03 admins get an Admin panel link", async () => {
     const userEv = userEvent.setup();
-    const admin: Session = { user: { ...base, id: "user_admin", name: "Dilani Fernando", email: "dilani@example.lk", role: "ADMIN" } };
+    const admin: Session = {
+      user: { ...base, id: "user_admin", name: "Dilani Fernando", email: "dilani@example.lk", role: "ADMIN" },
+    };
     render(<HeaderAuthView session={admin} signOutAction={signOut} />);
     await userEv.click(screen.getByRole("button", { name: /account menu/i }));
     expect(screen.getByRole("menuitem", { name: "Admin panel" })).toHaveAttribute("href", "/admin");
@@ -113,12 +119,24 @@ describe("header for admins and notifications", () => {
 
   it("FR-11 shows the bell with the unread count and opens the latest notifications", async () => {
     const userEv = userEvent.setup();
-    const items = [{ id: "n1", userId: "user_customer", type: "order.dispatched", title: "Your mask is on its way", href: "/account/orders/CM-1", createdAt: new Date().toISOString() }];
+    const items = [
+      {
+        id: "n1",
+        userId: "user_customer",
+        type: "order.dispatched",
+        title: "Your mask is on its way",
+        href: "/account/orders/CM-1",
+        createdAt: new Date().toISOString(),
+      },
+    ];
     render(<HeaderAuthView session={customer} signOutAction={signOut} notifications={{ items, unread: 1 }} />);
     const bell = screen.getByRole("button", { name: "Notifications, 1 unread" });
     await userEv.click(bell);
     expect(bell).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("link", { name: /Your mask is on its way/ })).toHaveAttribute("href", "/account/orders/CM-1");
+    expect(screen.getByRole("link", { name: /Your mask is on its way/ })).toHaveAttribute(
+      "href",
+      "/account/orders/CM-1",
+    );
     await userEv.keyboard("{Escape}");
     expect(bell).toHaveAttribute("aria-expanded", "false");
     expect(bell).toHaveFocus();

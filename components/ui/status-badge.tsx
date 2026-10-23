@@ -49,7 +49,9 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
 export function StatusBadge({ status, label }: { status: string; label?: string }) {
   const s = STATUS[status] ?? { label: status, tone: "neutral" as Tone };
   return (
-    <span className={`inline-flex h-6 items-center whitespace-nowrap rounded-full px-2.5 text-xs font-semibold ${tones[s.tone]}`}>
+    <span
+      className={`inline-flex h-6 items-center whitespace-nowrap rounded-full px-2.5 text-xs font-semibold ${tones[s.tone]}`}
+    >
       {label ?? s.label}
     </span>
   );

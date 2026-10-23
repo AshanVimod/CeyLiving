@@ -66,13 +66,19 @@ function EmptyResults({ q, clearHref }: { q?: string; clearHref: string }) {
       <p className="mx-auto mt-2 max-w-md text-ink-soft">
         Try fewer filters or a wider price range. You can also browse one of these popular categories.
       </p>
-      <Link href={clearHref} className="mt-6 inline-flex h-11 items-center rounded-full bg-forest px-6 font-semibold text-paper hover:bg-forest-deep">
+      <Link
+        href={clearHref}
+        className="mt-6 inline-flex h-11 items-center rounded-full bg-forest px-6 font-semibold text-paper hover:bg-forest-deep"
+      >
         Clear filters
       </Link>
       <ul className="mt-8 flex flex-wrap justify-center gap-2">
         {categories.slice(0, 6).map((c) => (
           <li key={c.slug}>
-            <Link href={`/c/${c.slug}`} className="inline-flex min-h-10 items-center rounded-full border border-line bg-paper-raised px-4 text-sm hover:border-ink-soft">
+            <Link
+              href={`/c/${c.slug}`}
+              className="inline-flex min-h-10 items-center rounded-full border border-line bg-paper-raised px-4 text-sm hover:border-ink-soft"
+            >
               {c.name}
             </Link>
           </li>

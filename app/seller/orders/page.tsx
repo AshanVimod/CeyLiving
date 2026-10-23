@@ -9,12 +9,23 @@ import { sellerContext } from "@/lib/server/seller-context";
 
 export const metadata = { title: "Orders" };
 
-const ORDER: Record<string, number> = { NEW: 0, ACCEPTED: 1, IN_PROGRESS: 2, DISPATCHED: 3, COMPLETED: 4, CANCELLED: 5, REFUNDED: 6 };
+const ORDER: Record<string, number> = {
+  NEW: 0,
+  ACCEPTED: 1,
+  IN_PROGRESS: 2,
+  DISPATCHED: 3,
+  COMPLETED: 4,
+  CANCELLED: 5,
+  REFUNDED: 6,
+};
 
 async function Orders() {
   const { shop, db } = await sellerContext("/seller/orders");
-  const orders = sellerOrdersOfShop(shop.id, db).sort((a, b) => (ORDER[a.status] ?? 9) - (ORDER[b.status] ?? 9) || b.updatedAt.localeCompare(a.updatedAt));
-  if (!orders.length) return <EmptyState title="No orders yet" text="New orders appear here. Accept them within 3 days." />;
+  const orders = sellerOrdersOfShop(shop.id, db).sort(
+    (a, b) => (ORDER[a.status] ?? 9) - (ORDER[b.status] ?? 9) || b.updatedAt.localeCompare(a.updatedAt),
+  );
+  if (!orders.length)
+    return <EmptyState title="No orders yet" text="New orders appear here. Accept them within 3 days." />;
   return (
     <DataTable caption="Your orders" headers={["Order", "Items", "Total", "Placed", "Status"]}>
       {orders.map((so) => {

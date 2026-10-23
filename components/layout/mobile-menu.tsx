@@ -43,7 +43,10 @@ export function MobileMenu({ account }: { account?: React.ReactNode }) {
       </button>
       {open ? (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menu">
-          <div className="absolute inset-0 bg-ink/40 animate-[scrim-in_200ms_ease-out]" onClick={() => setOpen(false)} />
+          <div
+            className="absolute inset-0 bg-ink/40 animate-[scrim-in_200ms_ease-out]"
+            onClick={() => setOpen(false)}
+          />
           <div
             ref={panelRef}
             onClick={(e) => (e.target as HTMLElement).closest("a") && setOpen(false)}
@@ -72,7 +75,10 @@ export function MobileMenu({ account }: { account?: React.ReactNode }) {
                   </li>
                 ))}
                 <li>
-                  <Link href="/account/wishlist" className="flex min-h-12 items-center rounded-md px-2 text-lg hover:bg-sage">
+                  <Link
+                    href="/account/wishlist"
+                    className="flex min-h-12 items-center rounded-md px-2 text-lg hover:bg-sage"
+                  >
                     Wishlist
                   </Link>
                 </li>
@@ -84,7 +90,10 @@ export function MobileMenu({ account }: { account?: React.ReactNode }) {
                   .filter((c) => c.group === "TRADITIONAL")
                   .map((c) => (
                     <li key={c.slug}>
-                      <Link href={`/c/${c.slug}`} className="flex min-h-11 items-center rounded-md px-2 text-ink-soft hover:bg-sage hover:text-ink">
+                      <Link
+                        href={`/c/${c.slug}`}
+                        className="flex min-h-11 items-center rounded-md px-2 text-ink-soft hover:bg-sage hover:text-ink"
+                      >
                         {c.name}
                       </Link>
                     </li>
@@ -96,7 +105,10 @@ export function MobileMenu({ account }: { account?: React.ReactNode }) {
                   .filter((c) => c.group === "MODERN")
                   .map((c) => (
                     <li key={c.slug}>
-                      <Link href={`/c/${c.slug}`} className="flex min-h-11 items-center rounded-md px-2 text-ink-soft hover:bg-sage hover:text-ink">
+                      <Link
+                        href={`/c/${c.slug}`}
+                        className="flex min-h-11 items-center rounded-md px-2 text-ink-soft hover:bg-sage hover:text-ink"
+                      >
                         {c.name}
                       </Link>
                     </li>

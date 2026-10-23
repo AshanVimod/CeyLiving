@@ -15,9 +15,15 @@ const commissionPercent = COMMISSION_RATE_BPS / 100;
 
 const steps = [
   { title: "Apply", text: "Tell us about your work and send a few photos. It takes about ten minutes." },
-  { title: "We review your shop", text: "We check that the work is yours and handmade. Most applications get an answer within five working days." },
+  {
+    title: "We review your shop",
+    text: "We check that the work is yours and handmade. Most applications get an answer within five working days.",
+  },
   { title: "Set up and list", text: "Add your story, photos and prices. A checklist walks you through it." },
-  { title: "Sell and get paid", text: "Accept orders, ship them, and receive payouts to your bank account every week." },
+  {
+    title: "Sell and get paid",
+    text: "Accept orders, ship them, and receive payouts to your bank account every week.",
+  },
 ];
 
 const eligible = [
@@ -42,20 +48,33 @@ export default function SellPage() {
           <div>
             <h1 className="text-[2.5rem] leading-[1.06] sm:text-[3.6rem]">Your work, your shop, your price</h1>
             <p className="mt-5 max-w-xl text-lg text-ink-soft">
-              Open a shop on CeyLiving and reach customers across Sri Lanka. No monthly fee: we take {commissionPercent}% when
-              you make a sale, and nothing when you don’t.
+              Open a shop on CeyLiving and reach customers across Sri Lanka. No monthly fee: we take {commissionPercent}
+              % when you make a sale, and nothing when you don’t.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/sell/apply" className="inline-flex h-12 items-center rounded-full bg-forest px-7 font-semibold text-paper hover:bg-forest-deep">
+              <Link
+                href="/sell/apply"
+                className="inline-flex h-12 items-center rounded-full bg-forest px-7 font-semibold text-paper hover:bg-forest-deep"
+              >
                 Apply to sell
               </Link>
-              <a href="#fees" className="inline-flex h-12 items-center rounded-full border border-ink/25 px-7 font-semibold hover:border-ink">
+              <a
+                href="#fees"
+                className="inline-flex h-12 items-center rounded-full border border-ink/25 px-7 font-semibold hover:border-ink"
+              >
                 See fees
               </a>
             </div>
           </div>
           <div className="arch relative aspect-[4/5] max-h-[520px] overflow-hidden bg-sage">
-            <Image src={photoUrl("1595351298020-038700609878")} alt="Hands shaping clay on a pottery wheel" fill priority sizes="(min-width: 1024px) 45vw, 92vw" className="object-cover" />
+            <Image
+              src={photoUrl("1595351298020-038700609878")}
+              alt="Hands shaping clay on a pottery wheel"
+              fill
+              priority
+              sizes="(min-width: 1024px) 45vw, 92vw"
+              className="object-cover"
+            />
           </div>
         </Container>
       </section>
@@ -65,7 +84,9 @@ export default function SellPage() {
         <ol className="mt-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {steps.map((s, i) => (
             <li key={s.title} className="relative">
-              <span className="grid size-10 place-items-center rounded-full bg-forest font-display text-lg text-paper">{i + 1}</span>
+              <span className="grid size-10 place-items-center rounded-full bg-forest font-display text-lg text-paper">
+                {i + 1}
+              </span>
               <h3 className="mt-4 font-sans text-lg font-semibold">{s.title}</h3>
               <p className="mt-1 text-ink-soft">{s.text}</p>
             </li>
@@ -85,7 +106,10 @@ export default function SellPage() {
             {[
               ["Commission", `${commissionPercent}% of the item price, taken only when you sell`],
               ["Card and payment fees", "Included in the commission"],
-              ["Delivery", `Customers pay a flat ${formatLkr(SHIPPING_FEE_PER_SHOP_CENTS)} per order to your shop, passed on to you`],
+              [
+                "Delivery",
+                `Customers pay a flat ${formatLkr(SHIPPING_FEE_PER_SHOP_CENTS)} per order to your shop, passed on to you`,
+              ],
               ["Payouts", "Weekly, to your bank account, 7 days after the customer receives the order"],
             ].map(([term, desc]) => (
               <div key={term} className="grid gap-1 p-5 sm:grid-cols-[180px_1fr]">
@@ -121,7 +145,10 @@ export default function SellPage() {
 
       <Container className="mt-24 text-center">
         <h2 className="text-[1.85rem] sm:text-[2.25rem]">Ready to open your shop?</h2>
-        <Link href="/sell/apply" className="mt-6 inline-flex h-12 items-center rounded-full bg-forest px-8 font-semibold text-paper hover:bg-forest-deep">
+        <Link
+          href="/sell/apply"
+          className="mt-6 inline-flex h-12 items-center rounded-full bg-forest px-8 font-semibold text-paper hover:bg-forest-deep"
+        >
           Apply to sell
         </Link>
       </Container>

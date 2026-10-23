@@ -21,16 +21,28 @@ async function Sellers({ searchParams }: { searchParams: PageProps<"/admin/selle
   const shops = listShops(db).filter((s) => current === "ALL" || s.status === current);
   return (
     <>
-      <FilterLinks current={current} items={FILTERS.map((f) => ({ value: f, label: f === "ALL" ? "All" : f.charAt(0) + f.slice(1).toLowerCase(), href: `/admin/sellers?status=${f}` }))} />
+      <FilterLinks
+        current={current}
+        items={FILTERS.map((f) => ({
+          value: f,
+          label: f === "ALL" ? "All" : f.charAt(0) + f.slice(1).toLowerCase(),
+          href: `/admin/sellers?status=${f}`,
+        }))}
+      />
       {shops.length ? (
         <DataTable caption="Shops" headers={["Shop", "Owner", "Status", "Items", "Rating", "Open reports"]}>
           {shops.map((s) => {
             const rating = shopRating(s.slug);
-            const reports = db.reports.filter((r) => r.status === "OPEN" && r.targetType === "SHOP" && r.targetId === s.id).length;
+            const reports = db.reports.filter(
+              (r) => r.status === "OPEN" && r.targetType === "SHOP" && r.targetId === s.id,
+            ).length;
             return (
               <tr key={s.id}>
                 <Td>
-                  <Link href={`/admin/sellers/${s.id}`} className="font-semibold text-forest underline underline-offset-4">
+                  <Link
+                    href={`/admin/sellers/${s.id}`}
+                    className="font-semibold text-forest underline underline-offset-4"
+                  >
                     {s.name}
                   </Link>
                   {s.isVerified ? <span className="ml-2 text-sm text-forest">Verified</span> : null}
@@ -39,7 +51,9 @@ async function Sellers({ searchParams }: { searchParams: PageProps<"/admin/selle
                 <Td>
                   <StatusBadge status={s.status} />
                 </Td>
-                <Td className="tabular-nums">{db.products.filter((p) => p.shopSlug === s.slug && p.status !== "REMOVED").length}</Td>
+                <Td className="tabular-nums">
+                  {db.products.filter((p) => p.shopSlug === s.slug && p.status !== "REMOVED").length}
+                </Td>
                 <Td className="tabular-nums">{rating ? `${rating.average.toFixed(1)} (${rating.count})` : "None"}</Td>
                 <Td className="tabular-nums">{reports}</Td>
               </tr>

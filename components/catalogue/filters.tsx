@@ -148,7 +148,10 @@ function PriceInputs() {
             className="h-11 w-full rounded-md border border-line bg-paper-raised px-3 tabular-nums focus:border-forest focus:outline-none"
           />
         </label>
-        <button type="submit" className="h-11 rounded-md border border-ink/20 px-4 text-sm font-semibold hover:border-ink">
+        <button
+          type="submit"
+          className="h-11 rounded-md border border-ink/20 px-4 text-sm font-semibold hover:border-ink"
+        >
           Apply
         </button>
       </form>
@@ -184,14 +187,22 @@ function FilterFields({ showCategory }: { showCategory: boolean }) {
           >
             <option value="">All categories</option>
             <optgroup label="Traditional crafts">
-              {categories.filter((c) => c.group === "TRADITIONAL").map((c) => (
-                <option key={c.slug} value={c.slug}>{c.name}</option>
-              ))}
+              {categories
+                .filter((c) => c.group === "TRADITIONAL")
+                .map((c) => (
+                  <option key={c.slug} value={c.slug}>
+                    {c.name}
+                  </option>
+                ))}
             </optgroup>
             <optgroup label="Modern design">
-              {categories.filter((c) => c.group === "MODERN").map((c) => (
-                <option key={c.slug} value={c.slug}>{c.name}</option>
-              ))}
+              {categories
+                .filter((c) => c.group === "MODERN")
+                .map((c) => (
+                  <option key={c.slug} value={c.slug}>
+                    {c.name}
+                  </option>
+                ))}
             </optgroup>
           </select>
         </FilterGroup>
@@ -209,27 +220,43 @@ function FilterFields({ showCategory }: { showCategory: boolean }) {
         <Checkbox
           label="Ready to ship"
           checked={params.get("type") === "READY_TO_SHIP"}
-          onChange={() => update((p) => (p.get("type") === "READY_TO_SHIP" ? p.delete("type") : p.set("type", "READY_TO_SHIP")))}
+          onChange={() =>
+            update((p) => (p.get("type") === "READY_TO_SHIP" ? p.delete("type") : p.set("type", "READY_TO_SHIP")))
+          }
         />
         <Checkbox
           label="Made to order"
           checked={params.get("type") === "MADE_TO_ORDER"}
-          onChange={() => update((p) => (p.get("type") === "MADE_TO_ORDER" ? p.delete("type") : p.set("type", "MADE_TO_ORDER")))}
+          onChange={() =>
+            update((p) => (p.get("type") === "MADE_TO_ORDER" ? p.delete("type") : p.set("type", "MADE_TO_ORDER")))
+          }
         />
         <Checkbox
           label="Can be personalized"
           checked={params.get("customizable") === "true"}
-          onChange={() => update((p) => (p.get("customizable") === "true" ? p.delete("customizable") : p.set("customizable", "true")))}
+          onChange={() =>
+            update((p) => (p.get("customizable") === "true" ? p.delete("customizable") : p.set("customizable", "true")))
+          }
         />
       </FilterGroup>
       <FilterGroup title="Style">
         {STYLES.map((s) => (
-          <Checkbox key={s} label={STYLE_LABELS[s]} checked={styles.includes(s)} onChange={() => update((p) => toggleListValue(p, "style", s))} />
+          <Checkbox
+            key={s}
+            label={STYLE_LABELS[s]}
+            checked={styles.includes(s)}
+            onChange={() => update((p) => toggleListValue(p, "style", s))}
+          />
         ))}
       </FilterGroup>
       <FilterGroup title="Material">
         {MATERIALS.filter((m) => m !== "resin").map((m) => (
-          <Checkbox key={m} label={MATERIAL_LABELS[m]} checked={materials.includes(m)} onChange={() => update((p) => toggleListValue(p, "material", m))} />
+          <Checkbox
+            key={m}
+            label={MATERIAL_LABELS[m]}
+            checked={materials.includes(m)}
+            onChange={() => update((p) => toggleListValue(p, "material", m))}
+          />
         ))}
       </FilterGroup>
     </div>
@@ -244,10 +271,23 @@ export function FilterSidebar({ showCategory = true }: { showCategory?: boolean 
   );
 }
 
-const FILTER_KEYS = ["category", "minPrice", "maxPrice", "style", "type", "customizable", "material", "inStock", "minRating"];
+const FILTER_KEYS = [
+  "category",
+  "minPrice",
+  "maxPrice",
+  "style",
+  "type",
+  "customizable",
+  "material",
+  "inStock",
+  "minRating",
+];
 
 export function activeFilterCount(params: URLSearchParams, showCategory: boolean) {
-  return FILTER_KEYS.filter((k) => (showCategory || k !== "category") && params.get(k)).length - (params.get("minPrice") && params.get("maxPrice") ? 1 : 0);
+  return (
+    FILTER_KEYS.filter((k) => (showCategory || k !== "category") && params.get(k)).length -
+    (params.get("minPrice") && params.get("maxPrice") ? 1 : 0)
+  );
 }
 
 export function ResultsToolbar({ total, showCategory = true }: { total: number; showCategory?: boolean }) {
@@ -301,7 +341,9 @@ export function ResultsToolbar({ total, showCategory = true }: { total: number; 
           <span className="text-ink-soft max-sm:sr-only">Sort by</span>
           <select
             value={params.get("sort") ?? "featured"}
-            onChange={(e) => update((p) => (e.target.value === "featured" ? p.delete("sort") : p.set("sort", e.target.value)))}
+            onChange={(e) =>
+              update((p) => (e.target.value === "featured" ? p.delete("sort") : p.set("sort", e.target.value)))
+            }
             className="h-11 rounded-full border border-line bg-paper-raised pl-4 pr-8 font-medium focus:border-forest focus:outline-none"
           >
             {SORTS.map((s) => (
@@ -314,14 +356,22 @@ export function ResultsToolbar({ total, showCategory = true }: { total: number; 
       </div>
       {open ? (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Filters">
-          <div className="absolute inset-0 bg-ink/40 animate-[scrim-in_200ms_ease-out]" onClick={() => setOpen(false)} />
+          <div
+            className="absolute inset-0 bg-ink/40 animate-[scrim-in_200ms_ease-out]"
+            onClick={() => setOpen(false)}
+          />
           <div
             ref={panelRef}
             className="absolute inset-y-0 right-0 flex w-[min(400px,92vw)] flex-col bg-paper animate-[drawer-in_320ms_var(--ease-out-soft)]"
           >
             <div className="flex items-center justify-between border-b border-line px-5 py-3">
               <h2 className="font-display text-xl">Filters</h2>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Close filters" className="grid size-11 place-items-center rounded-full hover:bg-sage">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                aria-label="Close filters"
+                className="grid size-11 place-items-center rounded-full hover:bg-sage"
+              >
                 <CloseIcon />
               </button>
             </div>
@@ -331,12 +381,18 @@ export function ResultsToolbar({ total, showCategory = true }: { total: number; 
             <div className="flex gap-3 border-t border-line px-5 py-4">
               <button
                 type="button"
-                onClick={() => update((p) => FILTER_KEYS.forEach((k) => (showCategory || k !== "category") && p.delete(k)))}
+                onClick={() =>
+                  update((p) => FILTER_KEYS.forEach((k) => (showCategory || k !== "category") && p.delete(k)))
+                }
                 className="h-12 flex-1 rounded-full border border-ink/20 font-semibold"
               >
                 Clear all
               </button>
-              <button type="button" onClick={() => setOpen(false)} className="h-12 flex-[1.4] rounded-full bg-forest font-semibold text-paper">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="h-12 flex-[1.4] rounded-full bg-forest font-semibold text-paper"
+              >
                 Show {total} {total === 1 ? "piece" : "pieces"}
               </button>
             </div>

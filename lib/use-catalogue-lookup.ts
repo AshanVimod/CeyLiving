@@ -33,5 +33,9 @@ export function useCatalogueLookup(slugs: string[]) {
 
   if (!key) return { ready: true, error: false, products: new Map<string, LookupProduct>() };
   const current = state?.key === key ? state : null;
-  return { ready: Boolean(current), error: current?.error ?? false, products: current?.products ?? new Map<string, LookupProduct>() };
+  return {
+    ready: Boolean(current),
+    error: current?.error ?? false,
+    products: current?.products ?? new Map<string, LookupProduct>(),
+  };
 }

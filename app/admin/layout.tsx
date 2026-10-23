@@ -4,7 +4,10 @@ import { AreaShell, AreaSkeleton } from "@/components/account/area-shell";
 import { requireRole } from "@/lib/server/auth";
 import { adminCounts } from "@/lib/server/services/admin-stats";
 
-export const metadata: Metadata = { title: { default: "Admin", template: "%s | CeyLiving admin" }, robots: { index: false } };
+export const metadata: Metadata = {
+  title: { default: "Admin", template: "%s | CeyLiving admin" },
+  robots: { index: false },
+};
 
 // Signed-in areas wait for the session and may redirect, so navigations into them are allowed to block.
 export const instant = false;

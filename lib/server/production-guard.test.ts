@@ -4,7 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // SEC-A8: the demo session and the dev store must refuse to work in production builds.
 vi.mock("next/server", () => ({ connection: async () => undefined }));
 vi.mock("next/headers", () => ({
-  cookies: async () => ({ get: (name: string) => (name === "ceyliving_demo_session" ? { value: "user_admin" } : undefined) }),
+  cookies: async () => ({
+    get: (name: string) => (name === "ceyliving_demo_session" ? { value: "user_admin" } : undefined),
+  }),
 }));
 
 const { getSession } = await import("@/lib/session");

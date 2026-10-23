@@ -8,7 +8,11 @@ export const metadata = { title: "Audit log" };
 
 const TYPES = ["ALL", "APPLICATION", "SHOP", "PRODUCT", "REVIEW", "QUESTION", "ANSWER", "USER", "REPORT"] as const;
 
-const dateTime = new Intl.DateTimeFormat("en-LK", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Colombo" });
+const dateTime = new Intl.DateTimeFormat("en-LK", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Colombo",
+});
 
 /** FR-10: read-only, append-only record of every admin action (SEC-11). */
 async function AuditLog({ searchParams }: { searchParams: PageProps<"/admin/audit-log">["searchParams"] }) {
@@ -18,7 +22,14 @@ async function AuditLog({ searchParams }: { searchParams: PageProps<"/admin/audi
   const entries = listAuditLog().filter((e) => current === "ALL" || e.targetType === current);
   return (
     <>
-      <FilterLinks current={current} items={TYPES.map((t) => ({ value: t, label: t === "ALL" ? "All" : t.charAt(0) + t.slice(1).toLowerCase(), href: `/admin/audit-log?type=${t}` }))} />
+      <FilterLinks
+        current={current}
+        items={TYPES.map((t) => ({
+          value: t,
+          label: t === "ALL" ? "All" : t.charAt(0) + t.slice(1).toLowerCase(),
+          href: `/admin/audit-log?type=${t}`,
+        }))}
+      />
       {entries.length ? (
         <DataTable caption="Audit log" headers={["When", "Who", "Action", "Target", "Reason"]}>
           {entries.map((e) => (
@@ -43,7 +54,10 @@ async function AuditLog({ searchParams }: { searchParams: PageProps<"/admin/audi
 export default function AuditLogPage(props: PageProps<"/admin/audit-log">) {
   return (
     <>
-      <PageTitle title="Audit log" description="Every approval, rejection, suspension, hide, delete and ban. Entries can’t be edited or removed." />
+      <PageTitle
+        title="Audit log"
+        description="Every approval, rejection, suspension, hide, delete and ban. Entries can’t be edited or removed."
+      />
       <Suspense fallback={<div className="skeleton h-64 rounded-lg" aria-busy="true" />}>
         <AuditLog searchParams={props.searchParams} />
       </Suspense>

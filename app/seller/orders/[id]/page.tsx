@@ -31,7 +31,11 @@ async function SellerOrder({ params }: { params: PageProps<"/seller/orders/[id]"
           All orders
         </Link>
       </p>
-      <PageTitle title={order.orderNumber} description={`Placed ${formatDate(order.placedAt)}.`} action={<StatusBadge status={so.status} />} />
+      <PageTitle
+        title={order.orderNumber}
+        description={`Placed ${formatDate(order.placedAt)}.`}
+        action={<StatusBadge status={so.status} />}
+      />
       <div className="space-y-6">
         <section aria-label="Items" className="rounded-lg border border-line bg-paper-raised p-5">
           <ul className="divide-y divide-line">
@@ -67,7 +71,9 @@ async function SellerOrder({ params }: { params: PageProps<"/seller/orders/[id]"
               {buyer.phone}
             </address>
           ) : (
-            <p className="mt-2 text-ink-soft">Buyer details are hidden for cancelled orders and {BUYER_DATA_VISIBLE_DAYS} days after delivery.</p>
+            <p className="mt-2 text-ink-soft">
+              Buyer details are hidden for cancelled orders and {BUYER_DATA_VISIBLE_DAYS} days after delivery.
+            </p>
           )}
         </section>
 
@@ -79,7 +85,9 @@ async function SellerOrder({ params }: { params: PageProps<"/seller/orders/[id]"
           </p>
         ) : null}
         {so.cancelReason ? <p className="text-ink-soft">Cancelled: {so.cancelReason}</p> : null}
-        {so.status === "DISPATCHED" ? <p className="text-ink-soft">Waiting for the customer to confirm delivery.</p> : null}
+        {so.status === "DISPATCHED" ? (
+          <p className="text-ink-soft">Waiting for the customer to confirm delivery.</p>
+        ) : null}
 
         <SellerOrderActions sellerOrderId={so.id} status={so.status} />
       </div>

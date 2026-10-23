@@ -10,14 +10,22 @@ export function assertRateLimit(db: StoreData, userId: string, kind: keyof typeo
   const { max, windowMs } = RATE_LIMITS[kind];
   const since = now.getTime() - windowMs;
   db.rateEvents = db.rateEvents.filter((e) => Date.parse(e.at) >= now.getTime() - 86_400_000);
-  const recent = db.rateEvents.filter((e) => e.userId === userId && e.kind === kind && Date.parse(e.at) >= since).length;
+  const recent = db.rateEvents.filter(
+    (e) => e.userId === userId && e.kind === kind && Date.parse(e.at) >= since,
+  ).length;
   if (recent >= max) throw new RateLimitError();
   db.rateEvents.push({ userId, kind, at: now.toISOString() });
 }
 
 /** One table of allowed moves per status flow (feature spec section 8); anything else is a conflict. */
-export function assertTransition<S extends string>(table: Partial<Record<S, readonly S[]>>, from: S, to: S, what: string) {
-  if (!table[from]?.includes(to)) throw new ConflictError(`This ${what} can’t move from ${label(from)} to ${label(to)}.`);
+export function assertTransition<S extends string>(
+  table: Partial<Record<S, readonly S[]>>,
+  from: S,
+  to: S,
+  what: string,
+) {
+  if (!table[from]?.includes(to))
+    throw new ConflictError(`This ${what} can’t move from ${label(from)} to ${label(to)}.`);
 }
 
 function label(status: string) {
@@ -25,7 +33,14 @@ function label(status: string) {
 }
 
 /** SEC-A9: admin actions write their audit row in the same transaction as the change. */
-export function audit(db: StoreData, actor: Actor, action: string, targetType: string, targetId: string, extra: { reason?: string; before?: unknown; after?: unknown } = {}) {
+export function audit(
+  db: StoreData,
+  actor: Actor,
+  action: string,
+  targetType: string,
+  targetId: string,
+  extra: { reason?: string; before?: unknown; after?: unknown } = {},
+) {
   addAuditEntry(db, { actorId: actor.id, action, targetType, targetId, ...extra });
 }
 

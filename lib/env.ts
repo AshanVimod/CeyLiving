@@ -47,7 +47,9 @@ export function parseEnv<S extends z.ZodType = typeof envSchema>(source: Source,
   throw new EnvError(
     result.error.issues.map((issue) => {
       const key = issue.path.join(".") || "(environment)";
-      return issue.code === "invalid_type" && issue.input === undefined ? `${key}: is required` : `${key}: ${issue.message}`;
+      return issue.code === "invalid_type" && issue.input === undefined
+        ? `${key}: is required`
+        : `${key}: ${issue.message}`;
     }),
   );
 }

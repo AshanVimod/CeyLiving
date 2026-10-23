@@ -3,7 +3,10 @@ import { Suspense } from "react";
 import { AreaShell, AreaSkeleton } from "@/components/account/area-shell";
 import { sellerContext, sellerCounts } from "@/lib/server/seller-context";
 
-export const metadata: Metadata = { title: { default: "Seller", template: "%s | CeyLiving seller" }, robots: { index: false } };
+export const metadata: Metadata = {
+  title: { default: "Seller", template: "%s | CeyLiving seller" },
+  robots: { index: false },
+};
 
 // Signed-in areas wait for the session and may redirect, so navigations into them are allowed to block.
 export const instant = false;

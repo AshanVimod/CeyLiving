@@ -22,9 +22,20 @@ export function AskQuestionForm({ productId }: { productId: string }) {
 
 export function AnswerForm({ questionId, asTeam }: { questionId: string; asTeam: boolean }) {
   return (
-    <ActionForm action={answerQuestionAction} submitLabel={asTeam ? "Answer as CeyLiving" : "Post answer"} pendingLabel="Posting…" resetOnSuccess>
+    <ActionForm
+      action={answerQuestionAction}
+      submitLabel={asTeam ? "Answer as CeyLiving" : "Post answer"}
+      pendingLabel="Posting…"
+      resetOnSuccess
+    >
       <input type="hidden" name="questionId" value={questionId} />
-      <FormTextArea label="Your answer" name="body" required maxLength={TEXT_LIMITS.answerMax} helper="Shown publicly under the question." />
+      <FormTextArea
+        label="Your answer"
+        name="body"
+        required
+        maxLength={TEXT_LIMITS.answerMax}
+        helper="Shown publicly under the question."
+      />
     </ActionForm>
   );
 }

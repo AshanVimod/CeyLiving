@@ -14,7 +14,9 @@ async function MyQuestions() {
   const db = readStore();
   const questions = questionsByAuthor(user.id, db).filter((q) => q.status !== "DELETED");
   if (!questions.length) {
-    return <EmptyState title="No questions yet" text="Ask a maker about size, materials or delivery from any item page." />;
+    return (
+      <EmptyState title="No questions yet" text="Ask a maker about size, materials or delivery from any item page." />
+    );
   }
   return (
     <ul className="space-y-4">
@@ -24,11 +26,16 @@ async function MyQuestions() {
         return (
           <li key={q.id} className="rounded-lg border border-line bg-paper-raised p-5">
             {q.status === "HIDDEN" ? (
-              <p className="mb-2 text-sm font-semibold text-lacquer">Hidden by a moderator{q.statusReason ? `: ${q.statusReason}` : ""}</p>
+              <p className="mb-2 text-sm font-semibold text-lacquer">
+                Hidden by a moderator{q.statusReason ? `: ${q.statusReason}` : ""}
+              </p>
             ) : null}
             <p className="text-sm text-ink-soft">
               {product ? (
-                <Link href={`/p/${product.slug}#q-${q.id}`} className="font-semibold text-forest underline underline-offset-4">
+                <Link
+                  href={`/p/${product.slug}#q-${q.id}`}
+                  className="font-semibold text-forest underline underline-offset-4"
+                >
                   {product.title}
                 </Link>
               ) : (

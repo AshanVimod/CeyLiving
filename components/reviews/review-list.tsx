@@ -25,12 +25,15 @@ export function ReviewList({ reviews, shopName, productTitles, helpful }: Review
       {reviews.map((r) => (
         <li key={r.id} id={`review-${r.id}`} className="border-t border-line pt-5">
           <Rating average={r.rating} size={13} />
-          {r.comment ? <p className="mt-2 max-w-prose whitespace-pre-line [overflow-wrap:anywhere]">{r.comment}</p> : null}
+          {r.comment ? (
+            <p className="mt-2 max-w-prose whitespace-pre-line [overflow-wrap:anywhere]">{r.comment}</p>
+          ) : null}
           <p className="mt-2 flex flex-wrap items-center gap-x-3 text-sm text-ink-soft">
             <span>
               {r.authorName}
               {r.orderItemId ? ", verified purchase" : ""}
-              {productTitles?.get(r.productId) ? ` on ${productTitles.get(r.productId)}` : ""}, {formatDate(r.createdAt)}
+              {productTitles?.get(r.productId) ? ` on ${productTitles.get(r.productId)}` : ""},{" "}
+              {formatDate(r.createdAt)}
               {r.editedAt ? " (edited)" : ""}
             </span>
             <ReportButton targetType="REVIEW" targetId={r.id} label="this review" />
@@ -55,7 +58,9 @@ export function ReviewList({ reviews, shopName, productTitles, helpful }: Review
           {r.ceylivingReply ? (
             <div className="mt-3 border-l-2 border-turmeric pl-4">
               <p className="text-sm font-semibold">CeyLiving team</p>
-              <p className="mt-1 text-sm text-ink-soft whitespace-pre-line [overflow-wrap:anywhere]">{r.ceylivingReply}</p>
+              <p className="mt-1 text-sm text-ink-soft whitespace-pre-line [overflow-wrap:anywhere]">
+                {r.ceylivingReply}
+              </p>
             </div>
           ) : null}
         </li>

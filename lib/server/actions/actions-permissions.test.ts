@@ -33,7 +33,11 @@ const ACTIONS = {
   ...Object.fromEntries(Object.entries(community).map(([k, v]) => [`community.${k}`, v])),
   ...Object.fromEntries(Object.entries(account).map(([k, v]) => [`account.${k}`, v])),
   ...Object.fromEntries(Object.entries(extras).map(([k, v]) => [`extras.${k}`, v])),
-  ...Object.fromEntries(Object.entries(selling).filter(([k]) => k !== "submitApplicationAction").map(([k, v]) => [`selling.${k}`, v])),
+  ...Object.fromEntries(
+    Object.entries(selling)
+      .filter(([k]) => k !== "submitApplicationAction")
+      .map(([k, v]) => [`selling.${k}`, v]),
+  ),
 } as Record<string, (state: null, fd: FormData) => Promise<{ ok: boolean; message?: string }>>;
 
 describe("SEC-A1 every server action denies guests", () => {
@@ -46,14 +50,20 @@ describe("SEC-A1 every server action denies guests", () => {
 describe("SEC-A1 / SEC-A2 roles and ownership are checked on the server, not by hidden buttons", () => {
   it("a customer can't approve applications", async () => {
     sessionUser = user("user_customer");
-    const result = await admin.decideApplicationAction(null, form({ decision: "approve", applicationId: "app_tharindu" }));
+    const result = await admin.decideApplicationAction(
+      null,
+      form({ decision: "approve", applicationId: "app_tharindu" }),
+    );
     expect(result.ok).toBe(false);
     expect(readStore().applications.find((a) => a.id === "app_tharindu")!.status).toBe("PENDING");
   });
 
   it("a seller can't suspend a shop", async () => {
     sessionUser = user("user_seller");
-    const result = await admin.decideShopAction(null, form({ decision: "suspend", shopId: "shop_kandy-batik-house", reason: "Trying to suspend a rival." }));
+    const result = await admin.decideShopAction(
+      null,
+      form({ decision: "suspend", shopId: "shop_kandy-batik-house", reason: "Trying to suspend a rival." }),
+    );
     expect(result.ok).toBe(false);
   });
 
@@ -75,7 +85,10 @@ describe("SEC-A1 / SEC-A2 roles and ownership are checked on the server, not by 
     sessionUser = user("user_customer");
     const result = await account.updateProfileAction(null, form({ name: "Anushka Perera-Silva", phone: "0779998877" }));
     expect(result.ok).toBe(true);
-    expect(readStore().users.find((u) => u.id === "user_customer")).toMatchObject({ name: "Anushka Perera-Silva", phone: "0779998877" });
+    expect(readStore().users.find((u) => u.id === "user_customer")).toMatchObject({
+      name: "Anushka Perera-Silva",
+      phone: "0779998877",
+    });
   });
 
   it("CS-14 unexpected errors don't leak details", async () => {

@@ -17,7 +17,10 @@ function StarPicker({ initial }: { initial?: number }) {
       </legend>
       <div className="flex gap-1">
         {[1, 2, 3, 4, 5].map((n) => (
-          <label key={n} className="grid size-11 cursor-pointer place-items-center rounded-full text-turmeric has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-forest">
+          <label
+            key={n}
+            className="grid size-11 cursor-pointer place-items-center rounded-full text-turmeric has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-forest"
+          >
             <input
               type="radio"
               name="rating"
@@ -44,10 +47,24 @@ function StarPicker({ initial }: { initial?: number }) {
 }
 
 /** FR-3a: write (or edit) a review of a delivered item. Ownership and eligibility are checked on the server. */
-export function ReviewForm({ orderItemId, review }: { orderItemId?: string; review?: { id: string; rating: number; comment?: string } }) {
+export function ReviewForm({
+  orderItemId,
+  review,
+}: {
+  orderItemId?: string;
+  review?: { id: string; rating: number; comment?: string };
+}) {
   return (
-    <ActionForm action={review ? editReviewAction : createReviewAction} submitLabel={review ? "Update review" : "Post review"} pendingLabel="Posting…">
-      {review ? <input type="hidden" name="reviewId" value={review.id} /> : <input type="hidden" name="orderItemId" value={orderItemId} />}
+    <ActionForm
+      action={review ? editReviewAction : createReviewAction}
+      submitLabel={review ? "Update review" : "Post review"}
+      pendingLabel="Posting…"
+    >
+      {review ? (
+        <input type="hidden" name="reviewId" value={review.id} />
+      ) : (
+        <input type="hidden" name="orderItemId" value={orderItemId} />
+      )}
       <StarPicker initial={review?.rating} />
       <FormTextArea
         label="Your review (optional)"

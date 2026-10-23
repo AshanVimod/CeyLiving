@@ -8,7 +8,8 @@ import { photoUrl } from "@/lib/format";
 
 export const metadata: Metadata = {
   title: "Traditional Sri Lanka",
-  description: "Kolam masks, Beeralu lace, Dumbara weaving, batik and coconut shell craft, from the families who keep them alive.",
+  description:
+    "Kolam masks, Beeralu lace, Dumbara weaving, batik and coconut shell craft, from the families who keep them alive.",
 };
 
 const crafts = [
@@ -55,7 +56,9 @@ const crafts = [
 ];
 
 export default function HeritagePage() {
-  const heritage = publicCatalogue().filter((p) => p.isHeritage).slice(0, 8);
+  const heritage = publicCatalogue()
+    .filter((p) => p.isHeritage)
+    .slice(0, 8);
   return (
     <>
       <section className="dumbara border-b border-line">
@@ -64,22 +67,31 @@ export default function HeritagePage() {
           <div>
             <h1 className="text-[2.6rem] leading-[1.06] sm:text-[3.6rem]">Traditional Sri Lanka</h1>
             <p className="mt-5 max-w-xl text-lg text-ink-soft">
-              Some of these crafts are over five hundred years old. They survive because families keep teaching them. Buying
-              here pays the maker directly, at the price they set.
+              Some of these crafts are over five hundred years old. They survive because families keep teaching them.
+              Buying here pays the maker directly, at the price they set.
             </p>
           </div>
           <p className="max-w-md text-ink-soft lg:justify-self-end">
-            Heritage crafts carry the turmeric label and the lacquer band across CeyLiving, so you can tell a traditional
-            technique from a modern design at a glance.
+            Heritage crafts carry the turmeric label and the lacquer band across CeyLiving, so you can tell a
+            traditional technique from a modern design at a glance.
           </p>
         </Container>
       </section>
 
       <Container className="mt-16 space-y-20 sm:space-y-28">
         {crafts.map((c, i) => (
-          <article key={c.name} className={`grid items-center gap-8 md:grid-cols-2 md:gap-14 ${i % 2 ? "md:[&>*:first-child]:order-2" : ""}`}>
+          <article
+            key={c.name}
+            className={`grid items-center gap-8 md:grid-cols-2 md:gap-14 ${i % 2 ? "md:[&>*:first-child]:order-2" : ""}`}
+          >
             <div className="arch relative aspect-[4/5] max-h-[560px] overflow-hidden bg-sage">
-              <Image src={photoUrl(c.photo.id)} alt={c.photo.alt} fill sizes="(min-width: 768px) 45vw, 92vw" className="object-cover" />
+              <Image
+                src={photoUrl(c.photo.id)}
+                alt={c.photo.alt}
+                fill
+                sizes="(min-width: 768px) 45vw, 92vw"
+                className="object-cover"
+              />
             </div>
             <div className="max-w-lg">
               <p lang="si" className="font-sinhala text-lg text-lacquer">

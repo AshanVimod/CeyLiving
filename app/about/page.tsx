@@ -11,10 +11,22 @@ export const metadata: Metadata = {
 };
 
 const principles = [
-  { title: "Made by the seller", text: "Every shop belongs to the person or workshop that makes the work. No resellers, no factory stock." },
-  { title: "Nothing hidden", text: "Maker, materials, size, processing time, delivery fee and return policy are on every listing." },
-  { title: "Honest labels", text: "Heritage crafts are labelled as heritage. Promoted listings say Promoted. Ratings come only from real orders." },
-  { title: "Fair to makers", text: `Makers set their own prices and keep ${100 - COMMISSION_RATE_BPS / 100}% of each sale. Payouts go to their bank account every week.` },
+  {
+    title: "Made by the seller",
+    text: "Every shop belongs to the person or workshop that makes the work. No resellers, no factory stock.",
+  },
+  {
+    title: "Nothing hidden",
+    text: "Maker, materials, size, processing time, delivery fee and return policy are on every listing.",
+  },
+  {
+    title: "Honest labels",
+    text: "Heritage crafts are labelled as heritage. Promoted listings say Promoted. Ratings come only from real orders.",
+  },
+  {
+    title: "Fair to makers",
+    text: `Makers set their own prices and keep ${100 - COMMISSION_RATE_BPS / 100}% of each sale. Payouts go to their bank account every week.`,
+  },
 ];
 
 export default function AboutPage() {
@@ -25,8 +37,8 @@ export default function AboutPage() {
           <h1 className="text-[2.5rem] leading-[1.08] sm:text-[3.4rem]">A market for the people who make things</h1>
           <p className="mt-5 max-w-xl text-lg text-ink-soft">
             Sri Lanka has extraordinary makers, but most of them sell to middlemen at the side of the road or wait for
-            tourists who may not come. CeyLiving gives each of them a shop of their own, and gives customers a way to find
-            original work and buy it directly.
+            tourists who may not come. CeyLiving gives each of them a shop of their own, and gives customers a way to
+            find original work and buy it directly.
           </p>
         </div>
         <div className="relative aspect-[4/3] overflow-hidden rounded-[3px] bg-sage">
@@ -59,7 +71,10 @@ export default function AboutPage() {
             <h2 className="text-[1.85rem]">Questions, ideas, or a maker we should meet?</h2>
             <p className="mt-2 text-paper/80">We read everything. Most messages get a reply within two working days.</p>
           </div>
-          <Link href="/help#contact" className="inline-flex h-12 shrink-0 items-center rounded-full bg-paper px-7 font-semibold text-ink hover:bg-turmeric-soft">
+          <Link
+            href="/help#contact"
+            className="inline-flex h-12 shrink-0 items-center rounded-full bg-paper px-7 font-semibold text-ink hover:bg-turmeric-soft"
+          >
             Contact us
           </Link>
         </div>

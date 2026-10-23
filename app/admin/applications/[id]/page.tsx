@@ -26,7 +26,16 @@ async function Application({ params }: { params: PageProps<"/admin/applications/
     ["Craft", app.craft],
     ["Category", getCategory(app.categorySlug)?.name ?? app.categorySlug],
     ["District", app.district],
-    ["Social page", app.socialUrl ? <a href={app.socialUrl} rel="noopener noreferrer nofollow" target="_blank" className="text-forest underline">{app.socialUrl}</a> : "None"],
+    [
+      "Social page",
+      app.socialUrl ? (
+        <a href={app.socialUrl} rel="noopener noreferrer nofollow" target="_blank" className="text-forest underline">
+          {app.socialUrl}
+        </a>
+      ) : (
+        "None"
+      ),
+    ],
     ["Terms accepted", formatDate(app.acceptedTermsAt)],
     ["Submitted", formatDate(app.createdAt)],
   ];
@@ -61,7 +70,15 @@ async function Application({ params }: { params: PageProps<"/admin/applications/
             const photoId = photoIdFromUrl(url);
             return (
               <li key={`${url}-${i}`} className="relative aspect-square overflow-hidden rounded-md bg-sage">
-                {photoId ? <Image src={`https://images.unsplash.com/photo-${photoId}`} alt={`Work photo ${i + 1} from ${app.shopName}`} fill sizes="200px" className="object-cover" /> : null}
+                {photoId ? (
+                  <Image
+                    src={`https://images.unsplash.com/photo-${photoId}`}
+                    alt={`Work photo ${i + 1} from ${app.shopName}`}
+                    fill
+                    sizes="200px"
+                    className="object-cover"
+                  />
+                ) : null}
               </li>
             );
           })}
@@ -78,7 +95,9 @@ async function Application({ params }: { params: PageProps<"/admin/applications/
           <ApplicationDecisions applicationId={app.id} shopName={app.shopName} />
         ) : (
           <p className="text-ink-soft">
-            {app.status === "NEEDS_CHANGES" ? "Waiting for the applicant to update the application." : `Decided${app.decidedAt ? ` on ${formatDate(app.decidedAt)}` : ""}.`}
+            {app.status === "NEEDS_CHANGES"
+              ? "Waiting for the applicant to update the application."
+              : `Decided${app.decidedAt ? ` on ${formatDate(app.decidedAt)}` : ""}.`}
           </p>
         )}
       </div>

@@ -9,7 +9,15 @@ import { ConfirmAction } from "./confirm-action";
 type ContentType = "REVIEW" | "QUESTION" | "ANSWER";
 
 /** RULE-M1 / RULE-M2: hide, restore, delete (with reasons) or reply as CeyLiving. Admins never edit the text. */
-export function ModerationActions({ targetType, targetId, status }: { targetType: ContentType; targetId: string; status: ContentStatus }) {
+export function ModerationActions({
+  targetType,
+  targetId,
+  status,
+}: {
+  targetType: ContentType;
+  targetId: string;
+  status: ContentStatus;
+}) {
   const fields = { targetType, targetId };
   return (
     <div className="flex flex-wrap gap-2">

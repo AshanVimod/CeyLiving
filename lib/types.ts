@@ -11,7 +11,8 @@ export type ApplicationStatus = "PENDING" | "NEEDS_CHANGES" | "APPROVED" | "REJE
 export type ShopStatus = "DRAFT" | "ACTIVE" | "SUSPENDED" | "CLOSED";
 export type ProductStatus = "DRAFT" | "PENDING_REVIEW" | "ACTIVE" | "REJECTED" | "ARCHIVED" | "REMOVED";
 export type ContentStatus = "VISIBLE" | "HIDDEN" | "DELETED";
-export type SellerOrderStatus = "NEW" | "ACCEPTED" | "IN_PROGRESS" | "DISPATCHED" | "COMPLETED" | "CANCELLED" | "REFUNDED";
+export type SellerOrderStatus =
+  "NEW" | "ACCEPTED" | "IN_PROGRESS" | "DISPATCHED" | "COMPLETED" | "CANCELLED" | "REFUNDED";
 export type ReportStatus = "OPEN" | "RESOLVED" | "DISMISSED";
 export type PostingRestriction = "NONE" | "MUTED" | "BANNED";
 export type ReportTargetType = "PRODUCT" | "SHOP" | "REVIEW" | "QUESTION" | "ANSWER";

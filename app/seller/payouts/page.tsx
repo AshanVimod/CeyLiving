@@ -27,14 +27,17 @@ async function Payouts() {
           </Link>
         </p>
         <p className="mt-2 text-sm text-ink-soft">
-          CeyLiving keeps {rateBps / 100}% of the item price. Delivery fees are passed to you in full. Earnings become payable {PAYOUT_HOLD_DAYS} days after the customer
-          receives the order and are paid weekly.
+          CeyLiving keeps {rateBps / 100}% of the item price. Delivery fees are passed to you in full. Earnings become
+          payable {PAYOUT_HOLD_DAYS} days after the customer receives the order and are paid weekly.
         </p>
       </section>
 
       <h2 className="mb-4 text-2xl">Not paid out yet</h2>
       {pending.length ? (
-        <DataTable caption="Earnings not yet paid out" headers={["Order", "Delivered", "Payable from", "Your earnings"]}>
+        <DataTable
+          caption="Earnings not yet paid out"
+          headers={["Order", "Delivered", "Payable from", "Your earnings"]}
+        >
           {pending.map((u) => (
             <tr key={u.sellerOrder.id}>
               <Td>
@@ -54,7 +57,10 @@ async function Payouts() {
 
       <h2 className="mt-10 mb-4 text-2xl">Statements</h2>
       {payouts.length ? (
-        <DataTable caption="Payout statements" headers={["Period", "Orders", "Sales and delivery", "Commission", "You receive", "Status"]}>
+        <DataTable
+          caption="Payout statements"
+          headers={["Period", "Orders", "Sales and delivery", "Commission", "You receive", "Status"]}
+        >
           {payouts.map((p) => (
             <tr key={p.id}>
               <Td>
@@ -65,14 +71,26 @@ async function Payouts() {
               <Td className="tabular-nums">−{formatLkr(p.commissionCents)}</Td>
               <Td className="font-semibold tabular-nums">{formatLkr(p.netCents)}</Td>
               <Td>
-                <StatusBadge status={p.status} label={p.status === "PAID" ? `Paid ${p.paidAt ? formatDate(p.paidAt) : ""}` : p.status === "SCHEDULED" ? "Scheduled" : undefined} />
+                <StatusBadge
+                  status={p.status}
+                  label={
+                    p.status === "PAID"
+                      ? `Paid ${p.paidAt ? formatDate(p.paidAt) : ""}`
+                      : p.status === "SCHEDULED"
+                        ? "Scheduled"
+                        : undefined
+                  }
+                />
                 {p.reference ? <span className="mt-1 block text-xs text-ink-soft">Ref {p.reference}</span> : null}
               </Td>
             </tr>
           ))}
         </DataTable>
       ) : (
-        <p className="text-ink-soft">No statements yet. The first one is created after your first delivered order passes the {PAYOUT_HOLD_DAYS}-day hold.</p>
+        <p className="text-ink-soft">
+          No statements yet. The first one is created after your first delivered order passes the {PAYOUT_HOLD_DAYS}-day
+          hold.
+        </p>
       )}
     </>
   );

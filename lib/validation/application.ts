@@ -31,8 +31,16 @@ export type ApplicationInput = z.infer<typeof applicationSchema>;
 
 export const decisionSchema = z.discriminatedUnion("decision", [
   z.object({ decision: z.literal("approve"), applicationId: z.string().min(1) }),
-  z.object({ decision: z.literal("reject"), applicationId: z.string().min(1), reason: reason(TEXT_LIMITS.reasonMin, TEXT_LIMITS.reasonMax) }),
-  z.object({ decision: z.literal("changes"), applicationId: z.string().min(1), reason: reason(TEXT_LIMITS.reasonMin, TEXT_LIMITS.reasonMax) }),
+  z.object({
+    decision: z.literal("reject"),
+    applicationId: z.string().min(1),
+    reason: reason(TEXT_LIMITS.reasonMin, TEXT_LIMITS.reasonMax),
+  }),
+  z.object({
+    decision: z.literal("changes"),
+    applicationId: z.string().min(1),
+    reason: reason(TEXT_LIMITS.reasonMin, TEXT_LIMITS.reasonMax),
+  }),
 ]);
 
 export type DecisionInput = z.infer<typeof decisionSchema>;

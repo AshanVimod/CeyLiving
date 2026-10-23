@@ -38,7 +38,9 @@ describe("public catalogue", () => {
     expect(publicShops().some((s) => s.slug === MASK_SHOP)).toBe(false);
     expect(queryCatalogue({ q: "raksha" }).total).toBe(0);
     expect(searchSuggestions("raksha", 8).filter((s) => s.kind === "Product")).toEqual([]);
-    expect(lookupProducts(["naga-raksha-mask", "terracotta-vase-trio"]).map((p) => p.slug)).toEqual(["terracotta-vase-trio"]);
+    expect(lookupProducts(["naga-raksha-mask", "terracotta-vase-trio"]).map((p) => p.slug)).toEqual([
+      "terracotta-vase-trio",
+    ]);
     expect(productCountByCategory("wood-carvings")).toBeLessThan(woodCount);
     const vase = getPublicProduct("terracotta-vase-trio")!;
     expect(relatedProducts(vase, 50).some((p) => p.shopSlug === MASK_SHOP)).toBe(false);

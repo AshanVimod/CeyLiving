@@ -38,7 +38,11 @@ function ownProduct(shop: Shop, productId: string, db: StoreData): Product {
   return product;
 }
 
-function toFields(input: ProductInput, shop: Shop, slug: string): Omit<Product, "id" | "status" | "createdAt" | "updatedAt" | "publishedAt"> {
+function toFields(
+  input: ProductInput,
+  shop: Shop,
+  slug: string,
+): Omit<Product, "id" | "status" | "createdAt" | "updatedAt" | "publishedAt"> {
   const skuBase = slug.slice(0, 12).toUpperCase();
   return {
     slug,
@@ -59,8 +63,22 @@ function toFields(input: ProductInput, shop: Shop, slug: string): Omit<Product, 
     dimensions: input.dimensions,
     care: input.care,
     images: input.images.map((i) => ({ id: photoIdFromUrl(i.url)!, alt: i.alt })),
-    variants: input.variants.map((v, i) => ({ sku: `${skuBase}-${i + 1}`, label: v.label, priceCents: v.price, compareAtPriceCents: v.compareAt, stock: v.stock })),
-    customization: input.customization.map((f, i) => ({ key: `field${i + 1}`, label: f.label, kind: f.kind, options: f.kind === "SELECT" ? f.options : undefined, maxLength: f.maxLength, isRequired: f.isRequired, helper: f.helper })),
+    variants: input.variants.map((v, i) => ({
+      sku: `${skuBase}-${i + 1}`,
+      label: v.label,
+      priceCents: v.price,
+      compareAtPriceCents: v.compareAt,
+      stock: v.stock,
+    })),
+    customization: input.customization.map((f, i) => ({
+      key: `field${i + 1}`,
+      label: f.label,
+      kind: f.kind,
+      options: f.kind === "SELECT" ? f.options : undefined,
+      maxLength: f.maxLength,
+      isRequired: f.isRequired,
+      helper: f.helper,
+    })),
   };
 }
 
@@ -68,24 +86,44 @@ function toFields(input: ProductInput, shop: Shop, slug: string): Omit<Product, 
  * FR-2c: create or edit an item. Drafts save as they are; submitting goes to review for new shops
  * and straight to ACTIVE once the shop has enough approved items (RULE-P2).
  */
-export async function saveProduct(actor: Actor, input: ProductInput, intent: "draft" | "submit", productId?: string): Promise<Product> {
+export async function saveProduct(
+  actor: Actor,
+  input: ProductInput,
+  intent: "draft" | "submit",
+  productId?: string,
+): Promise<Product> {
   return transaction((db) => {
     const shop = shopOfSeller(actor, db);
     if (shop.status === "CLOSED") throw new ConflictError("This shop is closed.");
     const existing = productId ? ownProduct(shop, productId, db) : undefined;
-    if (existing?.status === "REMOVED") throw new ConflictError("This item was removed by CeyLiving and can’t be edited.");
+    if (existing?.status === "REMOVED")
+      throw new ConflictError("This item was removed by CeyLiving and can’t be edited.");
     const now = new Date().toISOString();
     const taken = new Set(db.products.filter((p) => p.id !== existing?.id).map((p) => p.slug));
     const slug = existing && existing.status !== "DRAFT" ? existing.slug : uniqueSlug(slugify(input.title), taken);
-    const next: ProductStatus = intent === "draft" ? "DRAFT" : approvedCount(shop, db) - (existing?.status === "ACTIVE" ? 1 : 0) >= APPROVED_ITEMS_FOR_AUTOPUBLISH ? "ACTIVE" : "PENDING_REVIEW";
+    const next: ProductStatus =
+      intent === "draft"
+        ? "DRAFT"
+        : approvedCount(shop, db) - (existing?.status === "ACTIVE" ? 1 : 0) >= APPROVED_ITEMS_FOR_AUTOPUBLISH
+          ? "ACTIVE"
+          : "PENDING_REVIEW";
     if (existing) assertTransition(SELLER_FLOW, existing.status, next, "item");
     const fields = toFields(input, shop, slug);
     const product: Product = existing
-      ? Object.assign(existing, fields, { status: next, rejectionReason: undefined, updatedAt: now, publishedAt: next === "ACTIVE" && existing.status !== "ACTIVE" ? now.slice(0, 10) : existing.publishedAt })
+      ? Object.assign(existing, fields, {
+          status: next,
+          rejectionReason: undefined,
+          updatedAt: now,
+          publishedAt: next === "ACTIVE" && existing.status !== "ACTIVE" ? now.slice(0, 10) : existing.publishedAt,
+        })
       : { ...fields, id: newId("prod"), status: next, createdAt: now, updatedAt: now, publishedAt: now.slice(0, 10) };
     if (!existing) db.products.push(product);
     if (next === "PENDING_REVIEW") {
-      db.users.filter((u) => u.role === "ADMIN").forEach((a) => addNotification(db, a.id, "product.pending", `New item to review: ${product.title}`, "/admin/products"));
+      db.users
+        .filter((u) => u.role === "ADMIN")
+        .forEach((a) =>
+          addNotification(db, a.id, "product.pending", `New item to review: ${product.title}`, "/admin/products"),
+        );
     }
     activateIfReady(shop, db);
     return product;
@@ -116,7 +154,8 @@ export async function decideProduct(actor: Actor, input: ProductDecisionInput): 
   return transaction((db) => {
     const product = db.products.find((p) => p.id === input.productId);
     if (!product) throw new NotFoundError("Item not found.");
-    const to: ProductStatus = input.decision === "approve" ? "ACTIVE" : input.decision === "reject" ? "REJECTED" : "REMOVED";
+    const to: ProductStatus =
+      input.decision === "approve" ? "ACTIVE" : input.decision === "reject" ? "REJECTED" : "REMOVED";
     assertTransition(ADMIN_FLOW, product.status, to, "item");
     const before = product.status;
     const reason = input.decision === "approve" ? undefined : input.reason;
@@ -124,7 +163,12 @@ export async function decideProduct(actor: Actor, input: ProductDecisionInput): 
     if (to === "ACTIVE") product.publishedAt = new Date().toISOString().slice(0, 10);
     const shop = db.shops.find((s) => s.slug === product.shopSlug);
     if (shop) {
-      const title = to === "ACTIVE" ? `“${product.title}” is approved and on sale` : to === "REJECTED" ? `“${product.title}” needs changes` : `“${product.title}” was removed`;
+      const title =
+        to === "ACTIVE"
+          ? `“${product.title}” is approved and on sale`
+          : to === "REJECTED"
+            ? `“${product.title}” needs changes`
+            : `“${product.title}” was removed`;
       addNotification(db, shop.ownerId, `product.${to.toLowerCase()}`, title, `/seller/products/${product.id}/edit`);
       activateIfReady(shop, db);
     }

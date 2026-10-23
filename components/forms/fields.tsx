@@ -64,7 +64,16 @@ interface TextAreaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
   maxLength: number;
 }
 
-export function TextArea({ label, error, helper, required, maxLength, className = "", onChange, ...rest }: TextAreaProps) {
+export function TextArea({
+  label,
+  error,
+  helper,
+  required,
+  maxLength,
+  className = "",
+  onChange,
+  ...rest
+}: TextAreaProps) {
   const id = useId();
   const [length, setLength] = useState(String(rest.defaultValue ?? "").length);
   const describedBy = [helper ? `${id}-help` : null, error ? `${id}-err` : null].filter(Boolean).join(" ") || undefined;
@@ -125,9 +134,9 @@ export function DemoForm({
     const form = e.currentTarget;
     if (!form.checkValidity()) {
       setState("invalid");
-      form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("input, textarea, select").forEach((el) =>
-        el.setAttribute("aria-invalid", String(!el.checkValidity())),
-      );
+      form
+        .querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>("input, textarea, select")
+        .forEach((el) => el.setAttribute("aria-invalid", String(!el.checkValidity())));
       form.querySelector<HTMLElement>(":invalid")?.focus();
       return;
     }
@@ -137,7 +146,10 @@ export function DemoForm({
 
   if (state === "sent") {
     return (
-      <div role="status" className="rounded-lg border border-forest/30 bg-sage p-6 animate-[toast-in_300ms_var(--ease-out-soft)]">
+      <div
+        role="status"
+        className="rounded-lg border border-forest/30 bg-sage p-6 animate-[toast-in_300ms_var(--ease-out-soft)]"
+      >
         <h3 className="font-display text-2xl">{successTitle}</h3>
         <p className="mt-2 text-ink-soft">{successText}</p>
       </div>
@@ -158,7 +170,10 @@ export function DemoForm({
         className="inline-flex h-12 items-center gap-2 rounded-full bg-forest px-7 font-semibold text-paper transition-[background-color,transform] hover:bg-forest-deep active:scale-[0.98] disabled:opacity-60"
       >
         {state === "sending" ? (
-          <span className="size-4 animate-spin rounded-full border-2 border-paper/40 border-t-paper" aria-hidden="true" />
+          <span
+            className="size-4 animate-spin rounded-full border-2 border-paper/40 border-t-paper"
+            aria-hidden="true"
+          />
         ) : null}
         {state === "sending" ? "Sending…" : submitLabel}
       </button>

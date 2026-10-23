@@ -30,7 +30,13 @@ function parseSlugs(raw: string): string[] {
 /** Shows the last few other products the customer looked at, then records this visit. Hidden items drop out (RULE-S4). */
 export function RecentlyViewed({ currentSlug }: { currentSlug: string }) {
   const raw = useSyncExternalStore(noopSubscribe, readHistory, () => "[]");
-  const slugs = useMemo(() => parseSlugs(raw).filter((s) => s !== currentSlug).slice(0, 6), [raw, currentSlug]);
+  const slugs = useMemo(
+    () =>
+      parseSlugs(raw)
+        .filter((s) => s !== currentSlug)
+        .slice(0, 6),
+    [raw, currentSlug],
+  );
   const lookup = useCatalogueLookup(slugs);
   const items = slugs.map((s) => lookup.products.get(s)).filter((p): p is LookupProduct => Boolean(p));
 
@@ -55,7 +61,13 @@ export function RecentlyViewed({ currentSlug }: { currentSlug: string }) {
           <li key={p.slug}>
             <Link href={`/p/${p.slug}`} className="group block">
               <div className="relative aspect-[4/5] overflow-hidden rounded-[3px] bg-sage">
-                <Image src={photoUrl(p.image.id)} alt={p.image.alt} fill sizes="(min-width: 640px) 180px, 30vw" className="object-cover" />
+                <Image
+                  src={photoUrl(p.image.id)}
+                  alt={p.image.alt}
+                  fill
+                  sizes="(min-width: 640px) 180px, 30vw"
+                  className="object-cover"
+                />
               </div>
               <p className="mt-2 truncate text-sm group-hover:underline underline-offset-4">{p.title}</p>
               <p className="text-sm font-semibold tabular-nums">{formatLkr(lowestPriceCents(p))}</p>
