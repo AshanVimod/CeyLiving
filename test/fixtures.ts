@@ -6,12 +6,14 @@ const PHOTO = "https://images.unsplash.com/photo-1786468539104-e03f3ae580ea";
 
 export const validApplication = () =>
   applicationSchema.parse({
+    applicantName: "Nimali Perera",
+    phone: "0771112233",
+    businessType: "INDIVIDUAL",
     shopName: "Kelani Clay Studio",
     craft: "Hand-built terracotta planters",
-    categorySlug: "home-decor",
-    district: "Gampaha",
+    categorySlugs: ["home-decor", "eco-friendly"],
+    address: { line1: "12 Temple Road", city: "Kelaniya", district: "Gampaha", postalCode: "11600" },
     story: "I build planters and lamps by hand from Kelani river clay, fired in a small wood kiln behind our house.",
-    phone: "0771112233",
     workPhotoUrls: [PHOTO, PHOTO, PHOTO],
     acceptTerms: "on",
   });

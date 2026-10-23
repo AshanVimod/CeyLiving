@@ -21,12 +21,23 @@ async function Application({ params }: { params: PageProps<"/admin/applications/
   if (!app) notFound();
   const applicant = await findUserById(db, app.userId);
   const decider = app.decidedById ? await findUserById(db, app.decidedById) : undefined;
+  const { address } = app;
   const rows: [string, React.ReactNode][] = [
-    ["Applicant", `${applicant?.name ?? "Unknown"} (${applicant?.email ?? ""})`],
+    ["Account", `${applicant?.name ?? "Unknown"} (${applicant?.email ?? ""})`],
+    ["Full name", app.applicantName || "Not given"],
     ["Phone", app.phone],
+    ["Sells as", app.businessType === "REGISTERED_BUSINESS" ? "A registered business" : "An individual maker"],
+    ...(app.businessType === "REGISTERED_BUSINESS"
+      ? [["Registration number", app.businessRegNo ?? "Not given"] as [string, React.ReactNode]]
+      : []),
     ["Craft", app.craft],
-    ["Category", getCategory(app.categorySlug)?.name ?? app.categorySlug],
-    ["District", app.district],
+    ["Categories", app.categorySlugs.map((slug) => getCategory(slug)?.name ?? slug).join(", ")],
+    [
+      "Shop address",
+      address.line1
+        ? [address.line1, address.line2, address.city, address.district, address.postalCode].filter(Boolean).join(", ")
+        : `Not given (district: ${address.district})`,
+    ],
     [
       "Social page",
       app.socialUrl ? (

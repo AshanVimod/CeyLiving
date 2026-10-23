@@ -26,7 +26,7 @@ import { StoreUnavailableError } from "../errors";
 import { demoSignInAllowed, isDemoMode, isProductionRuntime } from "../runtime";
 import { buildSeed, SEED_TIME } from "./seed";
 
-export const STORE_VERSION = 2;
+export const STORE_VERSION = 3;
 
 export interface StoreData {
   version: number;
@@ -128,18 +128,40 @@ function loadFromDisk(file: string): StoreData {
   return cache.data;
 }
 
-/** Upgrades an older store file in place so people keep their test data; unknown versions are reseeded. */
-function migrate(data: StoreData): StoreData {
-  if (data.version === 1) {
-    return {
-      ...data,
+/** A version-2 application: one category and a district, before FR-2a asked for the applicant and an address. */
+type ApplicationV2 = Omit<SellerApplication, "applicantName" | "businessType" | "categorySlugs" | "address"> & {
+  categorySlug: string;
+  district: string;
+};
+
+/** Upgrades an older store file in place, one version at a time, so people keep their test data. */
+export function migrate(data: StoreData): StoreData {
+  let current = data;
+  if (current.version === 1) {
+    current = {
+      ...current,
       version: 2,
-      payouts: data.payouts ?? [],
-      customRequests: data.customRequests ?? [],
-      helpfulVotes: data.helpfulVotes ?? [],
+      payouts: current.payouts ?? [],
+      customRequests: current.customRequests ?? [],
+      helpfulVotes: current.helpfulVotes ?? [],
     };
   }
-  return buildSeed(new Date());
+  if (current.version === 2) {
+    // v3 (FR-2a): applications name the applicant, list categories and give an address. Old ones keep what they had.
+    const names = new Map(current.users.map((u) => [u.id, u.name]));
+    current = {
+      ...current,
+      version: 3,
+      applications: (current.applications as unknown as ApplicationV2[]).map(({ categorySlug, district, ...rest }) => ({
+        ...rest,
+        applicantName: names.get(rest.userId) ?? "",
+        businessType: "INDIVIDUAL" as const,
+        categorySlugs: [categorySlug],
+        address: { line1: "", city: "", district },
+      })),
+    };
+  }
+  return current.version === STORE_VERSION ? current : buildSeed(new Date());
 }
 
 /** Current data, read-only. Callers must not mutate it; use `transaction` to write. */

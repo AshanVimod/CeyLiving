@@ -11,7 +11,7 @@ export const SEED_TIME = "2026-10-22T06:00:00.000Z";
 /** The six accounts offered on /signin in development (feature spec 7.5). */
 export const DEMO_ACCOUNTS = [
   { id: "user_customer", label: "Customer", note: "Has orders, one ready to review" },
-  { id: "user_applicant", label: "Applicant", note: "Seller application pending" },
+  { id: "user_applicant", label: "Applicant", note: "Shop application pending" },
   { id: "user_seller", label: "Seller", note: "Ambalangoda Mask House, active" },
   { id: "user_seller_suspended", label: "Seller (suspended)", note: "Pol Katu Lanka, suspended" },
   { id: "user_admin", label: "Admin", note: "Reviews applications and content" },
@@ -176,7 +176,7 @@ export function buildSeed(now: Date): StoreData {
   const { shops, owners } = seedShops(now);
   const products = productSeeds.map((p) => toProduct(p, now));
   const data: StoreData = {
-    version: 2,
+    version: 3,
     users: [...users, ...owners],
     applications: [],
     shops,
@@ -303,13 +303,15 @@ function seedApplicationAndContent(data: StoreData, now: Date, productBySlug: (s
   data.applications.push({
     id: "app_tharindu",
     userId: "user_applicant",
+    applicantName: "Tharindu Silva",
+    phone: "0712345678",
+    businessType: "INDIVIDUAL",
     shopName: "Matale Laksha Works",
     craft: "Laksha lacquerware turned on a hand lathe",
-    categorySlug: "sri-lankan-handicrafts",
-    district: "Matale",
+    categorySlugs: ["sri-lankan-handicrafts", "home-decor"],
+    address: { line1: "42 Kandy Road", city: "Matale", district: "Matale", postalCode: "21000" },
     story:
       "My family has turned and lacquered wood in Matale for three generations. I make bowls, boxes and walking sticks with the traditional red, yellow and black bands, using lac and natural pigments.",
-    phone: "0712345678",
     workPhotoUrls: [
       "https://images.unsplash.com/photo-1786468539104-e03f3ae580ea",
       "https://images.unsplash.com/photo-1759523121247-76be6b3490b2",

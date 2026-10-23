@@ -109,7 +109,8 @@ export async function exportMyData(actor: Actor, tx: Tx = db) {
 
 /**
  * FR-17: soft delete with anonymisation. Order records stay (legal and tax), but the name, email, phone,
- * addresses and notifications are removed, and public posts show "Former customer".
+ * addresses (including shop-application addresses) and notifications are removed, and public posts show
+ * "Former customer".
  */
 export async function deleteMyAccount(actor: Actor, now = new Date()): Promise<void> {
   if (actor.role === "ADMIN") throw new ForbiddenError("Admin accounts can’t be deleted from here. Ask another admin.");
@@ -135,9 +136,17 @@ export async function deleteMyAccount(actor: Actor, now = new Date()): Promise<v
       });
     await renameAuthorOnPosts(tx, user.id, FORMER);
     await renameCustomerOnRequests(tx, user.id, FORMER);
-    for (const application of await applicationsOf(tx, user.id))
-      if (application.status === "PENDING" || application.status === "NEEDS_CHANGES")
-        await updateApplication(tx, application.id, { status: "WITHDRAWN" });
+    for (const application of await applicationsOf(tx, user.id)) {
+      const open = application.status === "PENDING" || application.status === "NEEDS_CHANGES";
+      // The decision stays for the record; the applicant's contact details and address don't.
+      await updateApplication(tx, application.id, {
+        ...(open ? { status: "WITHDRAWN" as const } : {}),
+        applicantName: FORMER,
+        phone: "",
+        businessRegNo: undefined,
+        address: { line1: "", city: "", district: application.address.district },
+      });
+    }
     await deleteAddressesOf(tx, user.id);
     await deleteNotificationsOf(tx, user.id);
     await deleteVotesOf(tx, user.id);
