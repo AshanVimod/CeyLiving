@@ -1,8 +1,16 @@
 import { signInAsDemo } from "@/lib/server/actions/session";
 import { DEMO_ACCOUNTS } from "@/lib/server/store/seed";
 
-/** Development only (D-05): sign in as a seeded account without the browser console. */
-export function DemoAccountsPanel({ next, currentUserId }: { next: string; currentUserId?: string }) {
+/** Development only (D-05): sign in as a seeded account without the browser console. Also on the public demo. */
+export function DemoAccountsPanel({
+  next,
+  currentUserId,
+  publicDemo = false,
+}: {
+  next: string;
+  currentUserId?: string;
+  publicDemo?: boolean;
+}) {
   return (
     <section
       aria-labelledby="demo-heading"
@@ -12,7 +20,9 @@ export function DemoAccountsPanel({ next, currentUserId }: { next: string; curre
         Demo accounts
       </h2>
       <p className="mt-1 text-sm text-ink-soft">
-        Development only. Pick an account to see what each role can do. Not shown in production.
+        {publicDemo
+          ? "Pick a demo buyer, seller or admin account to try what each role can do. No password needed."
+          : "Development only. Pick an account to see what each role can do. Not shown in production."}
       </p>
       <ul className="mt-4 grid gap-2">
         {DEMO_ACCOUNTS.map((account) => (

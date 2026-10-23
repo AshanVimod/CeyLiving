@@ -6,15 +6,15 @@ import { DEMO_SESSION_MAX_AGE_SECONDS } from "@/lib/config";
 import { DEMO_SESSION_COOKIE } from "@/lib/session";
 import { safeNextPath } from "../auth";
 import { findUserById } from "../repositories/people";
-import { isProductionRuntime } from "../store/dev-store";
+import { demoSignInAllowed } from "../store/dev-store";
 import { DEMO_ACCOUNTS } from "../store/seed";
 
 /**
- * Development-only sign-in as one of the seeded demo accounts (feature spec 7.5).
+ * Development-only sign-in as one of the seeded demo accounts (feature spec 7.5); also on the public demo (DEMO_MODE).
  * Only IDs on the demo list are accepted, and the cookie is HttpOnly and SameSite=Lax.
  */
 export async function signInAsDemo(formData: FormData): Promise<void> {
-  if (isProductionRuntime()) redirect("/signin");
+  if (!demoSignInAllowed()) redirect("/signin");
   const userId = formData.get("userId");
   const allowed = DEMO_ACCOUNTS.some((a) => a.id === userId);
   if (typeof userId !== "string" || !allowed || !findUserById(userId) || findUserById(userId)?.deletedAt)

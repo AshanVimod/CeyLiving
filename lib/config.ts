@@ -20,6 +20,8 @@ export const SEARCH_DEBOUNCE_MS = 250;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 
+/** Feature-02: the public demo's in-memory store goes back to the seed this often. */
+export const DEMO_RESET_HOURS = 6;
 /** RULE-A1: wait before a rejected applicant may apply again. */
 export const REAPPLY_WAIT_DAYS = 30;
 /** RULE-P2: approved items a shop needs before new items publish without review. */

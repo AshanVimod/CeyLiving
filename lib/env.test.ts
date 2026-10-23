@@ -27,7 +27,11 @@ describe("lib/env", () => {
   });
 
   it("SEC-A8 production without ENABLE_DEMO_LOGIN parses with demo login off", () => {
-    expect(parseEnv({ NODE_ENV: "production" })).toEqual({ NODE_ENV: "production", ENABLE_DEMO_LOGIN: false });
+    expect(parseEnv({ NODE_ENV: "production" })).toEqual({
+      NODE_ENV: "production",
+      ENABLE_DEMO_LOGIN: false,
+      DEMO_MODE: false,
+    });
   });
 
   it("OPS-01 accepts a known LOG_LEVEL and rejects anything else", () => {
@@ -50,7 +54,23 @@ describe("lib/env", () => {
     expect(parseEnv({ NODE_ENV: "development", ENABLE_DEMO_LOGIN: "", CEYLIVING_STORE_PATH: "" })).toEqual({
       NODE_ENV: "development",
       ENABLE_DEMO_LOGIN: false,
+      DEMO_MODE: false,
     });
+  });
+
+  it("AU-09 DEMO_MODE=true is allowed in production, but ENABLE_DEMO_LOGIN=true still is not", () => {
+    expect(parseEnv({ NODE_ENV: "production", DEMO_MODE: "true" }).DEMO_MODE).toBe(true);
+    expect(problems(() => parseEnv({ NODE_ENV: "production", DEMO_MODE: "true", ENABLE_DEMO_LOGIN: "true" }))).toEqual([
+      "ENABLE_DEMO_LOGIN: must not be true when NODE_ENV=production (AU-09)",
+    ]);
+  });
+
+  it("12.3 FEEDBACK_URL must be an https URL", () => {
+    expect(parseEnv({ FEEDBACK_URL: "https://forms.gle/abc" }).FEEDBACK_URL).toBe("https://forms.gle/abc");
+    expect(problems(() => parseEnv({ FEEDBACK_URL: "http://forms.gle/abc" }))).toEqual([
+      "FEEDBACK_URL: must be an https:// URL",
+    ]);
+    expect(problems(() => parseEnv({ FEEDBACK_URL: "not a url" }))).toEqual(["FEEDBACK_URL: must be an https:// URL"]);
   });
 
   it("12.3 getEnv reads the current environment on every call", () => {
