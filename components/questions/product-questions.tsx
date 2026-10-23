@@ -54,14 +54,14 @@ export async function ProductQuestions({
                   </p>
                 ) : null}
                 <p className="font-medium [overflow-wrap:anywhere]">{q.body}</p>
-                <p className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-ink-soft">
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-ink-soft">
                   <span>
                     {q.authorName}, {formatDate(q.createdAt)}
                   </span>
                   {q.status === "VISIBLE" ? (
                     <ReportButton targetType="QUESTION" targetId={q.id} label="this question" />
                   ) : null}
-                </p>
+                </div>
                 {q.status === "VISIBLE" ? (
                   <div className="mt-2">
                     <HelpfulButton
@@ -79,10 +79,10 @@ export async function ProductQuestions({
                       {a.authorRole === "ADMIN" ? "CeyLiving team" : `${shop.name} (Seller)`}
                     </p>
                     <p className="mt-1 whitespace-pre-line [overflow-wrap:anywhere]">{a.body}</p>
-                    <p className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-ink-soft">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 text-sm text-ink-soft">
                       <span>{formatDate(a.createdAt)}</span>
                       <ReportButton targetType="ANSWER" targetId={a.id} label="this answer" />
-                    </p>
+                    </div>
                   </div>
                 ))}
                 {(isOwner || isAdmin) && q.status === "VISIBLE" && user && canPost(user) ? (
