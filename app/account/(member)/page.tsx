@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { db } from "@/lib/server/db/tx";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PageTitle } from "@/components/account/area-shell";
@@ -39,8 +40,8 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 const button = "inline-flex h-11 items-center rounded-full px-5 text-sm font-semibold transition-colors";
 
-function SellerCard({ user }: { user: User }) {
-  const shop = findShopByOwner(user.id);
+async function SellerCard({ user }: { user: User }) {
+  const shop = await findShopByOwner(db, user.id);
   if (!shop) return null;
   return (
     <Card title="Your shop">
@@ -127,7 +128,7 @@ function CustomerLinks() {
 
 async function Profile() {
   const user = await requireUser("/account");
-  const application = applicationsOf(user.id)[0];
+  const application = (await applicationsOf(db, user.id))[0];
   return (
     <>
       <PageTitle title="My profile" />

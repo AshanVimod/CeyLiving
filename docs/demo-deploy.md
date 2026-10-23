@@ -138,7 +138,8 @@ way round.
    | File                                         | Keep                                                                       |
    | -------------------------------------------- | -------------------------------------------------------------------------- |
    | `lib/env.ts`, `.env.example`                 | the `DEMO_MODE` and `FEEDBACK_URL` entries next to the new keys            |
-   | `lib/server/store/dev-store.ts`              | `isDemoMode`, `demoSignInAllowed`, `demoState` and the in-memory branch in `readStore` / `transaction` |
+   | `lib/server/runtime.ts`                      | `isDemoMode` and `demoSignInAllowed`                                       |
+   | `lib/server/store/dev-store.ts`              | `demoState` and the in-memory branch in `readStore` / `transaction`        |
    | `lib/session.ts`, `lib/server/actions/session.ts` | the `demoSignInAllowed()` checks                                      |
    | `app/signin/page.tsx`, `components/account/demo-accounts-panel.tsx` | the `publicDemo` text                               |
    | `app/layout.tsx`, `next.config.ts`           | `<DemoBanner />`, the demo `robots` metadata and the `X-Robots-Tag` header |

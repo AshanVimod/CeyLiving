@@ -6,7 +6,8 @@ import { DEMO_SESSION_MAX_AGE_SECONDS } from "@/lib/config";
 import { DEMO_SESSION_COOKIE } from "@/lib/session";
 import { safeNextPath } from "../auth";
 import { findUserById } from "../repositories/people";
-import { demoSignInAllowed } from "../store/dev-store";
+import { db } from "../db/tx";
+import { demoSignInAllowed } from "../runtime";
 import { DEMO_ACCOUNTS } from "../store/seed";
 
 /**
@@ -17,8 +18,8 @@ export async function signInAsDemo(formData: FormData): Promise<void> {
   if (!demoSignInAllowed()) redirect("/signin");
   const userId = formData.get("userId");
   const allowed = DEMO_ACCOUNTS.some((a) => a.id === userId);
-  if (typeof userId !== "string" || !allowed || !findUserById(userId) || findUserById(userId)?.deletedAt)
-    redirect("/signin");
+  const user = typeof userId === "string" && allowed ? await findUserById(db, userId) : undefined;
+  if (typeof userId !== "string" || !user || user.deletedAt) redirect("/signin");
   const store = await cookies();
   store.set(DEMO_SESSION_COOKIE, userId, {
     httpOnly: true,

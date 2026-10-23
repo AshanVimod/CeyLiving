@@ -48,9 +48,9 @@ function ChecklistItem({
 
 async function Dashboard() {
   const { shop, db } = await sellerContext("/seller");
-  const checklist = shopChecklist(shop, db);
-  const c = sellerCounts(shop.id, shop.slug);
-  const approved = approvedCount(shop, db);
+  const checklist = await shopChecklist(shop, db);
+  const c = await sellerCounts(shop.id, shop.slug);
+  const approved = await approvedCount(shop, db);
   const tiles = [
     { label: "New orders to accept", value: c.newOrders, href: "/seller/orders" },
     { label: "Questions to answer", value: c.unanswered, href: "/seller/questions" },

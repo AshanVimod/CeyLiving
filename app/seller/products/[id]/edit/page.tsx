@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { PageTitle } from "@/components/account/area-shell";
 import { ProductForm } from "@/components/seller/product-form";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { findProductById } from "@/lib/server/repositories/catalogue";
 import { sellerContext } from "@/lib/server/seller-context";
 
 export const metadata = { title: "Edit item" };
@@ -12,7 +13,8 @@ async function EditProduct({ params }: { params: PageProps<"/seller/products/[id
   const { id } = await params;
   const { shop, db } = await sellerContext(`/seller/products/${id}/edit`);
   // SEC-A2 / SEC-A5: only items of the seller's own shop; anything else is "not found".
-  const product = db.products.find((p) => p.id === id && p.shopSlug === shop.slug);
+  const found = await findProductById(db, id);
+  const product = found?.shopSlug === shop.slug ? found : undefined;
   if (!product || product.status === "REMOVED") notFound();
   return (
     <>

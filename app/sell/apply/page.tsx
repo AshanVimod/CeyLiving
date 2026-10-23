@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { db } from "@/lib/server/db/tx";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ApplicationForm } from "@/components/seller/application-form";
@@ -35,7 +36,7 @@ async function Apply() {
       </Notice>
     );
   }
-  const latest = applicationsOf(user.id)[0];
+  const latest = (await applicationsOf(db, user.id))[0];
   if (latest?.status === "PENDING") {
     return (
       <Notice title="Your application is being reviewed">

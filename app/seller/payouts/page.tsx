@@ -12,7 +12,7 @@ export const metadata = { title: "Payouts" };
 
 async function Payouts() {
   const user = await requireRole(["SELLER"], "/seller/payouts");
-  const { shop, payouts, onHold, ready, rateBps } = sellerPayoutSummary(user);
+  const { shop, payouts, onHold, ready, rateBps } = await sellerPayoutSummary(user);
   const pending = [...ready, ...onHold];
   return (
     <>

@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import { db as readDb } from "@/lib/server/db/tx";
 import { productSchema } from "@/lib/validation/product";
 import { shopSchema } from "@/lib/validation/shop";
 import { productInput, validShop } from "@/test/fixtures";
@@ -21,16 +22,16 @@ async function approvedApplicant() {
 }
 
 describe("shops", () => {
-  it("RULE-S1 a seller can't load another seller's shop", () => {
-    const other = findShopByOwner("user_owner_galle-beeralu-studio")!;
-    expect(() => assertShopOwner(user("user_seller"), other.id, readStore())).toThrow(NotFoundError);
+  it("RULE-S1 a seller can't load another seller's shop", async () => {
+    const other = (await findShopByOwner(readDb, "user_owner_galle-beeralu-studio"))!;
+    await expect(assertShopOwner(user("user_seller"), other.id, readDb)).rejects.toThrow(NotFoundError);
   });
 
   it("RULE-S1 edits always apply to the seller's own shop", async () => {
-    const before = findShopByOwner("user_owner_galle-beeralu-studio")!.name;
+    const before = (await findShopByOwner(readDb, "user_owner_galle-beeralu-studio"))!.name;
     await updateShop(user("user_seller"), validShop({ name: "Renamed Masks", slug: "ambalangoda-mask-house" }));
-    expect(findShopByOwner("user_seller")!.name).toBe("Renamed Masks");
-    expect(findShopByOwner("user_owner_galle-beeralu-studio")!.name).toBe(before);
+    expect((await findShopByOwner(readDb, "user_seller"))!.name).toBe("Renamed Masks");
+    expect((await findShopByOwner(readDb, "user_owner_galle-beeralu-studio"))!.name).toBe(before);
   });
 
   it("RULE-S2 refuses reserved and badly formed web addresses", () => {
@@ -48,11 +49,11 @@ describe("shops", () => {
   it("RULE-S3 a draft shop goes ACTIVE only when the checklist is complete", async () => {
     const seller = await approvedApplicant();
     await updateShop(seller, validShop());
-    expect(findShopByOwner(seller.id)!.status).toBe("DRAFT");
+    expect((await findShopByOwner(readDb, seller.id))!.status).toBe("DRAFT");
     await saveProduct(seller, productInput(), "submit");
-    expect(findShopByOwner(seller.id)!.status).toBe("DRAFT");
+    expect((await findShopByOwner(readDb, seller.id))!.status).toBe("DRAFT");
     await savePayoutDetails(seller, { bankName: "Bank of Ceylon", accountNumber: "12345678" });
-    const shop = findShopByOwner(seller.id)!;
+    const shop = (await findShopByOwner(readDb, seller.id))!;
     expect(shop.status).toBe("ACTIVE");
     expect(shop.payoutAccountMasked).toBe("Bank of Ceylon •••• 5678");
   });
@@ -64,10 +65,10 @@ describe("shops", () => {
       shopId: "shop_ambalangoda-mask-house",
       reason: "Copied designs reported.",
     });
-    expect(getPublicShop("ambalangoda-mask-house")).toBeUndefined();
-    expect(getPublicProduct("naga-raksha-mask")).toBeUndefined();
+    expect(await getPublicShop("ambalangoda-mask-house")).toBeUndefined();
+    expect(await getPublicProduct("naga-raksha-mask")).toBeUndefined();
     await decideShop(admin, { decision: "reinstate", shopId: "shop_ambalangoda-mask-house" });
-    expect(getPublicProduct("naga-raksha-mask")).toBeDefined();
+    expect(await getPublicProduct("naga-raksha-mask")).toBeDefined();
     const actions = readStore().auditLog.map((a) => a.action);
     expect(actions).toEqual(expect.arrayContaining(["shop.suspend", "shop.reinstate"]));
   });
@@ -153,7 +154,7 @@ describe("items", () => {
     const seller = user("user_seller");
     const p = await saveProduct(seller, productInput({ title: "Kolam drummer mask" }), "submit");
     expect(p.status).toBe("ACTIVE"); // shop already has 5 approved items
-    expect(queryCatalogue({ q: "drummer" }).items.map((x) => x.slug)).toContain(p.slug);
+    expect((await queryCatalogue({ q: "drummer" })).items.map((x) => x.slug)).toContain(p.slug);
   });
 
   it("a seller can't touch another shop's item", async () => {

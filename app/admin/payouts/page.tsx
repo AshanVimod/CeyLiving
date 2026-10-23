@@ -6,14 +6,16 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { PAYOUT_HOLD_DAYS } from "@/lib/config";
 import { formatDate, formatLkr } from "@/lib/format";
 import { requireRole } from "@/lib/server/auth";
-import { readStore } from "@/lib/server/store/dev-store";
+import { db } from "@/lib/server/db/tx";
+import { listShops } from "@/lib/server/repositories/catalogue";
+import { listPayouts } from "@/lib/server/repositories/commerce";
 
 export const metadata = { title: "Payouts" };
 
 async function Payouts() {
   await requireRole(["ADMIN"], "/admin/payouts");
-  const db = readStore();
-  const payouts = [...db.payouts].sort(
+  const shops = await listShops(db);
+  const payouts = [...(await listPayouts(db))].sort(
     (a, b) => Number(a.status === "PAID") - Number(b.status === "PAID") || b.createdAt.localeCompare(a.createdAt),
   );
   return (
@@ -31,7 +33,7 @@ async function Payouts() {
           headers={["Shop", "Period", "Orders", "Commission", "Pay out", "Status", ""]}
         >
           {payouts.map((p) => {
-            const shop = db.shops.find((s) => s.id === p.shopId);
+            const shop = shops.find((s) => s.id === p.shopId);
             return (
               <tr key={p.id}>
                 <Td>

@@ -9,7 +9,8 @@ import { lowestPriceCents } from "@/lib/catalogue";
 import { getCategory } from "@/lib/data/categories";
 import { formatDate, formatLkr, photoUrl } from "@/lib/format";
 import { requireRole } from "@/lib/server/auth";
-import { readStore } from "@/lib/server/store/dev-store";
+import { db } from "@/lib/server/db/tx";
+import { listProducts, listShops } from "@/lib/server/repositories/catalogue";
 
 export const metadata = { title: "Items" };
 
@@ -19,8 +20,8 @@ async function Products({ searchParams }: { searchParams: PageProps<"/admin/prod
   await requireRole(["ADMIN"], "/admin/products");
   const { status } = await searchParams;
   const current = FILTERS.find((f) => f === status) ?? "PENDING_REVIEW";
-  const db = readStore();
-  const items = db.products.filter((p) => p.status === current).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+  const [products, shops] = await Promise.all([listProducts(db), listShops(db)]);
+  const items = products.filter((p) => p.status === current).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
   return (
     <>
       <FilterLinks
@@ -34,7 +35,7 @@ async function Products({ searchParams }: { searchParams: PageProps<"/admin/prod
       {items.length ? (
         <ul className="space-y-4">
           {items.map((p) => {
-            const shop = db.shops.find((s) => s.slug === p.shopSlug);
+            const shop = shops.find((s) => s.slug === p.shopSlug);
             return (
               <li
                 key={p.id}

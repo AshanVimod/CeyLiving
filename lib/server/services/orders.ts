@@ -2,11 +2,20 @@ import "server-only";
 import { BUYER_DATA_VISIBLE_DAYS } from "@/lib/config";
 import type { Order, SellerOrder, SellerOrderStatus } from "@/lib/types";
 import type { OrderTransitionInput } from "@/lib/validation/order";
+import { db, withTx, type Tx } from "../db/tx";
 import { NotFoundError } from "../errors";
 import { shopOfSeller, type Actor } from "../permissions";
+import { findShopById } from "../repositories/catalogue";
+import {
+  findOrderById,
+  findOrderByNumber,
+  findSellerOrder,
+  findSellerOrderForShop,
+  itemsOfSellerOrder,
+  updateSellerOrder,
+} from "../repositories/commerce";
 import { addNotification } from "../repositories/people";
-import { readStore, transaction, type StoreData } from "../store/dev-store";
-import { assertTransition } from "./shared";
+import { assertTransition, staleStatus } from "./shared";
 
 // Spec BR-07: seller order status machine. Sellers move orders forward; customers confirm delivery.
 export const SELLER_ORDER_FLOW: Partial<Record<SellerOrderStatus, readonly SellerOrderStatus[]>> = {
@@ -26,8 +35,8 @@ const MESSAGES: Partial<Record<SellerOrderStatus, string>> = {
   CANCELLED: "was cancelled",
 };
 
-function orderFor(sellerOrder: SellerOrder, db: StoreData): Order {
-  const order = db.orders.find((o) => o.id === sellerOrder.orderId);
+async function orderFor(tx: Tx, sellerOrder: SellerOrder): Promise<Order> {
+  const order = await findOrderById(tx, sellerOrder.orderId);
   if (!order) throw new NotFoundError("Order not found.");
   return order;
 }
@@ -38,45 +47,52 @@ export async function transitionSellerOrder(
   input: OrderTransitionInput,
   now = new Date(),
 ): Promise<SellerOrder> {
-  return transaction((db) => {
-    const shop = shopOfSeller(actor, db);
-    const so = db.sellerOrders.find((s) => s.id === input.sellerOrderId && s.shopId === shop.id);
+  return withTx(async (tx) => {
+    const shop = await shopOfSeller(actor, tx);
+    const so = await findSellerOrderForShop(tx, input.sellerOrderId, shop.id);
     if (!so) throw new NotFoundError("Order not found.");
     assertTransition(SELLER_ORDER_FLOW, so.status, input.to, "order");
-    so.status = input.to;
-    so.updatedAt = now.toISOString();
-    if (input.to === "ACCEPTED") so.acceptedAt = now.toISOString();
+    const patch: Partial<SellerOrder> = { status: input.to, updatedAt: now.toISOString() };
+    if (input.to === "ACCEPTED") patch.acceptedAt = now.toISOString();
     if (input.to === "DISPATCHED")
-      Object.assign(so, {
+      Object.assign(patch, {
         courierName: input.courierName,
         trackingRef: input.trackingRef,
         dispatchedAt: now.toISOString(),
       });
-    if (input.to === "CANCELLED") so.cancelReason = input.reason;
-    const order = orderFor(so, db);
-    addNotification(
-      db,
+    if (input.to === "CANCELLED") patch.cancelReason = input.reason;
+    const updated = await updateSellerOrder(tx, so.id, patch, { from: so.status });
+    if (!updated) throw staleStatus("order");
+    const order = await orderFor(tx, updated);
+    await addNotification(
+      tx,
       order.customerId,
       `order.${input.to.toLowerCase()}`,
       `Your order ${order.orderNumber} from ${shop.name} ${MESSAGES[input.to]}`,
       `/account/orders/${order.orderNumber}`,
     );
-    return so;
+    return updated;
   });
 }
 
 /** The customer confirms delivery (BR-17), which unlocks reviews (RULE-R1). */
 export async function confirmDelivery(actor: Actor, sellerOrderId: string, now = new Date()): Promise<void> {
-  await transaction((db) => {
-    const so = db.sellerOrders.find((s) => s.id === sellerOrderId);
-    const order = so ? orderFor(so, db) : undefined;
+  await withTx(async (tx) => {
+    const so = await findSellerOrder(tx, sellerOrderId);
+    const order = so ? await orderFor(tx, so) : undefined;
     if (!so || !order || order.customerId !== actor.id) throw new NotFoundError("Order not found.");
     assertTransition(CUSTOMER_FLOW, so.status, "COMPLETED", "order");
-    Object.assign(so, { status: "COMPLETED", completedAt: now.toISOString(), updatedAt: now.toISOString() });
-    const shop = db.shops.find((s) => s.id === so.shopId);
+    const updated = await updateSellerOrder(
+      tx,
+      so.id,
+      { status: "COMPLETED", completedAt: now.toISOString(), updatedAt: now.toISOString() },
+      { from: so.status },
+    );
+    if (!updated) throw staleStatus("order");
+    const shop = await findShopById(tx, so.shopId);
     if (shop)
-      addNotification(
-        db,
+      await addNotification(
+        tx,
         shop.ownerId,
         "order.completed",
         `${order.orderNumber} was delivered`,
@@ -86,22 +102,22 @@ export async function confirmDelivery(actor: Actor, sellerOrderId: string, now =
 }
 
 /** The customer's own order; anyone else gets "not found" (SEC-A5). */
-export function customerOrder(actor: Actor, orderNumber: string, db: StoreData = readStore()) {
-  const order = db.orders.find((o) => o.orderNumber === orderNumber && o.customerId === actor.id);
-  if (!order) throw new NotFoundError("Order not found.");
-  return order;
+export async function customerOrder(actor: Actor, orderNumber: string, tx: Tx = db) {
+  const found = await findOrderByNumber(tx, orderNumber);
+  if (!found || found.order.customerId !== actor.id) throw new NotFoundError("Order not found.");
+  return found.order;
 }
 
 /** A seller order of the seller's own shop, with its order and items. */
-export function sellerOrderForSeller(actor: Actor, sellerOrderId: string, db: StoreData = readStore()) {
-  const shop = shopOfSeller(actor, db);
-  const sellerOrder = db.sellerOrders.find((so) => so.id === sellerOrderId && so.shopId === shop.id);
+export async function sellerOrderForSeller(actor: Actor, sellerOrderId: string, tx: Tx = db) {
+  const shop = await shopOfSeller(actor, tx);
+  const sellerOrder = await findSellerOrderForShop(tx, sellerOrderId, shop.id);
   if (!sellerOrder) throw new NotFoundError("Order not found.");
   return {
     shop,
     sellerOrder,
-    order: orderFor(sellerOrder, db),
-    items: db.orderItems.filter((i) => i.sellerOrderId === sellerOrder.id),
+    order: await orderFor(tx, sellerOrder),
+    items: await itemsOfSellerOrder(tx, sellerOrder.id),
   };
 }
 

@@ -83,12 +83,13 @@ Go to `/signin`. A **Demo accounts** panel signs you in with one click; it is no
 Requests follow the feature spec (section 7.2): **form → server action → service → repository → store**.
 
 - `lib/server/actions/*` — thin server actions: who is asking (`requireActor`) → validate with zod (`lib/validation/*`) → call a service → revalidate → return `{ ok, message, fieldErrors }`.
-- `lib/server/services/*` — every business rule (RULE-A, S, P, R, Q, M, N), status-flow tables and audit rows. Pure functions of an actor and input, so they are unit-tested directly.
-- `lib/server/repositories/*` — the only code that reads the store.
-- `lib/server/store/dev-store.ts` — one JSON file, atomic writes (temp file + rename), serialised in-process, all-or-nothing transactions. In production it serves the seed read-only and refuses every write.
+- `lib/server/services/*` — every business rule (RULE-A, S, P, R, Q, M, N), status-flow tables and audit rows. Async functions of an actor and input that open their own transaction with `withTx` (BE-02), so they are unit-tested directly.
+- `lib/server/repositories/*` — the only code that reads or writes stored rows (BE-01). Every function is async and takes a handle first: `findUserById(db, id)` for a read, `updateSellerOrder(tx, id, patch, { from })` inside a transaction. Status changes are conditional updates: they return nothing if the status changed first (DB-06).
+- `lib/server/db/tx.ts` — the handle: `withTx(fn)` runs one all-or-nothing transaction (DB-04); `db` is the shared read-only handle for pages (BE-03). Rows read inside a transaction come back frozen, so they change only through repository writes.
+- `lib/server/store/dev-store.ts` — one JSON file, atomic writes (temp file + rename), serialised in-process. In production it serves the seed read-only and refuses every write. An ESLint rule allows importing it only from `lib/server/db/` and `lib/server/repositories/`.
 - `lib/server/permissions.ts` / `auth.ts` — `requireUser`, `requireRole`, `assertShopOwner`, `canPost`.
 
-**Replacing the dev store:** when the NestJS API / Prisma database exists, rewrite `lib/server/repositories/*` and `transaction()` against it, and replace `getSession()` and the sign-in page with Better Auth (T04). Services, actions and pages stay as they are.
+**Replacing the dev store (backend plan 6.2):** B02 (done) moved all data access behind async repositories and `withTx`. B03 adds a PostgreSQL version of the same repositories and `tx.ts` (Prisma), and B04 switches over and deletes the dev store. Services, actions and pages stay as they are.
 
 ## Security
 
@@ -114,11 +115,12 @@ Requests follow the feature spec (section 7.2): **form → server action → ser
 
 ## Tests
 
-`npm test` runs 157 tests:
+`npm test` runs 163 tests:
 
 - **Unit tests:** every business rule, named with its ID (for example `RULE-R1 blocks a review without a delivered order`).
 - **Permission tests:** every server action is called as a guest, plus wrong-role and other-owner cases.
 - **Production guards:** the demo session and dev store are refused in production.
+- **Transactions:** a failed step writes nothing (DB-04), a status that changed first gives a clear conflict (DB-06), and the shared read handle refuses writes (BE-03).
 - **Environment:** `lib/env.ts` refuses demo login in production (AU-09) and names bad keys without echoing values.
 - **Logging (OPS-01 to OPS-03):** redaction of secrets and personal data, request-ID rules, the proxy's header and redirects, and the `runAction` and `withRoute` references.
 - **Header components:** the header's sign-in states and menus.

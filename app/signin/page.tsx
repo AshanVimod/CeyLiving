@@ -4,7 +4,7 @@ import { DemoAccountsPanel } from "@/components/account/demo-accounts-panel";
 import { SignInForm } from "@/components/forms/auth-forms";
 import { Container } from "@/components/ui/section-heading";
 import { currentUser, safeNextPath } from "@/lib/server/auth";
-import { demoSignInAllowed, isDemoMode } from "@/lib/server/store/dev-store";
+import { demoSignInAllowed, isDemoMode } from "@/lib/server/runtime";
 
 export const metadata: Metadata = { title: "Sign in", robots: { index: false } };
 

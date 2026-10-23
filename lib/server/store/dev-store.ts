@@ -23,6 +23,7 @@ import type {
 } from "@/lib/types";
 import { DEMO_RESET_HOURS } from "@/lib/config";
 import { StoreUnavailableError } from "../errors";
+import { demoSignInAllowed, isDemoMode, isProductionRuntime } from "../runtime";
 import { buildSeed, SEED_TIME } from "./seed";
 
 export const STORE_VERSION = 2;
@@ -53,19 +54,7 @@ export interface StoreData {
 // In production it serves the seed read-only and refuses every write (SEC-A8), unless the deployment is the
 // public demo (DEMO_MODE=true, Feature-02): then it keeps changes in memory and goes back to the seed regularly.
 
-export function isProductionRuntime(): boolean {
-  return process.env.NODE_ENV === "production";
-}
-
-/** Feature-02 public demo. lib/env.ts validates the value at start-up; read directly like NODE_ENV above. */
-export function isDemoMode(): boolean {
-  return process.env.DEMO_MODE === "true";
-}
-
-/** Demo sign-in works in development and tests, and in production only on the public demo (AU-09, SEC-A8). */
-export function demoSignInAllowed(): boolean {
-  return !isProductionRuntime() || isDemoMode();
-}
+export { demoSignInAllowed, isDemoMode, isProductionRuntime };
 
 function isDemoProduction(): boolean {
   return isProductionRuntime() && isDemoMode();
@@ -149,13 +138,13 @@ export function readStore(): StoreData {
  * Runs `fn` against a private copy and writes it only if `fn` returns without throwing,
  * so multi-step changes (RULE-A3) are all-or-nothing. Writes run one at a time.
  */
-export function transaction<T>(fn: (draft: StoreData) => T): Promise<T> {
-  if (isDemoProduction()) return enqueue(async () => commitToMemory(fn));
+export function transaction<T>(fn: (draft: StoreData) => T | Promise<T>): Promise<T> {
+  if (isDemoProduction()) return enqueue(() => commitToMemory(fn));
   if (isProductionRuntime()) return Promise.reject(new StoreUnavailableError());
   return enqueue(async () => {
     const file = storePath();
     const draft = structuredClone(loadFromDisk(file)) as StoreData;
-    const result = fn(draft);
+    const result = await fn(draft);
     writeAtomic(file, draft);
     cache = null;
     return result;
@@ -169,10 +158,10 @@ function enqueue<T>(run: () => Promise<T>): Promise<T> {
 }
 
 /** Same all-or-nothing rule as the file store, but the new copy replaces the memory; nothing touches the disk. */
-function commitToMemory<T>(fn: (draft: StoreData) => T): T {
+async function commitToMemory<T>(fn: (draft: StoreData) => T | Promise<T>): Promise<T> {
   const { seededAt, data } = demoState();
   const draft = structuredClone(data) as StoreData;
-  const result = fn(draft);
+  const result = await fn(draft);
   // Freeze a copy, like the file store's re-read, so what `fn` returns stays the caller's to change.
   demoMemory = { seededAt, data: deepFreeze(structuredClone(draft)) };
   return result;

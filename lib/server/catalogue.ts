@@ -15,8 +15,10 @@ import {
   findPublicShopBySlug,
   listPublicProducts,
   listPublicShops,
+  listShops,
 } from "./repositories/catalogue";
-import { readStore, type StoreData } from "./store/dev-store";
+import { listReviews } from "./repositories/content";
+import { db, type Tx } from "./db/tx";
 
 // Public catalogue reads. Everything here filters to ACTIVE items of ACTIVE shops (RULE-P4, RULE-S4),
 // and ratings count only VISIBLE reviews (RULE-R4).
@@ -27,82 +29,80 @@ function summarize(reviews: Review[]): RatingSummary | undefined {
   return { average: visible.reduce((s, r) => s + r.rating, 0) / visible.length, count: visible.length };
 }
 
-function decorate(products: Product[], db: StoreData): CatalogueProduct[] {
-  const shopNames = new Map(db.shops.map((s) => [s.slug, s.name]));
+async function decorate(products: Product[], tx: Tx): Promise<CatalogueProduct[]> {
+  const shopNames = new Map((await listShops(tx)).map((s) => [s.slug, s.name]));
+  const reviews = await listReviews(tx);
   return products.map((p) => ({
     ...p,
     shopName: shopNames.get(p.shopSlug) ?? "",
-    rating: summarize(db.reviews.filter((r) => r.productId === p.id)),
+    rating: summarize(reviews.filter((r) => r.productId === p.id)),
   }));
 }
 
-export function publicCatalogue(db: StoreData = readStore()): CatalogueProduct[] {
-  return decorate(listPublicProducts(db), db);
+export async function publicCatalogue(tx: Tx = db): Promise<CatalogueProduct[]> {
+  return decorate(await listPublicProducts(tx), tx);
 }
 
-export function queryCatalogue(query: ProductQuery) {
-  return filterAndSort(publicCatalogue(), query);
+export async function queryCatalogue(query: ProductQuery) {
+  return filterAndSort(await publicCatalogue(), query);
 }
 
-export function getPublicProduct(slug: string): CatalogueProduct | undefined {
-  const db = readStore();
-  const product = findPublicProductBySlug(slug, db);
-  return product ? decorate([product], db)[0] : undefined;
+export async function getPublicProduct(slug: string): Promise<CatalogueProduct | undefined> {
+  const product = await findPublicProductBySlug(db, slug);
+  return product ? (await decorate([product], db))[0] : undefined;
 }
 
-export function getPublicShop(slug: string): Shop | undefined {
-  return findPublicShopBySlug(slug);
+export async function getPublicShop(slug: string): Promise<Shop | undefined> {
+  return findPublicShopBySlug(db, slug);
 }
 
-export function publicShops(): Shop[] {
-  return listPublicShops();
+export async function publicShops(): Promise<Shop[]> {
+  return listPublicShops(db);
 }
 
-export function publicProductsOfShop(shopSlug: string): CatalogueProduct[] {
+export async function publicProductsOfShop(shopSlug: string): Promise<CatalogueProduct[]> {
   return filterAndSort(
-    publicCatalogue().filter((p) => p.shopSlug === shopSlug),
+    (await publicCatalogue()).filter((p) => p.shopSlug === shopSlug),
     { sort: "featured" },
   ).items;
 }
 
-export function relatedProducts(p: Product, count = 4): CatalogueProduct[] {
-  const all = publicCatalogue().filter((x) => x.slug !== p.slug);
+export async function relatedProducts(p: Product, count = 4): Promise<CatalogueProduct[]> {
+  const all = (await publicCatalogue()).filter((x) => x.slug !== p.slug);
   const sameCategory = all.filter((x) => x.categorySlug === p.categorySlug);
   const sameShop = all.filter((x) => x.shopSlug === p.shopSlug && x.categorySlug !== p.categorySlug);
   return [...sameCategory, ...sameShop].slice(0, count);
 }
 
-export function productCountByCategory(slug: string): number {
-  return listPublicProducts().filter((p) => p.categorySlug === slug).length;
+export async function productCountByCategory(slug: string): Promise<number> {
+  return (await listPublicProducts(db)).filter((p) => p.categorySlug === slug).length;
 }
 
-export function shopRating(shopSlug: string): RatingSummary | undefined {
-  const db = readStore();
-  const shop = db.shops.find((s) => s.slug === shopSlug);
-  return shop ? summarize(db.reviews.filter((r) => r.shopId === shop.id)) : undefined;
+export async function shopRating(shopSlug: string): Promise<RatingSummary | undefined> {
+  const shop = (await listShops(db)).find((s) => s.slug === shopSlug);
+  return shop ? summarize((await listReviews(db)).filter((r) => r.shopId === shop.id)) : undefined;
 }
 
-export function searchSuggestions(q: string, limit: number): Suggestion[] {
+export async function searchSuggestions(q: string, limit: number): Promise<Suggestion[]> {
   const needle = q.trim().toLowerCase();
   if (needle.length < 2) return [];
   const fromCategories: Suggestion[] = categories
     .filter((c) => c.name.toLowerCase().includes(needle))
     .map((c) => ({ label: c.name, href: `/c/${c.slug}`, kind: "Category" }));
-  const fromShops: Suggestion[] = listPublicShops()
+  const fromShops: Suggestion[] = (await listPublicShops(db))
     .filter((s) => s.name.toLowerCase().includes(needle) || s.craft.toLowerCase().includes(needle))
     .map((s) => ({ label: s.name, href: `/shop/${s.slug}`, kind: "Maker" }));
-  const fromProducts: Suggestion[] = publicCatalogue()
+  const fromProducts: Suggestion[] = (await publicCatalogue())
     .filter((p) => matchesKeyword(p, needle))
     .map((p) => ({ label: p.title, href: `/p/${p.slug}`, kind: "Product" }));
   return [...fromCategories, ...fromShops, ...fromProducts].slice(0, limit);
 }
 
 /** Public summaries for the given slugs; unknown or hidden items are simply left out. */
-export function lookupProducts(slugs: string[]): LookupProduct[] {
-  const db = readStore();
-  const shops = new Map(db.shops.map((s) => [s.slug, s]));
-  return slugs
-    .map((slug) => findPublicProductBySlug(slug, db))
+export async function lookupProducts(slugs: string[]): Promise<LookupProduct[]> {
+  const shops = new Map((await listShops(db)).map((s) => [s.slug, s]));
+  const found = await Promise.all(slugs.map((slug) => findPublicProductBySlug(db, slug)));
+  return found
     .filter((p): p is Product => Boolean(p))
     .map((p) => {
       const shop = shops.get(p.shopSlug)!;

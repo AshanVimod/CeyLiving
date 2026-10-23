@@ -20,7 +20,7 @@ export async function CatalogueResults({ searchParams, category, basePath }: Cat
   const query = parseProductQuery(raw);
   if (category) query.category = category;
   const limit = query.limit && query.limit > PAGE_SIZE ? query.limit : PAGE_SIZE;
-  const { items, total, hasMore } = queryCatalogue({ ...query, limit });
+  const { items, total, hasMore } = await queryCatalogue({ ...query, limit });
 
   const moreParams = new URLSearchParams();
   Object.entries(raw).forEach(([k, v]) => {

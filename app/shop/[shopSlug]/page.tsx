@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { db } from "@/lib/server/db/tx";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -12,13 +13,13 @@ import { formatLkr, photoUrl } from "@/lib/format";
 import { getPublicShop, publicProductsOfShop, publicShops, shopRating } from "@/lib/server/catalogue";
 import { reviewsOfShop } from "@/lib/server/repositories/content";
 
-export function generateStaticParams() {
-  return publicShops().map((s) => ({ shopSlug: s.slug }));
+export async function generateStaticParams() {
+  return (await publicShops()).map((s) => ({ shopSlug: s.slug }));
 }
 
 export async function generateMetadata(props: PageProps<"/shop/[shopSlug]">): Promise<Metadata> {
   const { shopSlug } = await props.params;
-  const shop = getPublicShop(shopSlug);
+  const shop = await getPublicShop(shopSlug);
   return shop ? { title: shop.name, description: `${shop.craft} by ${shop.ownerName}, ${shop.district}.` } : {};
 }
 
@@ -33,13 +34,13 @@ export default function ShopPage(props: PageProps<"/shop/[shopSlug]">) {
 async function ShopContent({ params }: { params: PageProps<"/shop/[shopSlug]">["params"] }) {
   const { shopSlug } = await params;
   // RULE-S4: suspended and closed shops return 404.
-  const shop = getPublicShop(shopSlug);
+  const shop = await getPublicShop(shopSlug);
   if (!shop) notFound();
-  const items = publicProductsOfShop(shop.slug);
-  const rating = shopRating(shop.slug);
+  const items = await publicProductsOfShop(shop.slug);
+  const rating = await shopRating(shop.slug);
   const productTitles = new Map(items.map((p) => [p.id, p.title]));
   // Reviews of items still on sale, newest first (D-07: keyed by review ID).
-  const reviews = reviewsOfShop(shop.id)
+  const reviews = (await reviewsOfShop(db, shop.id))
     .filter((r) => r.status === "VISIBLE" && productTitles.has(r.productId))
     .slice(0, 6);
 

@@ -1,20 +1,16 @@
 import "server-only";
 import { RATE_LIMITS, SHOP_SLUG } from "@/lib/config";
 import { ConflictError, RateLimitError } from "../errors";
-import { addAuditEntry } from "../repositories/people";
+import type { Tx } from "../db/tx";
+import { addAuditEntry, countRateEvents, insertRateEvent, pruneRateEvents } from "../repositories/people";
 import type { Actor } from "../permissions";
-import type { StoreData } from "../store/dev-store";
 
 /** SEC-A6: counts this user's recent posts of one kind and records the new one. */
-export function assertRateLimit(db: StoreData, userId: string, kind: keyof typeof RATE_LIMITS, now = new Date()) {
+export async function assertRateLimit(tx: Tx, userId: string, kind: keyof typeof RATE_LIMITS, now = new Date()) {
   const { max, windowMs } = RATE_LIMITS[kind];
-  const since = now.getTime() - windowMs;
-  db.rateEvents = db.rateEvents.filter((e) => Date.parse(e.at) >= now.getTime() - 86_400_000);
-  const recent = db.rateEvents.filter(
-    (e) => e.userId === userId && e.kind === kind && Date.parse(e.at) >= since,
-  ).length;
-  if (recent >= max) throw new RateLimitError();
-  db.rateEvents.push({ userId, kind, at: now.toISOString() });
+  await pruneRateEvents(tx, now.getTime() - 86_400_000);
+  if ((await countRateEvents(tx, userId, kind, now.getTime() - windowMs)) >= max) throw new RateLimitError();
+  await insertRateEvent(tx, { userId, kind, at: now.toISOString() });
 }
 
 /** One table of allowed moves per status flow (feature spec section 8); anything else is a conflict. */
@@ -28,20 +24,25 @@ export function assertTransition<S extends string>(
     throw new ConflictError(`This ${what} can’t move from ${label(from)} to ${label(to)}.`);
 }
 
+/** DB-06: a conditional update found the status already changed (another tab, person or job got there first). */
+export function staleStatus(what: string): ConflictError {
+  return new ConflictError(`This ${what} was just changed elsewhere. Reload the page and try again.`);
+}
+
 function label(status: string) {
   return status.toLowerCase().replace(/_/g, " ");
 }
 
 /** SEC-A9: admin actions write their audit row in the same transaction as the change. */
-export function audit(
-  db: StoreData,
+export async function audit(
+  tx: Tx,
   actor: Actor,
   action: string,
   targetType: string,
   targetId: string,
   extra: { reason?: string; before?: unknown; after?: unknown } = {},
 ) {
-  addAuditEntry(db, { actorId: actor.id, action, targetType, targetId, ...extra });
+  await addAuditEntry(tx, { actorId: actor.id, action, targetType, targetId, ...extra });
 }
 
 /** RULE-S2: lowercase words joined by hyphens. */

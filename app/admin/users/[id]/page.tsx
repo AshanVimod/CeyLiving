@@ -7,25 +7,28 @@ import { UserRestrictionActions } from "@/components/admin/user-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/format";
 import { requireRole } from "@/lib/server/auth";
-import { findUserById, listAuditLog } from "@/lib/server/repositories/people";
-import { readStore } from "@/lib/server/store/dev-store";
+import { listShops } from "@/lib/server/repositories/catalogue";
+import { listOrdersOfCustomer } from "@/lib/server/repositories/commerce";
+import { questionsByAuthor, reportsByReporter, reviewsByAuthor } from "@/lib/server/repositories/content";
+import { findUserById, listAuditLog, listUsers } from "@/lib/server/repositories/people";
+import { db } from "@/lib/server/db/tx";
 
 export const metadata = { title: "User" };
 
 async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["params"] }) {
   const admin = await requireRole(["ADMIN"], "/admin/users");
   const { id } = await params;
-  const db = readStore();
-  const user = findUserById(id, db);
+  const user = await findUserById(db, id);
   if (!user) notFound();
   const counts = {
-    orders: db.orders.filter((o) => o.customerId === user.id).length,
-    reviews: db.reviews.filter((r) => r.authorId === user.id).length,
-    questions: db.questions.filter((q) => q.authorId === user.id).length,
-    reportsMade: db.reports.filter((r) => r.reporterId === user.id).length,
+    orders: (await listOrdersOfCustomer(db, user.id)).length,
+    reviews: (await reviewsByAuthor(db, user.id)).length,
+    questions: (await questionsByAuthor(db, user.id)).length,
+    reportsMade: (await reportsByReporter(db, user.id)).length,
   };
-  const history = listAuditLog(db).filter((a) => a.targetId === user.id);
-  const shop = db.shops.find((s) => s.ownerId === user.id);
+  const history = (await listAuditLog(db)).filter((a) => a.targetId === user.id);
+  const shop = (await listShops(db)).find((s) => s.ownerId === user.id);
+  const userNames = new Map((await listUsers(db)).map((u) => [u.id, u.name]));
   const protectedUser = user.role === "ADMIN" || user.id === admin.id; // RULE-M5
   return (
     <>
@@ -86,7 +89,7 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
         <ul className="space-y-2">
           {history.map((h) => (
             <li key={h.id} className="rounded-md border border-line bg-paper-raised px-4 py-3">
-              <span className="font-semibold">{h.action}</span> by {findUserById(h.actorId, db)?.name ?? h.actorId},{" "}
+              <span className="font-semibold">{h.action}</span> by {userNames.get(h.actorId) ?? h.actorId},{" "}
               {formatDate(h.createdAt)}
               {h.reason ? <span className="block text-ink-soft">Reason: {h.reason}</span> : null}
             </li>
