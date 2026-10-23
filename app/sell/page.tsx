@@ -7,14 +7,17 @@ import { COMMISSION_RATE_BPS, SHIPPING_FEE_PER_SHOP_CENTS } from "@/lib/config";
 import { formatLkr, photoUrl } from "@/lib/format";
 
 export const metadata: Metadata = {
-  title: "Become a seller",
+  title: "Open a shop",
   description: "Open a shop on CeyLiving and sell your handmade work to customers across Sri Lanka.",
 };
 
 const commissionPercent = COMMISSION_RATE_BPS / 100;
 
 const steps = [
-  { title: "Apply", text: "Tell us about your work and send a few photos. It takes about ten minutes." },
+  {
+    title: "Apply to open a shop",
+    text: "Tell us about you, your work, the categories you plan to sell in and your shop address. It takes about ten minutes.",
+  },
   {
     title: "We review your shop",
     text: "We check that the work is yours and handmade. Most applications get an answer within five working days.",
@@ -56,7 +59,7 @@ export default function SellPage() {
                 href="/sell/apply"
                 className="inline-flex h-12 items-center rounded-full bg-forest px-7 font-semibold text-paper hover:bg-forest-deep"
               >
-                Apply to sell
+                Apply to open a shop
               </Link>
               <a
                 href="#fees"
@@ -149,7 +152,7 @@ export default function SellPage() {
           href="/sell/apply"
           className="mt-6 inline-flex h-12 items-center rounded-full bg-forest px-8 font-semibold text-paper hover:bg-forest-deep"
         >
-          Apply to sell
+          Apply to open a shop
         </Link>
       </Container>
     </>

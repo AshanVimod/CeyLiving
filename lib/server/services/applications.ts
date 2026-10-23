@@ -35,13 +35,16 @@ async function notifyAdmins(tx: Tx, title: string, href: string) {
   for (const id of await listAdminIds(tx)) await addNotification(tx, id, "application.submitted", title, href);
 }
 
-/** RULE-A1: one open application per person; a rejected applicant waits before applying again. */
+/**
+ * FR-2a: a customer applies to open a shop (they can't sell directly). RULE-A1: one open application per person;
+ * a rejected applicant waits before applying again.
+ */
 export async function submitApplication(
   actor: Actor,
   input: ApplicationInput,
   now = new Date(),
 ): Promise<SellerApplication> {
-  if (actor.role !== "CUSTOMER") throw new ForbiddenError("Only customer accounts can apply to sell.");
+  if (actor.role !== "CUSTOMER") throw new ForbiddenError("Only customer accounts can apply to open a shop.");
   return withTx(async (tx) => {
     const mine = await applicationsOf(tx, actor.id);
     const open = mine.find((a) => OPEN.includes(a.status));
@@ -57,12 +60,15 @@ export async function submitApplication(
     }
     await assertRateLimit(tx, actor.id, "application", now);
     const fields = {
+      applicantName: input.applicantName,
+      phone: input.phone,
+      businessType: input.businessType,
+      businessRegNo: input.businessRegNo,
       shopName: input.shopName,
       craft: input.craft,
-      categorySlug: input.categorySlug,
-      district: input.district,
+      categorySlugs: input.categorySlugs,
+      address: input.address,
       story: input.story,
-      phone: input.phone,
       workPhotoUrls: input.workPhotoUrls,
       socialUrl: input.socialUrl,
       acceptedTermsAt: now.toISOString(),
@@ -111,7 +117,7 @@ function shopFromApplication(app: SellerApplication, ownerName: string, taken: S
     slug,
     name: app.shopName,
     ownerName,
-    district: app.district,
+    district: app.address.district,
     craft: app.craft,
     story: app.story,
     quote: "",

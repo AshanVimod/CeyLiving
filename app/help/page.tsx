@@ -66,7 +66,7 @@ const sections = [
     faqs: [
       {
         q: "How do I open a shop?",
-        a: "Apply from the Become a seller page. We review every application, usually within five working days.",
+        a: "Apply from the Open a shop page with your details, your work, the categories you plan to sell in and your shop address. We review every application, usually within five working days. Once approved, you set up your shop and post items.",
       },
       { q: "When do I get paid?", a: "Weekly, to your bank account, 7 days after the customer receives their order." },
     ],
