@@ -43,3 +43,6 @@ next-env.d.ts
 # dev store (feature spec 7.4)
 /.data/
 !.env.example
+
+# Claude Code: personal settings stay local; shared .claude/ files are tracked
+/.claude/settings.local.json
