@@ -52,7 +52,8 @@ export interface StoreData {
 
 // A development stepping stone (feature spec 7.4): one JSON file, serialised atomic writes.
 // In production it serves the seed read-only and refuses every write (SEC-A8), unless the deployment is the
-// public demo (DEMO_MODE=true, Feature-02): then it keeps changes in memory and goes back to the seed regularly.
+// public demo (DEMO_MODE=true, Feature-02): then it keeps changes in memory and starts again from a fresh seed,
+// dated to the current time, every DEMO_RESET_HOURS.
 
 export { demoSignInAllowed, isDemoMode, isProductionRuntime };
 
@@ -69,18 +70,32 @@ function storePath(): string {
 
 let cache: { file: string; mtimeMs: number; data: StoreData } | null = null;
 let productionSeed: StoreData | null = null;
-let demoMemory: { seededAt: number; data: StoreData } | null = null;
+let demoMemory: { window: number; data: StoreData } | null = null;
 let queue: Promise<unknown> = Promise.resolve();
 
 const DEMO_RESET_MS = DEMO_RESET_HOURS * 3_600_000;
 
 /**
- * The demo's in-memory data: the seed on cold start, and again once it is DEMO_RESET_HOURS old. The age uses
- * performance.now() because Next.js refuses Date.now() while prerendering; it only needs to measure elapsed time.
+ * Wall-clock time for the demo seed. Next.js refuses Date.now() while prerendering but doesn't guard performance,
+ * and timeOrigin + now() is the current time. Replaceable in tests.
  */
-function demoState(): { seededAt: number; data: StoreData } {
-  if (!demoMemory || performance.now() - demoMemory.seededAt >= DEMO_RESET_MS) {
-    demoMemory = { seededAt: performance.now(), data: deepFreeze(buildSeed(new Date(SEED_TIME))) };
+let demoClock = () => performance.timeOrigin + performance.now();
+
+/** Test helper: pin the demo clock (epoch ms), or pass null to use the real one again. */
+export function setDemoClockForTests(clock: (() => number) | null) {
+  demoClock = clock ?? (() => performance.timeOrigin + performance.now());
+  demoMemory = null;
+}
+
+/**
+ * The demo's in-memory data. Time is split into DEMO_RESET_HOURS windows; each window starts from a fresh seed
+ * built as of the window's start, so its dates stay current (the muted customer stays muted, the delivered order
+ * stays reviewable, payouts stay on hold) and every server instance in the same window builds the same data.
+ */
+function demoState(): { window: number; data: StoreData } {
+  const window = Math.floor(demoClock() / DEMO_RESET_MS);
+  if (!demoMemory || demoMemory.window !== window) {
+    demoMemory = { window, data: deepFreeze(buildSeed(new Date(window * DEMO_RESET_MS))) };
   }
   return demoMemory;
 }
@@ -159,11 +174,11 @@ function enqueue<T>(run: () => Promise<T>): Promise<T> {
 
 /** Same all-or-nothing rule as the file store, but the new copy replaces the memory; nothing touches the disk. */
 async function commitToMemory<T>(fn: (draft: StoreData) => T | Promise<T>): Promise<T> {
-  const { seededAt, data } = demoState();
+  const { window, data } = demoState();
   const draft = structuredClone(data) as StoreData;
   const result = await fn(draft);
   // Freeze a copy, like the file store's re-read, so what `fn` returns stays the caller's to change.
-  demoMemory = { seededAt, data: deepFreeze(structuredClone(draft)) };
+  demoMemory = { window, data: deepFreeze(structuredClone(draft)) };
   return result;
 }
 
