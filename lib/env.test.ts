@@ -27,7 +27,11 @@ describe("lib/env", () => {
   });
 
   it("SEC-A8 production without ENABLE_DEMO_LOGIN parses with demo login off", () => {
-    expect(parseEnv({ NODE_ENV: "production" })).toEqual({ NODE_ENV: "production", ENABLE_DEMO_LOGIN: false });
+    expect(parseEnv({ NODE_ENV: "production" })).toEqual({
+      NODE_ENV: "production",
+      ENABLE_DEMO_LOGIN: false,
+      SITE_URL: "http://localhost:3000",
+    });
   });
 
   it("OPS-01 accepts a known LOG_LEVEL and rejects anything else", () => {
@@ -50,6 +54,7 @@ describe("lib/env", () => {
     expect(parseEnv({ NODE_ENV: "development", ENABLE_DEMO_LOGIN: "", CEYLIVING_STORE_PATH: "" })).toEqual({
       NODE_ENV: "development",
       ENABLE_DEMO_LOGIN: false,
+      SITE_URL: "http://localhost:3000",
     });
   });
 
@@ -59,5 +64,17 @@ describe("lib/env", () => {
     expect(getEnv().ENABLE_DEMO_LOGIN).toBe(true);
     vi.stubEnv("NODE_ENV", "production");
     expect(() => getEnv()).toThrow(EnvError);
+  });
+
+  it("FR-2c SITE_URL must be https:// in production, except on localhost", () => {
+    expect(parseEnv({ NODE_ENV: "production", SITE_URL: "https://ceyliving.lk/" }).SITE_URL).toBe(
+      "https://ceyliving.lk",
+    );
+    expect(parseEnv({ NODE_ENV: "production", SITE_URL: "http://localhost:3002" }).SITE_URL).toBe(
+      "http://localhost:3002",
+    );
+    expect(problems(() => parseEnv({ NODE_ENV: "production", SITE_URL: "http://ceyliving.lk" }))).toEqual([
+      "SITE_URL: must be an https:// address in production",
+    ]);
   });
 });
