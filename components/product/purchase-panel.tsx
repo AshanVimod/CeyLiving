@@ -22,7 +22,8 @@ function validate(fields: CustomizationField[], values: Record<string, string>) 
 }
 
 export function PurchasePanel({ product }: { product: Product }) {
-  const firstAvailable = product.variants.find((v) => product.type === "MADE_TO_ORDER" || v.stock > 0) ?? product.variants[0]!;
+  const firstAvailable =
+    product.variants.find((v) => product.type === "MADE_TO_ORDER" || v.stock > 0) ?? product.variants[0]!;
   const [sku, setSku] = useState(firstAvailable.sku);
   const [quantity, setQuantity] = useState(1);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -45,7 +46,11 @@ export function PurchasePanel({ product }: { product: Product }) {
       document.getElementById(`${formId}-${firstError}`)?.focus();
       return;
     }
-    const clean = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v));
+    const clean = Object.fromEntries(
+      Object.entries(values)
+        .map(([k, v]) => [k, v.trim()])
+        .filter(([, v]) => v),
+    );
     addToCart(product.slug, variant.sku, quantity, clean);
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1800);
@@ -85,7 +90,9 @@ export function PurchasePanel({ product }: { product: Product }) {
                 <label
                   key={v.sku}
                   className={`relative flex min-h-11 cursor-pointer items-center rounded-full border px-4 text-sm transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-forest ${
-                    v.sku === sku ? "border-forest bg-forest text-paper" : "border-line bg-paper-raised hover:border-ink-soft"
+                    v.sku === sku
+                      ? "border-forest bg-forest text-paper"
+                      : "border-line bg-paper-raised hover:border-ink-soft"
                   } ${soldOut ? "text-ink-soft line-through decoration-ink-soft/60" : ""}`}
                 >
                   <input
@@ -116,7 +123,8 @@ export function PurchasePanel({ product }: { product: Product }) {
             const value = values[f.key] ?? "";
             const helpId = `${id}-help`;
             const errId = `${id}-err`;
-            const describedBy = [f.helper ? helpId : null, errors[f.key] ? errId : null].filter(Boolean).join(" ") || undefined;
+            const describedBy =
+              [f.helper ? helpId : null, errors[f.key] ? errId : null].filter(Boolean).join(" ") || undefined;
             return (
               <div key={f.key}>
                 <div className="mb-1.5 flex items-baseline justify-between gap-3">
@@ -125,7 +133,10 @@ export function PurchasePanel({ product }: { product: Product }) {
                     {f.isRequired ? <span className="text-lacquer"> *</span> : null}
                   </label>
                   {f.kind === "TEXT" ? (
-                    <span className={`text-xs tabular-nums ${value.length > f.maxLength ? "text-lacquer" : "text-ink-soft"}`} aria-live="polite">
+                    <span
+                      className={`text-xs tabular-nums ${value.length > f.maxLength ? "text-lacquer" : "text-ink-soft"}`}
+                      aria-live="polite"
+                    >
                       {value.length}/{f.maxLength}
                     </span>
                   ) : null}
@@ -178,7 +189,11 @@ export function PurchasePanel({ product }: { product: Product }) {
       ) : null}
 
       <div className="flex items-stretch gap-3">
-        <div className="flex h-12 items-center rounded-full border border-line bg-paper-raised" role="group" aria-label="Quantity">
+        <div
+          className="flex h-12 items-center rounded-full border border-line bg-paper-raised"
+          role="group"
+          aria-label="Quantity"
+        >
           <button
             type="button"
             onClick={() => setQuantity((q) => Math.max(1, q - 1))}
@@ -206,7 +221,9 @@ export function PurchasePanel({ product }: { product: Product }) {
           disabled={!inStock}
           className="relative h-12 flex-1 overflow-hidden rounded-full bg-forest px-6 font-semibold text-paper transition-[background-color,transform] duration-200 hover:bg-forest-deep active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-ink-soft/50"
         >
-          <span className={`flex items-center justify-center gap-2 transition-transform duration-300 ${added ? "-translate-y-12" : ""}`}>
+          <span
+            className={`flex items-center justify-center gap-2 transition-transform duration-300 ${added ? "-translate-y-12" : ""}`}
+          >
             {inStock ? "Add to cart" : "Sold out"}
           </span>
           <span

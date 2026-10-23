@@ -46,7 +46,15 @@ const variants = {
  * (no automatic reset), disables the button while sending, and moves focus to the result.
  */
 export function ActionForm(props: ActionFormProps) {
-  const { action, children, submitLabel, pendingLabel = "Saving…", className = "", resetOnSuccess, extraButtons } = props;
+  const {
+    action,
+    children,
+    submitLabel,
+    pendingLabel = "Saving…",
+    className = "",
+    resetOnSuccess,
+    extraButtons,
+  } = props;
   const [state, dispatch, pending] = useActionState(action, null);
   const formRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
@@ -56,7 +64,9 @@ export function ActionForm(props: ActionFormProps) {
     if (!state) return;
     if (state.ok && resetOnSuccess) formRef.current?.reset();
     const firstError = !state.ok && state.fieldErrors ? Object.keys(state.fieldErrors)[0] : undefined;
-    const target = firstError ? formRef.current?.querySelector<HTMLElement>(`[name="${CSS.escape(firstError)}"]`) : null;
+    const target = firstError
+      ? formRef.current?.querySelector<HTMLElement>(`[name="${CSS.escape(firstError)}"]`)
+      : null;
     (target ?? statusRef.current)?.focus();
   }, [state, resetOnSuccess]);
 
@@ -69,7 +79,13 @@ export function ActionForm(props: ActionFormProps) {
 
   return (
     <ErrorsContext.Provider value={state && !state.ok ? (state.fieldErrors ?? {}) : {}}>
-      <form ref={formRef} onSubmit={onSubmit} noValidate className={`space-y-5 ${className}`} aria-describedby={state ? statusId : undefined}>
+      <form
+        ref={formRef}
+        onSubmit={onSubmit}
+        noValidate
+        className={`space-y-5 ${className}`}
+        aria-describedby={state ? statusId : undefined}
+      >
         {state ? (
           <p
             ref={statusRef}
@@ -91,7 +107,12 @@ export function ActionForm(props: ActionFormProps) {
             aria-disabled={pending}
             className={`inline-flex h-12 items-center gap-2 rounded-full px-7 font-semibold transition-[background-color,transform] active:scale-[0.98] disabled:opacity-60 ${variants[props.submitVariant ?? "primary"]}`}
           >
-            {pending ? <span className="size-4 animate-spin rounded-full border-2 border-current/40 border-t-current" aria-hidden="true" /> : null}
+            {pending ? (
+              <span
+                className="size-4 animate-spin rounded-full border-2 border-current/40 border-t-current"
+                aria-hidden="true"
+              />
+            ) : null}
             {pending ? pendingLabel : submitLabel}
           </button>
           {extraButtons}
@@ -122,7 +143,16 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   helper?: string;
 }
 
-export function FormSelect({ name, label, options, placeholder, helper, required, className = "", ...rest }: SelectProps) {
+export function FormSelect({
+  name,
+  label,
+  options,
+  placeholder,
+  helper,
+  required,
+  className = "",
+  ...rest
+}: SelectProps) {
   const id = useId();
   const error = useFieldError(name);
   const describedBy = [helper ? `${id}-help` : null, error ? `${id}-err` : null].filter(Boolean).join(" ") || undefined;
@@ -168,7 +198,17 @@ export function FormSelect({ name, label, options, placeholder, helper, required
   );
 }
 
-export function FormCheckbox({ name, label, value = "on", defaultChecked }: { name: string; label: React.ReactNode; value?: string; defaultChecked?: boolean }) {
+export function FormCheckbox({
+  name,
+  label,
+  value = "on",
+  defaultChecked,
+}: {
+  name: string;
+  label: React.ReactNode;
+  value?: string;
+  defaultChecked?: boolean;
+}) {
   const id = useId();
   const error = useFieldError(name);
   return (

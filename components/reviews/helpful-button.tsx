@@ -47,7 +47,9 @@ export function HelpfulButton({ targetType, targetId, count, voted, disabled }: 
         disabled={pending}
         aria-pressed={state.voted}
         className={`inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors ${
-          state.voted ? "border-forest bg-forest/10 font-semibold text-forest" : "border-line text-ink-soft hover:border-ink-soft hover:text-ink"
+          state.voted
+            ? "border-forest bg-forest/10 font-semibold text-forest"
+            : "border-line text-ink-soft hover:border-ink-soft hover:text-ink"
         }`}
       >
         Helpful

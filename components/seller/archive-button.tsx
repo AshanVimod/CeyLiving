@@ -3,7 +3,15 @@
 import { archiveProductAction } from "@/lib/server/actions/selling";
 import { ActionForm } from "../forms/action-form";
 
-export function ArchiveButton({ productId, restore = false, title }: { productId: string; restore?: boolean; title: string }) {
+export function ArchiveButton({
+  productId,
+  restore = false,
+  title,
+}: {
+  productId: string;
+  restore?: boolean;
+  title: string;
+}) {
   return (
     <ActionForm
       action={archiveProductAction}

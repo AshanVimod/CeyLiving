@@ -111,7 +111,10 @@ async function ProductContent({ params }: { params: PageProps<"/p/[productSlug]"
           <h1 className="mt-3 text-[2.1rem] sm:text-[2.6rem]">{product.title}</h1>
           <p className="mt-2 text-ink-soft">
             By{" "}
-            <Link href={`/shop/${shop.slug}`} className="font-medium text-ink underline decoration-ink/30 underline-offset-4 hover:decoration-ink">
+            <Link
+              href={`/shop/${shop.slug}`}
+              className="font-medium text-ink underline decoration-ink/30 underline-offset-4 hover:decoration-ink"
+            >
               {shop.ownerName}, {shop.name}
             </Link>
           </p>
@@ -165,8 +168,8 @@ async function ProductContent({ params }: { params: PageProps<"/p/[productSlug]"
             {product.isCustomizable ? (
               <Detail title="Custom order terms">
                 <p>
-                  Personalized pieces are made for you and can’t be returned unless they arrive damaged or differ from what you
-                  asked for. The maker will contact you through CeyLiving if anything is unclear.
+                  Personalized pieces are made for you and can’t be returned unless they arrive damaged or differ from
+                  what you asked for. The maker will contact you through CeyLiving if anything is unclear.
                 </p>
               </Detail>
             ) : null}
@@ -176,7 +179,13 @@ async function ProductContent({ params }: { params: PageProps<"/p/[productSlug]"
           <section aria-labelledby="maker-heading" className="mt-8 rounded-lg border border-line bg-paper-raised p-5">
             <div className="flex items-center gap-4">
               <span className="relative size-16 shrink-0 overflow-hidden rounded-full bg-sage">
-                <Image src={photoUrl((shop.portrait ?? shop.logo).id)} alt="" fill sizes="64px" className="object-cover" />
+                <Image
+                  src={photoUrl((shop.portrait ?? shop.logo).id)}
+                  alt=""
+                  fill
+                  sizes="64px"
+                  className="object-cover"
+                />
               </span>
               <div className="min-w-0">
                 <h2 id="maker-heading" className="font-sans text-lg font-semibold">

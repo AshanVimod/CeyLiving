@@ -16,7 +16,8 @@ export async function changeRole(actor: Actor, input: RoleChangeInput): Promise<
   await transaction((db) => {
     const target = db.users.find((u) => u.id === input.userId && !u.deletedAt);
     if (!target) throw new NotFoundError("User not found.");
-    if (target.id === actor.id || target.role === "ADMIN") throw new ForbiddenError("Admins can’t change the role of another admin or themselves.");
+    if (target.id === actor.id || target.role === "ADMIN")
+      throw new ForbiddenError("Admins can’t change the role of another admin or themselves.");
     if (target.role === "SELLER") throw new ForbiddenError("Sellers change role only when their shop is closed.");
     const before = target.role;
     target.role = input.role;
@@ -26,21 +27,44 @@ export async function changeRole(actor: Actor, input: RoleChangeInput): Promise<
 }
 
 /** FR-19: toggle a "helpful" vote. Not on your own posts, only on visible ones, one per person. */
-export async function toggleHelpful(actor: Actor, input: VoteInput, now = new Date()): Promise<{ voted: boolean; count: number }> {
+export async function toggleHelpful(
+  actor: Actor,
+  input: VoteInput,
+  now = new Date(),
+): Promise<{ voted: boolean; count: number }> {
   return transaction((db) => {
-    const target = input.targetType === "REVIEW" ? db.reviews.find((r) => r.id === input.targetId) : db.questions.find((q) => q.id === input.targetId);
+    const target =
+      input.targetType === "REVIEW"
+        ? db.reviews.find((r) => r.id === input.targetId)
+        : db.questions.find((q) => q.id === input.targetId);
     if (!target || target.status !== "VISIBLE") throw new NotFoundError("That post isn’t available.");
     if (target.authorId === actor.id) throw new ForbiddenError("You can’t vote on your own post.");
     assertRateLimit(db, actor.id, "vote", now);
-    const index = db.helpfulVotes.findIndex((v) => v.userId === actor.id && v.targetType === input.targetType && v.targetId === input.targetId);
+    const index = db.helpfulVotes.findIndex(
+      (v) => v.userId === actor.id && v.targetType === input.targetType && v.targetId === input.targetId,
+    );
     if (index >= 0) db.helpfulVotes.splice(index, 1);
-    else db.helpfulVotes.push({ userId: actor.id, targetType: input.targetType, targetId: input.targetId, createdAt: now.toISOString() } satisfies HelpfulVote);
-    return { voted: index < 0, count: db.helpfulVotes.filter((v) => v.targetType === input.targetType && v.targetId === input.targetId).length };
+    else
+      db.helpfulVotes.push({
+        userId: actor.id,
+        targetType: input.targetType,
+        targetId: input.targetId,
+        createdAt: now.toISOString(),
+      } satisfies HelpfulVote);
+    return {
+      voted: index < 0,
+      count: db.helpfulVotes.filter((v) => v.targetType === input.targetType && v.targetId === input.targetId).length,
+    };
   });
 }
 
 /** Vote counts for many posts at once, and which of them the viewer has voted on. */
-export function helpfulCounts(targetType: "REVIEW" | "QUESTION", ids: string[], viewerId?: string, db: StoreData = readStore()) {
+export function helpfulCounts(
+  targetType: "REVIEW" | "QUESTION",
+  ids: string[],
+  viewerId?: string,
+  db: StoreData = readStore(),
+) {
   const wanted = new Set(ids);
   const counts = new Map<string, number>();
   const mine = new Set<string>();
@@ -53,6 +77,11 @@ export function helpfulCounts(targetType: "REVIEW" | "QUESTION", ids: string[], 
 }
 
 /** FR-19: most helpful first, then newest. */
-export function byHelpfulness<T extends { id: string; createdAt: string }>(items: T[], counts: Map<string, number>): T[] {
-  return [...items].sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || b.createdAt.localeCompare(a.createdAt));
+export function byHelpfulness<T extends { id: string; createdAt: string }>(
+  items: T[],
+  counts: Map<string, number>,
+): T[] {
+  return [...items].sort(
+    (a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || b.createdAt.localeCompare(a.createdAt),
+  );
 }

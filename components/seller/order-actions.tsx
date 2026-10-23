@@ -45,7 +45,13 @@ export function SellerOrderActions({ sellerOrderId, status }: { sellerOrderId: s
             <input type="hidden" name="sellerOrderId" value={sellerOrderId} />
             <input type="hidden" name="to" value="DISPATCHED" />
             <div className="grid gap-4 sm:grid-cols-2">
-              <FormInput label="Courier" name="courierName" required maxLength={60} helper="For example Pronto Lanka or Domex" />
+              <FormInput
+                label="Courier"
+                name="courierName"
+                required
+                maxLength={60}
+                helper="For example Pronto Lanka or Domex"
+              />
               <FormInput label="Tracking number" name="trackingRef" maxLength={40} helper="Optional" />
             </div>
           </ActionForm>

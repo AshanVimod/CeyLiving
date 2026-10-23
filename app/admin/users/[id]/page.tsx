@@ -34,15 +34,28 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
           All users
         </Link>
       </p>
-      <PageTitle title={user.name} description={`${user.email}. ${user.role.charAt(0)}${user.role.slice(1).toLowerCase()} since ${formatDate(user.createdAt)}.`} action={<StatusBadge status={user.postingRestriction} />} />
+      <PageTitle
+        title={user.name}
+        description={`${user.email}. ${user.role.charAt(0)}${user.role.slice(1).toLowerCase()} since ${formatDate(user.createdAt)}.`}
+        action={<StatusBadge status={user.postingRestriction} />}
+      />
       {user.postingRestriction !== "NONE" ? (
         <p className="mb-6 rounded-md bg-sage px-4 py-3">
-          {user.postingRestriction === "MUTED" && user.mutedUntil ? `Muted until ${formatDate(user.mutedUntil)}. ` : user.postingRestriction === "BANNED" ? "Banned from posting. " : ""}
+          {user.postingRestriction === "MUTED" && user.mutedUntil
+            ? `Muted until ${formatDate(user.mutedUntil)}. `
+            : user.postingRestriction === "BANNED"
+              ? "Banned from posting. "
+              : ""}
           {user.restrictionReason ? `Reason: ${user.restrictionReason}` : ""}
         </p>
       ) : null}
       <ul className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {Object.entries({ Orders: counts.orders, Reviews: counts.reviews, Questions: counts.questions, "Reports made": counts.reportsMade }).map(([k, v]) => (
+        {Object.entries({
+          Orders: counts.orders,
+          Reviews: counts.reviews,
+          Questions: counts.questions,
+          "Reports made": counts.reportsMade,
+        }).map(([k, v]) => (
           <li key={k} className="rounded-lg border border-line bg-paper-raised p-4">
             <span className="block font-display text-3xl tabular-nums">{v}</span>
             <span className="text-sm text-ink-soft">{k}</span>
@@ -57,7 +70,9 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
           </Link>
         </p>
       ) : null}
-      {user.deletedAt ? <p className="mb-4 rounded-md bg-sage px-4 py-3">This account was deleted on {formatDate(user.deletedAt)}.</p> : null}
+      {user.deletedAt ? (
+        <p className="mb-4 rounded-md bg-sage px-4 py-3">This account was deleted on {formatDate(user.deletedAt)}.</p>
+      ) : null}
       {protectedUser ? (
         <p className="text-ink-soft">Admins can’t mute, ban or change the role of another admin or themselves.</p>
       ) : user.deletedAt ? null : (
@@ -71,7 +86,8 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
         <ul className="space-y-2">
           {history.map((h) => (
             <li key={h.id} className="rounded-md border border-line bg-paper-raised px-4 py-3">
-              <span className="font-semibold">{h.action}</span> by {findUserById(h.actorId, db)?.name ?? h.actorId}, {formatDate(h.createdAt)}
+              <span className="font-semibold">{h.action}</span> by {findUserById(h.actorId, db)?.name ?? h.actorId},{" "}
+              {formatDate(h.createdAt)}
               {h.reason ? <span className="block text-ink-soft">Reason: {h.reason}</span> : null}
             </li>
           ))}

@@ -17,7 +17,17 @@ function relative(iso: string) {
 
 function BellIcon() {
   return (
-    <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      width={20}
+      height={20}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Z" />
       <path d="M10 20.5a2 2 0 0 0 4 0" />
     </svg>
@@ -74,7 +84,10 @@ export function NotificationBell({ items, unread }: { items: Notification[]; unr
       >
         <BellIcon />
         {count ? (
-          <span className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-lacquer px-1 text-[11px] font-semibold leading-none text-paper tabular-nums" aria-hidden="true">
+          <span
+            className="absolute -right-1 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-lacquer px-1 text-[11px] font-semibold leading-none text-paper tabular-nums"
+            aria-hidden="true"
+          >
             {count > 9 ? "9+" : count}
           </span>
         ) : null}
@@ -89,7 +102,11 @@ export function NotificationBell({ items, unread }: { items: Notification[]; unr
           <ul>
             {items.map((n) => (
               <li key={n.id}>
-                <Link href={n.href || "/account/notifications"} onClick={() => setOpen(false)} className="flex flex-col px-4 py-2.5 hover:bg-sage focus-visible:outline-offset-[-2px]">
+                <Link
+                  href={n.href || "/account/notifications"}
+                  onClick={() => setOpen(false)}
+                  className="flex flex-col px-4 py-2.5 hover:bg-sage focus-visible:outline-offset-[-2px]"
+                >
                   <span className={`text-[0.95rem] ${n.readAt ? "" : "font-semibold"}`}>{n.title}</span>
                   <span className="text-xs text-ink-soft">{relative(n.createdAt)}</span>
                 </Link>
@@ -99,7 +116,11 @@ export function NotificationBell({ items, unread }: { items: Notification[]; unr
         ) : (
           <p className="px-4 py-2 text-sm text-ink-soft">Nothing new.</p>
         )}
-        <Link href="/account/notifications" onClick={() => setOpen(false)} className="mt-1 block border-t border-line px-4 pt-3 pb-1 text-sm font-semibold text-forest underline underline-offset-4">
+        <Link
+          href="/account/notifications"
+          onClick={() => setOpen(false)}
+          className="mt-1 block border-t border-line px-4 pt-3 pb-1 text-sm font-semibold text-forest underline underline-offset-4"
+        >
           See all
         </Link>
       </div>

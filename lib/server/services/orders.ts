@@ -33,7 +33,11 @@ function orderFor(sellerOrder: SellerOrder, db: StoreData): Order {
 }
 
 /** Seller moves their own seller order along the status machine; other shops' orders look missing (SEC-A5). */
-export async function transitionSellerOrder(actor: Actor, input: OrderTransitionInput, now = new Date()): Promise<SellerOrder> {
+export async function transitionSellerOrder(
+  actor: Actor,
+  input: OrderTransitionInput,
+  now = new Date(),
+): Promise<SellerOrder> {
   return transaction((db) => {
     const shop = shopOfSeller(actor, db);
     const so = db.sellerOrders.find((s) => s.id === input.sellerOrderId && s.shopId === shop.id);
@@ -42,10 +46,21 @@ export async function transitionSellerOrder(actor: Actor, input: OrderTransition
     so.status = input.to;
     so.updatedAt = now.toISOString();
     if (input.to === "ACCEPTED") so.acceptedAt = now.toISOString();
-    if (input.to === "DISPATCHED") Object.assign(so, { courierName: input.courierName, trackingRef: input.trackingRef, dispatchedAt: now.toISOString() });
+    if (input.to === "DISPATCHED")
+      Object.assign(so, {
+        courierName: input.courierName,
+        trackingRef: input.trackingRef,
+        dispatchedAt: now.toISOString(),
+      });
     if (input.to === "CANCELLED") so.cancelReason = input.reason;
     const order = orderFor(so, db);
-    addNotification(db, order.customerId, `order.${input.to.toLowerCase()}`, `Your order ${order.orderNumber} from ${shop.name} ${MESSAGES[input.to]}`, `/account/orders/${order.orderNumber}`);
+    addNotification(
+      db,
+      order.customerId,
+      `order.${input.to.toLowerCase()}`,
+      `Your order ${order.orderNumber} from ${shop.name} ${MESSAGES[input.to]}`,
+      `/account/orders/${order.orderNumber}`,
+    );
     return so;
   });
 }
@@ -59,7 +74,14 @@ export async function confirmDelivery(actor: Actor, sellerOrderId: string, now =
     assertTransition(CUSTOMER_FLOW, so.status, "COMPLETED", "order");
     Object.assign(so, { status: "COMPLETED", completedAt: now.toISOString(), updatedAt: now.toISOString() });
     const shop = db.shops.find((s) => s.id === so.shopId);
-    if (shop) addNotification(db, shop.ownerId, "order.completed", `${order.orderNumber} was delivered`, `/seller/orders/${so.id}`);
+    if (shop)
+      addNotification(
+        db,
+        shop.ownerId,
+        "order.completed",
+        `${order.orderNumber} was delivered`,
+        `/seller/orders/${so.id}`,
+      );
   });
 }
 
@@ -75,7 +97,12 @@ export function sellerOrderForSeller(actor: Actor, sellerOrderId: string, db: St
   const shop = shopOfSeller(actor, db);
   const sellerOrder = db.sellerOrders.find((so) => so.id === sellerOrderId && so.shopId === shop.id);
   if (!sellerOrder) throw new NotFoundError("Order not found.");
-  return { shop, sellerOrder, order: orderFor(sellerOrder, db), items: db.orderItems.filter((i) => i.sellerOrderId === sellerOrder.id) };
+  return {
+    shop,
+    sellerOrder,
+    order: orderFor(sellerOrder, db),
+    items: db.orderItems.filter((i) => i.sellerOrderId === sellerOrder.id),
+  };
 }
 
 /**
@@ -84,6 +111,10 @@ export function sellerOrderForSeller(actor: Actor, sellerOrderId: string, db: St
  */
 export function buyerContactFor(sellerOrder: SellerOrder, order: Order, now = new Date()) {
   if (sellerOrder.status === "CANCELLED" || sellerOrder.status === "REFUNDED") return undefined;
-  if (sellerOrder.completedAt && now.getTime() - Date.parse(sellerOrder.completedAt) > BUYER_DATA_VISIBLE_DAYS * 86_400_000) return undefined;
+  if (
+    sellerOrder.completedAt &&
+    now.getTime() - Date.parse(sellerOrder.completedAt) > BUYER_DATA_VISIBLE_DAYS * 86_400_000
+  )
+    return undefined;
   return order.shippingAddress;
 }

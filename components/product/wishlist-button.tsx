@@ -20,7 +20,10 @@ export function WishlistButton({ productSlug, productTitle, variant = "overlay" 
     e.stopPropagation();
     const nowSaved = toggleWishlist(productSlug);
     setPop(nowSaved);
-    toast(nowSaved ? "Saved to your wishlist" : "Removed from your wishlist", nowSaved ? { label: "View", href: "/account/wishlist" } : undefined);
+    toast(
+      nowSaved ? "Saved to your wishlist" : "Removed from your wishlist",
+      nowSaved ? { label: "View", href: "/account/wishlist" } : undefined,
+    );
   }
 
   const label = saved ? `Remove ${productTitle} from wishlist` : `Save ${productTitle} to wishlist`;

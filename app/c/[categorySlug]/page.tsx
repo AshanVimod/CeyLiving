@@ -44,13 +44,19 @@ async function CategoryContent(props: PageProps<"/c/[categorySlug]">) {
     <>
       {traditional ? <div className="lacquer-band" aria-hidden="true" /> : null}
       <Container className="pt-6 pb-10">
-        <Breadcrumbs items={[{ href: "/", label: "Home" }, { href: "/shop", label: "Shop all" }, { label: category.name }]} />
+        <Breadcrumbs
+          items={[{ href: "/", label: "Home" }, { href: "/shop", label: "Shop all" }, { label: category.name }]}
+        />
         <header className="mt-5 mb-10 flex items-center gap-6 sm:gap-8">
-          <div className={`relative hidden h-32 w-26 shrink-0 overflow-hidden bg-sage sm:block ${traditional ? "arch" : "rounded-[3px]"}`}>
+          <div
+            className={`relative hidden h-32 w-26 shrink-0 overflow-hidden bg-sage sm:block ${traditional ? "arch" : "rounded-[3px]"}`}
+          >
             <Image src={photoUrl(category.photo.id)} alt="" fill sizes="104px" className="object-cover" priority />
           </div>
           <div className="max-w-2xl">
-            <p className="text-sm font-semibold text-ink-soft">{traditional ? "Traditional crafts" : "Modern design"}</p>
+            <p className="text-sm font-semibold text-ink-soft">
+              {traditional ? "Traditional crafts" : "Modern design"}
+            </p>
             <h1 className="mt-1 text-[2.3rem] sm:text-[3rem]">{category.name}</h1>
             {category.sinhala ? (
               <p lang="si" className="font-sinhala text-ink-soft">
@@ -73,7 +79,11 @@ async function CategoryContent(props: PageProps<"/c/[categorySlug]">) {
           ))}
         </ul>
         <Suspense fallback={<CatalogueSkeleton />}>
-          <CatalogueResults searchParams={props.searchParams} category={category.slug} basePath={`/c/${category.slug}`} />
+          <CatalogueResults
+            searchParams={props.searchParams}
+            category={category.slug}
+            basePath={`/c/${category.slug}`}
+          />
         </Suspense>
       </Container>
     </>

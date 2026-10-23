@@ -17,7 +17,8 @@ export async function signInAsDemo(formData: FormData): Promise<void> {
   if (isProductionRuntime()) redirect("/signin");
   const userId = formData.get("userId");
   const allowed = DEMO_ACCOUNTS.some((a) => a.id === userId);
-  if (typeof userId !== "string" || !allowed || !findUserById(userId) || findUserById(userId)?.deletedAt) redirect("/signin");
+  if (typeof userId !== "string" || !allowed || !findUserById(userId) || findUserById(userId)?.deletedAt)
+    redirect("/signin");
   const store = await cookies();
   store.set(DEMO_SESSION_COOKIE, userId, {
     httpOnly: true,

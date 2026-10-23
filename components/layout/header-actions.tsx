@@ -51,7 +51,11 @@ export function HeaderActions() {
         <HeartIcon />
         <CountBadge count={wishCount} bump={wishBump} />
       </Link>
-      <Link href="/cart" className={iconLink} aria-label={cartCount ? `Cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}` : "Cart"}>
+      <Link
+        href="/cart"
+        className={iconLink}
+        aria-label={cartCount ? `Cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}` : "Cart"}
+      >
         <BagIcon />
         <CountBadge count={cartCount} bump={cartBump} />
       </Link>

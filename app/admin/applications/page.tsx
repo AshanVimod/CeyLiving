@@ -20,14 +20,25 @@ async function Applications({ searchParams }: { searchParams: PageProps<"/admin/
     <>
       <FilterLinks
         current={current}
-        items={FILTERS.map((f) => ({ value: f, label: f === "ALL" ? "All" : f === "NEEDS_CHANGES" ? "Changes requested" : f.charAt(0) + f.slice(1).toLowerCase(), href: `/admin/applications?status=${f}` }))}
+        items={FILTERS.map((f) => ({
+          value: f,
+          label:
+            f === "ALL" ? "All" : f === "NEEDS_CHANGES" ? "Changes requested" : f.charAt(0) + f.slice(1).toLowerCase(),
+          href: `/admin/applications?status=${f}`,
+        }))}
       />
       {list.length ? (
-        <DataTable caption="Seller applications" headers={["Shop", "Applicant", "Craft", "District", "Submitted", "Status"]}>
+        <DataTable
+          caption="Seller applications"
+          headers={["Shop", "Applicant", "Craft", "District", "Submitted", "Status"]}
+        >
           {list.map((a) => (
             <tr key={a.id}>
               <Td>
-                <Link href={`/admin/applications/${a.id}`} className="font-semibold text-forest underline underline-offset-4">
+                <Link
+                  href={`/admin/applications/${a.id}`}
+                  className="font-semibold text-forest underline underline-offset-4"
+                >
                   {a.shopName}
                 </Link>
               </Td>

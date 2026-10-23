@@ -6,7 +6,15 @@ import type { PostingRestriction } from "@/lib/types";
 import { ConfirmAction } from "./confirm-action";
 
 /** RULE-M3 / RULE-M5: mute for 7 or 30 days, ban, or lift. Never shown for admins. */
-export function UserRestrictionActions({ userId, name, restriction }: { userId: string; name: string; restriction: PostingRestriction }) {
+export function UserRestrictionActions({
+  userId,
+  name,
+  restriction,
+}: {
+  userId: string;
+  name: string;
+  restriction: PostingRestriction;
+}) {
   return (
     <div className="flex flex-wrap gap-2">
       {restriction !== "NONE" ? (

@@ -14,7 +14,11 @@ async function ShopProfile() {
       <section className="rounded-lg border border-line bg-paper-raised p-5 sm:p-6">
         <ShopProfileForm shop={shop} />
       </section>
-      <section id="payout" aria-labelledby="payout-h" className="mt-8 scroll-mt-40 rounded-lg border border-line bg-paper-raised p-5 sm:p-6">
+      <section
+        id="payout"
+        aria-labelledby="payout-h"
+        className="mt-8 scroll-mt-40 rounded-lg border border-line bg-paper-raised p-5 sm:p-6"
+      >
         <h2 id="payout-h" className="mb-1 text-2xl">
           Payout details
         </h2>

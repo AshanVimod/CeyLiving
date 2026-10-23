@@ -85,7 +85,9 @@ export function addToCart(productSlug: string, sku: string, quantity: number, cu
   const key = lineKey(productSlug, sku, customization);
   const existing = current.cart.find((l) => l.key === key);
   const cart = existing
-    ? current.cart.map((l) => (l.key === key ? { ...l, quantity: Math.min(MAX_CART_QUANTITY, l.quantity + quantity) } : l))
+    ? current.cart.map((l) =>
+        l.key === key ? { ...l, quantity: Math.min(MAX_CART_QUANTITY, l.quantity + quantity) } : l,
+      )
     : [...current.cart, { key, productSlug, sku, quantity: Math.min(MAX_CART_QUANTITY, quantity), customization }];
   commit({ ...current, cart });
 }

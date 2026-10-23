@@ -76,7 +76,11 @@ export const PRODUCT_LIMITS = {
 } as const;
 
 /** RULE-S2 */
-export const SHOP_SLUG = { min: 3, max: 60, reserved: ["admin", "seller", "account", "api", "new", "sell", "shop"] } as const;
+export const SHOP_SLUG = {
+  min: 3,
+  max: 60,
+  reserved: ["admin", "seller", "account", "api", "new", "sell", "shop"],
+} as const;
 
 /** BR-11: earnings become payable this many days after delivery. */
 export const PAYOUT_HOLD_DAYS = 7;

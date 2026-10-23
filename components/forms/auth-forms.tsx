@@ -19,7 +19,9 @@ function usePreviewSubmit() {
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
-    form.querySelectorAll<HTMLInputElement>("input").forEach((el) => el.setAttribute("aria-invalid", String(!el.checkValidity())));
+    form
+      .querySelectorAll<HTMLInputElement>("input")
+      .forEach((el) => el.setAttribute("aria-invalid", String(!el.checkValidity())));
     if (!form.checkValidity()) {
       setState("invalid");
       form.querySelector<HTMLElement>(":invalid")?.focus();
@@ -54,7 +56,10 @@ export function SignInForm({ next, signedInAs }: { next: string; signedInAs?: st
       footer={
         <p>
           New to CeyLiving?{" "}
-          <Link href={`/register?next=${encodeURIComponent(next)}`} className="font-semibold text-forest underline underline-offset-4">
+          <Link
+            href={`/register?next=${encodeURIComponent(next)}`}
+            className="font-semibold text-forest underline underline-offset-4"
+          >
             Create an account
           </Link>
         </p>
@@ -77,7 +82,10 @@ export function SignInForm({ next, signedInAs }: { next: string; signedInAs?: st
             Forgot your password?
           </Link>
         </div>
-        <button type="submit" className="h-12 w-full rounded-full bg-forest font-semibold text-paper hover:bg-forest-deep active:scale-[0.98]">
+        <button
+          type="submit"
+          className="h-12 w-full rounded-full bg-forest font-semibold text-paper hover:bg-forest-deep active:scale-[0.98]"
+        >
           Sign in
         </button>
         <button type="button" className="h-12 w-full rounded-full border border-ink/25 font-semibold hover:border-ink">
@@ -105,16 +113,27 @@ export function RegisterForm({ seller, next }: { seller: boolean; next: string }
     >
       {seller ? (
         <p className="-mt-4 mb-6 text-ink-soft">
-          Start with an account. Next, you’ll tell us about your work on the application form, and we’ll review your shop,
-          usually within five working days.
+          Start with an account. Next, you’ll tell us about your work on the application form, and we’ll review your
+          shop, usually within five working days.
         </p>
       ) : null}
       <form onSubmit={onSubmit} noValidate className="space-y-5">
         <PreviewNotice state={state} />
         <Field label="Full name" name="name" autoComplete="name" required />
         <Field label="Email" name="email" type="email" autoComplete="email" required />
-        <Field label="Password" name="password" type="password" autoComplete="new-password" minLength={10} required helper="At least 10 characters." />
-        <button type="submit" className="h-12 w-full rounded-full bg-forest font-semibold text-paper hover:bg-forest-deep active:scale-[0.98]">
+        <Field
+          label="Password"
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          minLength={10}
+          required
+          helper="At least 10 characters."
+        />
+        <button
+          type="submit"
+          className="h-12 w-full rounded-full bg-forest font-semibold text-paper hover:bg-forest-deep active:scale-[0.98]"
+        >
           {seller ? "Continue to shop details" : "Create account"}
         </button>
       </form>

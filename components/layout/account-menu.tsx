@@ -112,7 +112,14 @@ export function AccountMenu({ user, signOutAction }: AccountMenuProps) {
           </div>
           <div className="py-1" role="none">
             {accountLinks(user).map((l) => (
-              <Link key={l.href} href={l.href} role="menuitem" tabIndex={-1} onClick={() => setOpen(false)} className={itemClass}>
+              <Link
+                key={l.href}
+                href={l.href}
+                role="menuitem"
+                tabIndex={-1}
+                onClick={() => setOpen(false)}
+                className={itemClass}
+              >
                 {l.label}
               </Link>
             ))}

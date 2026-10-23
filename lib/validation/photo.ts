@@ -15,7 +15,11 @@ export const photoUrl = z
 
 export const photoInput = z.object({
   url: photoUrl,
-  alt: z.string().trim().min(3, "Describe the photo in a few words (for people using screen readers).").max(160, "Keep the description under 160 characters."),
+  alt: z
+    .string()
+    .trim()
+    .min(3, "Describe the photo in a few words (for people using screen readers).")
+    .max(160, "Keep the description under 160 characters."),
 });
 
 export type PhotoInput = z.infer<typeof photoInput>;

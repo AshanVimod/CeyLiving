@@ -34,7 +34,9 @@ export function shopChecklist(shop: Shop, db: StoreData): Checklist {
       hasPhoto(shop.banner) &&
       shop.story.length >= TEXT_LIMITS.storyMin &&
       Boolean(shop.district && shop.dispatchDays && shop.returnPolicy),
-    firstItem: db.products.some((p) => p.shopSlug === shop.slug && (p.status === "ACTIVE" || p.status === "PENDING_REVIEW")),
+    firstItem: db.products.some(
+      (p) => p.shopSlug === shop.slug && (p.status === "ACTIVE" || p.status === "PENDING_REVIEW"),
+    ),
     payoutAdded: Boolean(shop.payoutAccountMasked),
   };
 }
@@ -117,7 +119,11 @@ export async function decideShop(actor: Actor, input: ShopDecisionInput): Promis
         break;
     }
     shop.updatedAt = new Date().toISOString();
-    audit(db, actor, `shop.${input.decision}`, "SHOP", shop.id, { reason, before, after: { status: shop.status, isVerified: shop.isVerified } });
+    audit(db, actor, `shop.${input.decision}`, "SHOP", shop.id, {
+      reason,
+      before,
+      after: { status: shop.status, isVerified: shop.isVerified },
+    });
     return shop;
   });
 }
@@ -126,7 +132,8 @@ export async function decideShop(actor: Actor, input: ShopDecisionInput): Promis
 function closeShop(db: StoreData, shop: Shop, reason: string) {
   assertTransition(FLOW, shop.status, "CLOSED", "shop");
   const openOrders = db.sellerOrders.filter((so) => so.shopId === shop.id && OPEN_ORDER.includes(so.status));
-  if (openOrders.length) throw new ConflictError(`Finish or refund ${openOrders.length} open order(s) before closing this shop.`);
+  if (openOrders.length)
+    throw new ConflictError(`Finish or refund ${openOrders.length} open order(s) before closing this shop.`);
   Object.assign(shop, { status: "CLOSED", statusReason: reason });
   db.products.filter((p) => p.shopSlug === shop.slug && p.status !== "REMOVED").forEach((p) => (p.status = "ARCHIVED"));
   updateUser(db, shop.ownerId, { role: "CUSTOMER" });

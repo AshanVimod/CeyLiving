@@ -5,7 +5,15 @@ import type { ProductStatus } from "@/lib/types";
 import { ConfirmAction } from "./confirm-action";
 
 /** FR-9: approve or reject items waiting for review; remove rule-breaking items at any stage. */
-export function ProductDecisions({ productId, title, status }: { productId: string; title: string; status: ProductStatus }) {
+export function ProductDecisions({
+  productId,
+  title,
+  status,
+}: {
+  productId: string;
+  title: string;
+  status: ProductStatus;
+}) {
   return (
     <div className="flex flex-wrap gap-2">
       {status === "PENDING_REVIEW" ? (

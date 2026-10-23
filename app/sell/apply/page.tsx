@@ -75,8 +75,8 @@ export default function ApplyPage() {
     <Container className="max-w-3xl pt-10">
       <h1 className="text-[2.4rem] sm:text-[3rem]">Apply to sell</h1>
       <p className="mt-3 mb-8 text-lg text-ink-soft">
-        Tell us about your work. We review every application, usually within five working days. Approved makers set up their
-        shop and start listing straight away.
+        Tell us about your work. We review every application, usually within five working days. Approved makers set up
+        their shop and start listing straight away.
       </p>
       <Suspense fallback={<div className="skeleton h-96 rounded-lg" aria-busy="true" />}>
         <Apply />

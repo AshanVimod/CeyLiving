@@ -25,16 +25,31 @@ async function Products({ searchParams }: { searchParams: PageProps<"/admin/prod
     <>
       <FilterLinks
         current={current}
-        items={FILTERS.map((f) => ({ value: f, label: f === "PENDING_REVIEW" ? "Waiting" : f.charAt(0) + f.slice(1).toLowerCase(), href: `/admin/products?status=${f}` }))}
+        items={FILTERS.map((f) => ({
+          value: f,
+          label: f === "PENDING_REVIEW" ? "Waiting" : f.charAt(0) + f.slice(1).toLowerCase(),
+          href: `/admin/products?status=${f}`,
+        }))}
       />
       {items.length ? (
         <ul className="space-y-4">
           {items.map((p) => {
             const shop = db.shops.find((s) => s.slug === p.shopSlug);
             return (
-              <li key={p.id} className="grid gap-4 rounded-lg border border-line bg-paper-raised p-4 sm:grid-cols-[96px_1fr]">
+              <li
+                key={p.id}
+                className="grid gap-4 rounded-lg border border-line bg-paper-raised p-4 sm:grid-cols-[96px_1fr]"
+              >
                 <div className="relative aspect-[4/5] w-24 overflow-hidden rounded-[3px] bg-sage">
-                  {p.images[0] ? <Image src={photoUrl(p.images[0].id)} alt={p.images[0].alt} fill sizes="96px" className="object-cover" /> : null}
+                  {p.images[0] ? (
+                    <Image
+                      src={photoUrl(p.images[0].id)}
+                      alt={p.images[0].alt}
+                      fill
+                      sizes="96px"
+                      className="object-cover"
+                    />
+                  ) : null}
                 </div>
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-3">
@@ -69,7 +84,10 @@ async function Products({ searchParams }: { searchParams: PageProps<"/admin/prod
 export default function AdminProductsPage(props: PageProps<"/admin/products">) {
   return (
     <>
-      <PageTitle title="Items" description="New shops’ first items wait here. You can also remove items that break the rules." />
+      <PageTitle
+        title="Items"
+        description="New shops’ first items wait here. You can also remove items that break the rules."
+      />
       <Suspense fallback={<div className="skeleton h-64 rounded-lg" aria-busy="true" />}>
         <Products searchParams={props.searchParams} />
       </Suspense>

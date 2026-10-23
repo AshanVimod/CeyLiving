@@ -25,8 +25,15 @@ function preview(r: Report, db: StoreData): { text: string; href?: string } {
     return { text: s ? `Shop: ${s.name}` : "Shop (gone)", href: s ? `/admin/sellers/${s.id}` : undefined };
   }
   const content =
-    r.targetType === "REVIEW" ? db.reviews.find((x) => x.id === r.targetId)?.comment : r.targetType === "QUESTION" ? db.questions.find((x) => x.id === r.targetId)?.body : db.answers.find((x) => x.id === r.targetId)?.body;
-  return { text: `${r.targetType.charAt(0)}${r.targetType.slice(1).toLowerCase()}: “${(content ?? "(erased)").slice(0, 160)}”`, href: `/admin/moderation?type=${r.targetType}&filter=reported` };
+    r.targetType === "REVIEW"
+      ? db.reviews.find((x) => x.id === r.targetId)?.comment
+      : r.targetType === "QUESTION"
+        ? db.questions.find((x) => x.id === r.targetId)?.body
+        : db.answers.find((x) => x.id === r.targetId)?.body;
+  return {
+    text: `${r.targetType.charAt(0)}${r.targetType.slice(1).toLowerCase()}: “${(content ?? "(erased)").slice(0, 160)}”`,
+    href: `/admin/moderation?type=${r.targetType}&filter=reported`,
+  };
 }
 
 async function Reports({ searchParams }: { searchParams: PageProps<"/admin/reports">["searchParams"] }) {
@@ -37,7 +44,14 @@ async function Reports({ searchParams }: { searchParams: PageProps<"/admin/repor
   const reports = listReports(db).filter((r) => r.status === current);
   return (
     <>
-      <FilterLinks current={current} items={FILTERS.map((f) => ({ value: f, label: f.charAt(0) + f.slice(1).toLowerCase(), href: `/admin/reports?status=${f}` }))} />
+      <FilterLinks
+        current={current}
+        items={FILTERS.map((f) => ({
+          value: f,
+          label: f.charAt(0) + f.slice(1).toLowerCase(),
+          href: `/admin/reports?status=${f}`,
+        }))}
+      />
       {reports.length ? (
         <ul className="space-y-4">
           {reports.map((r) => {

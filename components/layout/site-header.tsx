@@ -37,7 +37,10 @@ export function SiteHeader() {
       <div className="px-4 pb-2.5 sm:px-6 lg:hidden">
         <SearchBox />
       </div>
-      <nav aria-label="Main" className="mx-auto hidden max-w-[1320px] items-center gap-7 px-6 pb-1.5 text-[0.95rem] lg:flex">
+      <nav
+        aria-label="Main"
+        className="mx-auto hidden max-w-[1320px] items-center gap-7 px-6 pb-1.5 text-[0.95rem] lg:flex"
+      >
         <CategoriesMenu />
         {NAV_LINKS.map((l) => (
           <Link key={l.href} href={l.href} className="rounded-sm py-2 text-ink-soft transition-colors hover:text-ink">

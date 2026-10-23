@@ -57,10 +57,14 @@ export function ProductCard({ product, morph = false, priority = false, sizes, t
           <BadgeList product={product} />
         </div>
         <div className="mt-3 space-y-1">
-          <h3 className={`font-sans text-[0.98rem] font-medium leading-snug decoration-current/30 ${dark ? "text-paper" : "text-ink"} underline-offset-4 group-hover:underline`}>
+          <h3
+            className={`font-sans text-[0.98rem] font-medium leading-snug decoration-current/30 ${dark ? "text-paper" : "text-ink"} underline-offset-4 group-hover:underline`}
+          >
             {product.title}
           </h3>
-          {product.shopName ? <p className={`text-sm ${dark ? "text-paper/70" : "text-ink-soft"}`}>{product.shopName}</p> : null}
+          {product.shopName ? (
+            <p className={`text-sm ${dark ? "text-paper/70" : "text-ink-soft"}`}>{product.shopName}</p>
+          ) : null}
           <p className="flex flex-wrap items-baseline gap-x-2 pt-0.5">
             <span className={`font-semibold tabular-nums ${dark ? "text-paper" : "text-ink"}`}>
               {hasRange ? "From " : ""}
@@ -72,7 +76,9 @@ export function ProductCard({ product, morph = false, priority = false, sizes, t
                 {formatLkr(compareAt)}
               </span>
             ) : null}
-            {!available ? <span className={`text-sm ${dark ? "text-turmeric-soft" : "text-lacquer"}`}>Sold out</span> : null}
+            {!available ? (
+              <span className={`text-sm ${dark ? "text-turmeric-soft" : "text-lacquer"}`}>Sold out</span>
+            ) : null}
           </p>
           {rating !== undefined ? (
             <span className={dark ? "[&_.text-ink-soft]:text-paper/70" : ""}>
@@ -110,7 +116,10 @@ export function ProductGrid({
 
 export function ProductGridSkeleton({ count = 8 }: { count?: number }) {
   return (
-    <ul className="grid grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-4 lg:gap-x-6 lg:gap-y-12" aria-hidden="true">
+    <ul
+      className="grid grid-cols-2 gap-x-4 gap-y-9 sm:grid-cols-3 sm:gap-x-5 lg:grid-cols-4 lg:gap-x-6 lg:gap-y-12"
+      aria-hidden="true"
+    >
       {Array.from({ length: count }, (_, i) => (
         <li key={i}>
           <div className="skeleton aspect-[4/5] rounded-[3px]" />

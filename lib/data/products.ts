@@ -57,8 +57,19 @@ export const productSeeds: ProductSeed[] = [
       { sku: "NRM-M", label: "Medium, 30 cm", priceCents: 980000, stock: 6 },
     ],
     reviews: [
-      { customerName: "Anushka P.", rating: 5, comment: "Even better in person. The colours are deep and the carving is sharp. Packed in so much straw it survived the trip to Jaffna perfectly.", date: "2026-09-21" },
-      { customerName: "Tom H.", rating: 5, comment: "Bought as a gift for my parents in the UK. Ruwan sent a note explaining the story of the mask.", date: "2026-10-04" },
+      {
+        customerName: "Anushka P.",
+        rating: 5,
+        comment:
+          "Even better in person. The colours are deep and the carving is sharp. Packed in so much straw it survived the trip to Jaffna perfectly.",
+        date: "2026-09-21",
+      },
+      {
+        customerName: "Tom H.",
+        rating: 5,
+        comment: "Bought as a gift for my parents in the UK. Ruwan sent a note explaining the story of the mask.",
+        date: "2026-10-04",
+      },
     ],
   }),
   product({
@@ -84,7 +95,14 @@ export const productSeeds: ProductSeed[] = [
       { id: "1720945489937-e38465704695", alt: "Wall of masks in the workshop" },
     ],
     variants: [{ sku: "GRM-1", label: "One size, 42 cm", priceCents: 1650000, stock: 2 }],
-    reviews: [{ customerName: "Ishan R.", rating: 4, comment: "Beautiful work. Delivery took a day longer than shown.", date: "2026-09-12" }],
+    reviews: [
+      {
+        customerName: "Ishan R.",
+        rating: 4,
+        comment: "Beautiful work. Delivery took a day longer than shown.",
+        date: "2026-09-12",
+      },
+    ],
   }),
   product({
     slug: "mayura-raksha-wall-mask",
@@ -147,10 +165,31 @@ export const productSeeds: ProductSeed[] = [
       { sku: "EWN-60", label: "60 × 18 cm", priceCents: 690000, stock: 0 },
     ],
     customization: [
-      { key: "text", label: "Name or house name", kind: "TEXT", maxLength: 30, isRequired: true, helper: "Up to 30 characters, including spaces." },
-      { key: "script", label: "Lettering", kind: "SELECT", options: ["English", "Sinhala", "Tamil"], maxLength: 10, isRequired: true },
+      {
+        key: "text",
+        label: "Name or house name",
+        kind: "TEXT",
+        maxLength: 30,
+        isRequired: true,
+        helper: "Up to 30 characters, including spaces.",
+      },
+      {
+        key: "script",
+        label: "Lettering",
+        kind: "SELECT",
+        options: ["English", "Sinhala", "Tamil"],
+        maxLength: 10,
+        isRequired: true,
+      },
     ],
-    reviews: [{ customerName: "Dinusha K.", rating: 5, comment: "Our name in Sinhala, perfectly carved. Took the 10 days promised.", date: "2026-10-01" }],
+    reviews: [
+      {
+        customerName: "Dinusha K.",
+        rating: 5,
+        comment: "Our name in Sinhala, perfectly carved. Took the 10 days promised.",
+        date: "2026-10-01",
+      },
+    ],
   }),
 
   // ---------- Handloom, batik & lace ----------
@@ -180,7 +219,14 @@ export const productSeeds: ProductSeed[] = [
       { sku: "BLR-150", label: "150 cm", priceCents: 1280000, stock: 2 },
       { sku: "BLR-200", label: "200 cm", priceCents: 1690000, stock: 1 },
     ],
-    reviews: [{ customerName: "Shalini W.", rating: 5, comment: "Heirloom quality. My grandmother cried when she saw it.", date: "2026-10-08" }],
+    reviews: [
+      {
+        customerName: "Shalini W.",
+        rating: 5,
+        comment: "Heirloom quality. My grandmother cried when she saw it.",
+        date: "2026-10-08",
+      },
+    ],
   }),
   product({
     slug: "beeralu-doily-set",
@@ -268,7 +314,8 @@ export const productSeeds: ProductSeed[] = [
     shopSlug: "kandy-batik-house",
     categorySlug: "fashion-batik-wear",
     subcategory: "Dresses",
-    description: "A relaxed midi dress cut from a single batik panel, so the pattern runs unbroken from shoulder to hem.",
+    description:
+      "A relaxed midi dress cut from a single batik panel, so the pattern runs unbroken from shoulder to hem.",
     materials: ["fabric"],
     materialNote: "Cotton voile, wax-resist dyes",
     styles: ["MODERN", "COLOURFUL"],
@@ -288,7 +335,14 @@ export const productSeeds: ProductSeed[] = [
       { sku: "HBD-L", label: "L", priceCents: 1190000, stock: 0 },
     ],
     customization: [
-      { key: "colour", label: "Colourway", kind: "SELECT", options: ["Indigo and ochre", "Forest and cream", "Red and black"], maxLength: 30, isRequired: true },
+      {
+        key: "colour",
+        label: "Colourway",
+        kind: "SELECT",
+        options: ["Indigo and ochre", "Forest and cream", "Red and black"],
+        maxLength: 30,
+        isRequired: true,
+      },
     ],
   }),
   product({
@@ -321,7 +375,8 @@ export const productSeeds: ProductSeed[] = [
     shopSlug: "pol-katu-lanka",
     categorySlug: "sri-lankan-handicrafts",
     subcategory: "Coconut shell",
-    description: "Three halves of polished coconut shell become one wide-eyed owl. Finished with coconut oil, no varnish.",
+    description:
+      "Three halves of polished coconut shell become one wide-eyed owl. Finished with coconut oil, no varnish.",
     materials: ["natural-fibre", "recycled"],
     materialNote: "Reclaimed coconut shell, coconut oil",
     styles: ["RUSTIC", "TRADITIONAL"],
@@ -337,7 +392,9 @@ export const productSeeds: ProductSeed[] = [
       { id: "1743669768727-b9c9c58af763", alt: "The owl held in a hand for scale" },
     ],
     variants: [{ sku: "CSO-1", label: "One size", priceCents: 240000, stock: 14 }],
-    reviews: [{ customerName: "Maya L.", rating: 5, comment: "Charming and smells faintly of coconut.", date: "2026-10-11" }],
+    reviews: [
+      { customerName: "Maya L.", rating: 5, comment: "Charming and smells faintly of coconut.", date: "2026-10-11" },
+    ],
   }),
   product({
     slug: "hand-woven-cane-basket",
@@ -402,7 +459,14 @@ export const productSeeds: ProductSeed[] = [
     care: "Unglazed: for dried flowers, or use a glass liner for water.",
     images: [{ id: "1631125915902-d8abe9225ff2", alt: "Three brown clay vases on a concrete table" }],
     variants: [{ sku: "TVT-3", label: "Set of three", priceCents: 640000, stock: 4 }],
-    reviews: [{ customerName: "Ruvini A.", rating: 5, comment: "Arrived wrapped like treasure. The burnish is lovely.", date: "2026-10-02" }],
+    reviews: [
+      {
+        customerName: "Ruvini A.",
+        rating: 5,
+        comment: "Arrived wrapped like treasure. The burnish is lovely.",
+        date: "2026-10-02",
+      },
+    ],
   }),
   product({
     slug: "stoneware-vase-collection",
@@ -451,7 +515,8 @@ export const productSeeds: ProductSeed[] = [
     shopSlug: "rata-studio",
     categorySlug: "wall-art-decor",
     subcategory: "Paintings",
-    description: "Wide brushwork in blue and orange, painted during the south-west monsoon. Original, signed on the back.",
+    description:
+      "Wide brushwork in blue and orange, painted during the south-west monsoon. Original, signed on the back.",
     materials: ["fabric", "other"],
     materialNote: "Acrylic on stretched cotton canvas",
     styles: ["MODERN", "COLOURFUL"],
@@ -507,7 +572,8 @@ export const productSeeds: ProductSeed[] = [
     shopSlug: "rata-studio",
     categorySlug: "personalized-gifts",
     subcategory: "Custom portraits",
-    description: "A graphite portrait of a person, couple or pet, drawn from your photo. You approve a sketch before the final drawing.",
+    description:
+      "A graphite portrait of a person, couple or pet, drawn from your photo. You approve a sketch before the final drawing.",
     materials: ["other"],
     materialNote: "Graphite on 300 gsm cotton paper",
     styles: ["MINIMAL", "MODERN"],
@@ -524,13 +590,30 @@ export const productSeeds: ProductSeed[] = [
       { sku: "CPP-A3", label: "A3, up to three faces", priceCents: 1950000, stock: 0 },
     ],
     customization: [
-      { key: "subject", label: "Who is in the portrait", kind: "TEXT", maxLength: 80, isRequired: true, helper: "For example: my parents, or our dog Bruno. You'll upload photos after checkout." },
+      {
+        key: "subject",
+        label: "Who is in the portrait",
+        kind: "TEXT",
+        maxLength: 80,
+        isRequired: true,
+        helper: "For example: my parents, or our dog Bruno. You'll upload photos after checkout.",
+      },
       { key: "message", label: "Message on the back (optional)", kind: "TEXT", maxLength: 120, isRequired: false },
     ],
     reviews: [
-      { customerName: "Hashini D.", rating: 5, comment: "Captured my late father perfectly. The sketch approval step made all the difference.", date: "2026-09-28" },
+      {
+        customerName: "Hashini D.",
+        rating: 5,
+        comment: "Captured my late father perfectly. The sketch approval step made all the difference.",
+        date: "2026-09-28",
+      },
       { customerName: "Ravi S.", rating: 5, comment: "Our cat, in all her grumpy glory.", date: "2026-10-09" },
-      { customerName: "Nadeesha F.", rating: 4, comment: "Lovely drawing, took 16 days instead of 14.", date: "2026-10-15" },
+      {
+        customerName: "Nadeesha F.",
+        rating: 4,
+        comment: "Lovely drawing, took 16 days instead of 14.",
+        date: "2026-10-15",
+      },
     ],
   }),
 
@@ -592,7 +675,14 @@ export const productSeeds: ProductSeed[] = [
     variants: [{ sku: "ENH-20", label: "20 cm hoop", priceCents: 480000, stock: 0 }],
     customization: [
       { key: "name", label: "Name to stitch", kind: "TEXT", maxLength: 20, isRequired: true },
-      { key: "date", label: "Date (optional)", kind: "TEXT", maxLength: 20, isRequired: false, helper: "For example: 12 March 2026" },
+      {
+        key: "date",
+        label: "Date (optional)",
+        kind: "TEXT",
+        maxLength: 20,
+        isRequired: false,
+        helper: "For example: 12 March 2026",
+      },
     ],
   }),
   product({
@@ -714,7 +804,15 @@ export const productSeeds: ProductSeed[] = [
       { sku: "HSR-7", label: "Size 7", priceCents: 850000, stock: 0 },
       { sku: "HSR-8", label: "Size 8", priceCents: 850000, stock: 0 },
     ],
-    customization: [{ key: "engraving", label: "Engraving inside the band (optional)", kind: "TEXT", maxLength: 15, isRequired: false }],
+    customization: [
+      {
+        key: "engraving",
+        label: "Engraving inside the band (optional)",
+        kind: "TEXT",
+        maxLength: 15,
+        isRequired: false,
+      },
+    ],
   }),
 
   // ---------- Bags ----------
@@ -736,7 +834,14 @@ export const productSeeds: ProductSeed[] = [
     care: "Condition every few months with leather balm.",
     images: [{ id: "1600857062241-98e5dba7f214", alt: "Brown leather sling bag" }],
     variants: [{ sku: "TLS-1", label: "Tan", priceCents: 1580000, stock: 3 }],
-    reviews: [{ customerName: "Kavindu J.", rating: 5, comment: "Solid stitching, smells like real leather. Worth it.", date: "2026-10-13" }],
+    reviews: [
+      {
+        customerName: "Kavindu J.",
+        rating: 5,
+        comment: "Solid stitching, smells like real leather. Worth it.",
+        date: "2026-10-13",
+      },
+    ],
   }),
   product({
     slug: "leather-tote",
@@ -778,6 +883,8 @@ export const productSeeds: ProductSeed[] = [
     care: "Condition every few months.",
     images: [{ id: "1598532163257-ae3c6b2524b6", alt: "Brown leather handbag on a white surface" }],
     variants: [{ sku: "SLH-1", label: "Chestnut", priceCents: 2100000, stock: 0 }],
-    customization: [{ key: "initials", label: "Initials stamped inside (optional)", kind: "TEXT", maxLength: 3, isRequired: false }],
+    customization: [
+      { key: "initials", label: "Initials stamped inside (optional)", kind: "TEXT", maxLength: 3, isRequired: false },
+    ],
   }),
 ];

@@ -32,7 +32,9 @@ async function Shop({ params }: { params: PageProps<"/admin/sellers/[shopId]">["
         description={`${owner?.name ?? "Unknown owner"} (${owner?.email ?? ""}), ${shop.district}. Created ${formatDate(shop.createdAt)}.`}
         action={<StatusBadge status={shop.status} />}
       />
-      {shop.statusReason ? <p className="mb-6 rounded-md bg-sage px-4 py-3">Reason on record: {shop.statusReason}</p> : null}
+      {shop.statusReason ? (
+        <p className="mb-6 rounded-md bg-sage px-4 py-3">Reason on record: {shop.statusReason}</p>
+      ) : null}
       <ShopDecisions shopId={shop.id} name={shop.name} status={shop.status} isVerified={shop.isVerified} />
       {shop.status === "ACTIVE" ? (
         <p className="mt-4">
@@ -58,7 +60,8 @@ async function Shop({ params }: { params: PageProps<"/admin/sellers/[shopId]">["
         <ul className="space-y-2 text-[0.95rem]">
           {history.map((h) => (
             <li key={h.id} className="rounded-md border border-line bg-paper-raised px-4 py-3">
-              <span className="font-semibold">{h.action}</span> by {findUserById(h.actorId)?.name ?? h.actorId}, {formatDate(h.createdAt)}
+              <span className="font-semibold">{h.action}</span> by {findUserById(h.actorId)?.name ?? h.actorId},{" "}
+              {formatDate(h.createdAt)}
               {h.reason ? <span className="block text-ink-soft">Reason: {h.reason}</span> : null}
             </li>
           ))}

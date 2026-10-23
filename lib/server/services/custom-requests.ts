@@ -28,7 +28,11 @@ function load(db: StoreData, id: string, now: Date): CustomRequest {
 }
 
 /** A signed-in customer asks an active shop for something made to order (not their own shop). */
-export async function createCustomRequest(actor: Actor, input: CustomRequestInput, now = new Date()): Promise<CustomRequest> {
+export async function createCustomRequest(
+  actor: Actor,
+  input: CustomRequestInput,
+  now = new Date(),
+): Promise<CustomRequest> {
   assertCanPost(actor, now);
   return transaction((db) => {
     const shop = db.shops.find((s) => s.id === input.shopId && s.status === "ACTIVE");
@@ -59,26 +63,46 @@ export async function quoteCustomRequest(actor: Actor, input: QuoteInput, now = 
     const request = load(db, input.requestId, now);
     if (request.shopId !== shop.id) throw new NotFoundError("Request not found.");
     assertTransition(FLOW, request.status, "QUOTED", "request");
-    Object.assign(request, { status: "QUOTED", quote: { priceCents: input.price, days: input.days, message: input.message, quotedAt: now.toISOString() }, updatedAt: now.toISOString() });
+    Object.assign(request, {
+      status: "QUOTED",
+      quote: { priceCents: input.price, days: input.days, message: input.message, quotedAt: now.toISOString() },
+      updatedAt: now.toISOString(),
+    });
     addNotification(db, request.customerId, "request.quoted", `${shop.name} sent you a quote`, "/account/requests");
     return request;
   });
 }
 
-export async function declineCustomRequest(actor: Actor, requestId: string, reason: string, now = new Date()): Promise<CustomRequest> {
+export async function declineCustomRequest(
+  actor: Actor,
+  requestId: string,
+  reason: string,
+  now = new Date(),
+): Promise<CustomRequest> {
   return transaction((db) => {
     const shop = shopOfSeller(actor, db);
     const request = load(db, requestId, now);
     if (request.shopId !== shop.id) throw new NotFoundError("Request not found.");
     assertTransition(FLOW, request.status, "DECLINED", "request");
     Object.assign(request, { status: "DECLINED", declineReason: reason, updatedAt: now.toISOString() });
-    addNotification(db, request.customerId, "request.declined", `${shop.name} can’t take on your request`, "/account/requests");
+    addNotification(
+      db,
+      request.customerId,
+      "request.declined",
+      `${shop.name} can’t take on your request`,
+      "/account/requests",
+    );
     return request;
   });
 }
 
 /** The customer accepts or declines a quote on their own request. */
-export async function respondToQuote(actor: Actor, requestId: string, response: "accept" | "decline", now = new Date()): Promise<CustomRequest> {
+export async function respondToQuote(
+  actor: Actor,
+  requestId: string,
+  response: "accept" | "decline",
+  now = new Date(),
+): Promise<CustomRequest> {
   return transaction((db) => {
     const request = load(db, requestId, now);
     if (request.customerId !== actor.id) throw new NotFoundError("Request not found.");
@@ -87,13 +111,22 @@ export async function respondToQuote(actor: Actor, requestId: string, response: 
     assertTransition(FLOW, request.status, to, "request");
     Object.assign(request, { status: to, updatedAt: now.toISOString() });
     const shop = db.shops.find((s) => s.id === request.shopId);
-    if (shop) addNotification(db, shop.ownerId, `request.${response}ed`, `${actor.name} ${response === "accept" ? "accepted" : "declined"} your quote`, "/seller/requests");
+    if (shop)
+      addNotification(
+        db,
+        shop.ownerId,
+        `request.${response}ed`,
+        `${actor.name} ${response === "accept" ? "accepted" : "declined"} your quote`,
+        "/seller/requests",
+      );
     return request;
   });
 }
 
 export function requestsOfCustomer(actor: Actor, db: StoreData = readStore()): CustomRequest[] {
-  return db.customRequests.filter((r) => r.customerId === actor.id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return db.customRequests
+    .filter((r) => r.customerId === actor.id)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export function requestsOfSeller(actor: Actor, db: StoreData = readStore()): CustomRequest[] {

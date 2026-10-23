@@ -27,7 +27,12 @@ export function summarizeCart(cart: CartLine[], products: Map<string, LookupProd
     const variant = product?.variants.find((v) => v.sku === line.sku);
     if (!product || !variant) continue;
     const priced: PricedLine = { ...line, product, variant, lineTotalCents: variant.priceCents * line.quantity };
-    const group = groups.get(product.shop.slug) ?? { shop: product.shop, lines: [], subtotalCents: 0, shippingCents: 0 };
+    const group = groups.get(product.shop.slug) ?? {
+      shop: product.shop,
+      lines: [],
+      subtotalCents: 0,
+      shippingCents: 0,
+    };
     group.lines.push(priced);
     group.subtotalCents += priced.lineTotalCents;
     groups.set(product.shop.slug, group);

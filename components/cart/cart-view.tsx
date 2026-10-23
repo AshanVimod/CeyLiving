@@ -15,7 +15,11 @@ const noop = () => () => {};
 
 /** True after hydration, so the server-rendered skeleton isn't replaced by an "empty cart" flash. */
 export function useHydrated() {
-  return useSyncExternalStore(noop, () => true, () => false);
+  return useSyncExternalStore(
+    noop,
+    () => true,
+    () => false,
+  );
 }
 
 function fieldLabel(key: string) {
@@ -44,7 +48,9 @@ export function CartView() {
     return (
       <div role="alert" className="rounded-lg border border-line bg-paper-raised px-6 py-10 text-center">
         <h2 className="text-2xl">We couldn’t load your cart</h2>
-        <p className="mt-2 text-ink-soft">Check your connection and reload the page. Your items are still saved on this device.</p>
+        <p className="mt-2 text-ink-soft">
+          Check your connection and reload the page. Your items are still saved on this device.
+        </p>
       </div>
     );
   }
@@ -54,14 +60,24 @@ export function CartView() {
       <div className="rounded-lg border border-dashed border-line px-6 py-16 text-center">
         <h2 className="text-2xl">Your cart is empty</h2>
         {unavailable.length ? (
-          <p className="mx-auto mt-2 max-w-md text-ink-soft">Some items you added are no longer for sale and were left out.</p>
+          <p className="mx-auto mt-2 max-w-md text-ink-soft">
+            Some items you added are no longer for sale and were left out.
+          </p>
         ) : null}
-        <p className="mx-auto mt-2 max-w-md text-ink-soft">Find something made by hand. Your cart is saved on this device.</p>
+        <p className="mx-auto mt-2 max-w-md text-ink-soft">
+          Find something made by hand. Your cart is saved on this device.
+        </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <Link href="/shop" className="inline-flex h-12 items-center rounded-full bg-forest px-7 font-semibold text-paper hover:bg-forest-deep">
+          <Link
+            href="/shop"
+            className="inline-flex h-12 items-center rounded-full bg-forest px-7 font-semibold text-paper hover:bg-forest-deep"
+          >
             Shop creations
           </Link>
-          <Link href="/account/wishlist" className="inline-flex h-12 items-center rounded-full border border-ink/25 px-7 font-semibold hover:border-ink">
+          <Link
+            href="/account/wishlist"
+            className="inline-flex h-12 items-center rounded-full border border-ink/25 px-7 font-semibold hover:border-ink"
+          >
             View wishlist
           </Link>
         </div>
@@ -75,26 +91,50 @@ export function CartView() {
         {groups.map((g) => {
           const toFree = FREE_SHIPPING_THRESHOLD_CENTS - g.subtotalCents;
           return (
-            <section key={g.shop.slug} aria-labelledby={`shop-${g.shop.slug}`} className="rounded-lg border border-line bg-paper-raised">
+            <section
+              key={g.shop.slug}
+              aria-labelledby={`shop-${g.shop.slug}`}
+              className="rounded-lg border border-line bg-paper-raised"
+            >
               <header className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-5 py-4">
                 <h2 id={`shop-${g.shop.slug}`} className="font-sans text-base font-semibold">
-                  From <Link href={`/shop/${g.shop.slug}`} className="underline decoration-ink/30 underline-offset-4 hover:decoration-ink">{g.shop.name}</Link>
+                  From{" "}
+                  <Link
+                    href={`/shop/${g.shop.slug}`}
+                    className="underline decoration-ink/30 underline-offset-4 hover:decoration-ink"
+                  >
+                    {g.shop.name}
+                  </Link>
                 </h2>
                 <p className="text-sm text-ink-soft">{g.shop.dispatchDays}</p>
               </header>
               <ul className="divide-y divide-line">
                 {g.lines.map((line) => (
                   <li key={line.key} className="flex gap-4 px-5 py-5">
-                    <Link href={`/p/${line.product.slug}`} className="relative h-28 w-22 shrink-0 overflow-hidden rounded-[3px] bg-sage">
-                      <Image src={photoUrl(line.product.image.id)} alt={line.product.image.alt} fill sizes="88px" className="object-cover" />
+                    <Link
+                      href={`/p/${line.product.slug}`}
+                      className="relative h-28 w-22 shrink-0 overflow-hidden rounded-[3px] bg-sage"
+                    >
+                      <Image
+                        src={photoUrl(line.product.image.id)}
+                        alt={line.product.image.alt}
+                        fill
+                        sizes="88px"
+                        className="object-cover"
+                      />
                     </Link>
                     <div className="flex min-w-0 flex-1 flex-col">
                       <div className="flex justify-between gap-3">
                         <div className="min-w-0">
-                          <Link href={`/p/${line.product.slug}`} className="font-medium hover:underline underline-offset-4">
+                          <Link
+                            href={`/p/${line.product.slug}`}
+                            className="font-medium hover:underline underline-offset-4"
+                          >
                             {line.product.title}
                           </Link>
-                          {line.product.variants.length > 1 ? <p className="text-sm text-ink-soft">{line.variant.label}</p> : null}
+                          {line.product.variants.length > 1 ? (
+                            <p className="text-sm text-ink-soft">{line.variant.label}</p>
+                          ) : null}
                           {Object.entries(line.customization).map(([k, v]) => (
                             <p key={k} className="text-sm text-ink-soft">
                               {line.product.customizationLabels[k] ?? fieldLabel(k)}: {v}
@@ -104,7 +144,11 @@ export function CartView() {
                         <p className="shrink-0 font-semibold tabular-nums">{formatLkr(line.lineTotalCents)}</p>
                       </div>
                       <div className="mt-auto flex items-center justify-between gap-3 pt-3">
-                        <div className="flex h-10 items-center rounded-full border border-line" role="group" aria-label={`Quantity of ${line.product.title}`}>
+                        <div
+                          className="flex h-10 items-center rounded-full border border-line"
+                          role="group"
+                          aria-label={`Quantity of ${line.product.title}`}
+                        >
                           <button
                             type="button"
                             onClick={() => setQuantity(line.key, line.quantity - 1)}
@@ -181,10 +225,15 @@ export function CartView() {
             <dd className="tabular-nums">{formatLkr(totalCents)}</dd>
           </div>
         </dl>
-        <Link href="/checkout" className="mt-6 flex h-12 items-center justify-center rounded-full bg-forest font-semibold text-paper transition-[background-color,transform] hover:bg-forest-deep active:scale-[0.98]">
+        <Link
+          href="/checkout"
+          className="mt-6 flex h-12 items-center justify-center rounded-full bg-forest font-semibold text-paper transition-[background-color,transform] hover:bg-forest-deep active:scale-[0.98]"
+        >
           Go to checkout
         </Link>
-        <p className="mt-3 text-center text-sm text-ink-soft">Each shop ships separately. Prices are checked again at checkout.</p>
+        <p className="mt-3 text-center text-sm text-ink-soft">
+          Each shop ships separately. Prices are checked again at checkout.
+        </p>
       </aside>
     </div>
   );

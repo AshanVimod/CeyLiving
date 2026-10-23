@@ -8,12 +8,22 @@ import { myNotifications } from "@/lib/server/services/notifications";
 
 export const metadata: Metadata = { title: "Notifications" };
 
-const dateTime = new Intl.DateTimeFormat("en-LK", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Colombo" });
+const dateTime = new Intl.DateTimeFormat("en-LK", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Colombo",
+});
 
 async function Notifications() {
   const user = await requireUser("/account/notifications");
   const { items, unread } = myNotifications(user);
-  if (!items.length) return <EmptyState title="No notifications" text="Order updates, answers to your questions and decisions about your shop appear here." />;
+  if (!items.length)
+    return (
+      <EmptyState
+        title="No notifications"
+        text="Order updates, answers to your questions and decisions about your shop appear here."
+      />
+    );
   return (
     <>
       {unread ? (

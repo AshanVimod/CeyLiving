@@ -51,7 +51,12 @@ export function ConfirmAction(props: ConfirmActionProps) {
           <h2 id={titleId} className="text-2xl">
             {props.title}
           </h2>
-          <button type="button" onClick={() => ref.current?.close()} aria-label="Close" className="-mr-2 grid size-11 place-items-center rounded-full hover:bg-sage">
+          <button
+            type="button"
+            onClick={() => ref.current?.close()}
+            aria-label="Close"
+            className="-mr-2 grid size-11 place-items-center rounded-full hover:bg-sage"
+          >
             <CloseIcon />
           </button>
         </div>
@@ -63,7 +68,11 @@ export function ConfirmAction(props: ConfirmActionProps) {
             pendingLabel="Working…"
             submitVariant={tone === "danger" ? "danger" : "primary"}
             extraButtons={
-              <button type="button" onClick={() => ref.current?.close()} className="inline-flex h-12 items-center rounded-full border border-ink/25 px-6 font-semibold hover:border-ink">
+              <button
+                type="button"
+                onClick={() => ref.current?.close()}
+                className="inline-flex h-12 items-center rounded-full border border-ink/25 px-6 font-semibold hover:border-ink"
+              >
                 Cancel
               </button>
             }
@@ -73,7 +82,16 @@ export function ConfirmAction(props: ConfirmActionProps) {
             ))}
             {props.extra}
             {props.reason ? (
-              <FormTextArea label={props.reason.label} name="reason" required maxLength={TEXT_LIMITS.reasonMax} helper={props.reason.helper ?? `${TEXT_LIMITS.reasonMin}–${TEXT_LIMITS.reasonMax} characters. Recorded in the audit log.`} />
+              <FormTextArea
+                label={props.reason.label}
+                name="reason"
+                required
+                maxLength={TEXT_LIMITS.reasonMax}
+                helper={
+                  props.reason.helper ??
+                  `${TEXT_LIMITS.reasonMin}–${TEXT_LIMITS.reasonMax} characters. Recorded in the audit log.`
+                }
+              />
             ) : null}
           </ActionForm>
         </div>

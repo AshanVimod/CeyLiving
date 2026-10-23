@@ -107,10 +107,22 @@ function bayesianRating(p: CatalogueProduct): number {
 
 export function matchesKeyword(p: CatalogueProduct, q: string): boolean {
   const category = categories.find((c) => c.slug === p.categorySlug);
-  const haystack = [p.title, p.description, p.materialNote, p.subcategory, category?.name, p.shopName, ...p.tags, ...p.materials]
+  const haystack = [
+    p.title,
+    p.description,
+    p.materialNote,
+    p.subcategory,
+    category?.name,
+    p.shopName,
+    ...p.tags,
+    ...p.materials,
+  ]
     .join(" ")
     .toLowerCase();
-  return q.toLowerCase().split(/\s+/).every((word) => haystack.includes(word));
+  return q
+    .toLowerCase()
+    .split(/\s+/)
+    .every((word) => haystack.includes(word));
 }
 
 function matchesFilters(p: CatalogueProduct, query: ProductQuery): boolean {
@@ -171,7 +183,8 @@ export function parseProductQuery(params: Record<string, string | string[] | und
   const sort = one("sort");
   let minPrice = int("minPrice");
   let maxPrice = int("maxPrice");
-  if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) [minPrice, maxPrice] = [maxPrice, minPrice];
+  if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice)
+    [minPrice, maxPrice] = [maxPrice, minPrice];
 
   return {
     q: q && q.length >= 2 ? q.slice(0, 100) : undefined,

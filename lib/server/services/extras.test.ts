@@ -5,7 +5,13 @@ import { withTestStore, user } from "@/test/store-helpers";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
 import { readStore, transaction } from "../store/dev-store";
 import { byHelpfulness, changeRole, helpfulCounts, toggleHelpful } from "./community-extras";
-import { createCustomRequest, declineCustomRequest, effectiveStatus, quoteCustomRequest, respondToQuote } from "./custom-requests";
+import {
+  createCustomRequest,
+  declineCustomRequest,
+  effectiveStatus,
+  quoteCustomRequest,
+  respondToQuote,
+} from "./custom-requests";
 import { commissionFor, generatePayouts, markPayoutPaid, sellerPayoutSummary } from "./payouts";
 import { deleteMyAccount, exportMyData } from "./privacy";
 
@@ -57,7 +63,15 @@ describe("FR-13 payouts (BR-10, BR-11)", () => {
 });
 
 describe("FR-14 custom requests", () => {
-  const ask = () => createCustomRequest(user("user_customer"), customRequestSchema.parse({ shopId: RATA, message: "A pencil portrait of our two dogs, A3 if possible.", budget: "15000" }));
+  const ask = () =>
+    createCustomRequest(
+      user("user_customer"),
+      customRequestSchema.parse({
+        shopId: RATA,
+        message: "A pencil portrait of our two dogs, A3 if possible.",
+        budget: "15000",
+      }),
+    );
 
   it("routes a request to the chosen maker, who quotes; the customer accepts", async () => {
     const request = await ask();
@@ -70,7 +84,9 @@ describe("FR-14 custom requests", () => {
 
   it("another seller can't quote, and the customer can't answer someone else's quote", async () => {
     const request = await ask();
-    await expect(quoteCustomRequest(user("user_seller"), { requestId: request.id, price: 100_000, days: 3 })).rejects.toBeInstanceOf(NotFoundError);
+    await expect(
+      quoteCustomRequest(user("user_seller"), { requestId: request.id, price: 100_000, days: 3 }),
+    ).rejects.toBeInstanceOf(NotFoundError);
     await quoteCustomRequest(user("user_owner_rata-studio"), { requestId: request.id, price: 1_800_000, days: 14 });
     await expect(respondToQuote(user("user_applicant"), request.id, "accept")).rejects.toBeInstanceOf(NotFoundError);
   });
@@ -78,28 +94,50 @@ describe("FR-14 custom requests", () => {
   it("declined requests can't be quoted; stale ones expire", async () => {
     const request = await ask();
     await declineCustomRequest(user("user_owner_rata-studio"), request.id, "Fully booked this month.");
-    await expect(quoteCustomRequest(user("user_owner_rata-studio"), { requestId: request.id, price: 100_000, days: 3 })).rejects.toBeInstanceOf(ConflictError);
+    await expect(
+      quoteCustomRequest(user("user_owner_rata-studio"), { requestId: request.id, price: 100_000, days: 3 }),
+    ).rejects.toBeInstanceOf(ConflictError);
     const later = new Date(Date.now() + 15 * 86_400_000);
     expect(effectiveStatus({ ...request, status: "OPEN" }, later)).toBe("EXPIRED");
   });
 
   it("RULE-Q4 requests can't carry contact details; sellers can't ask their own shop", async () => {
-    expect(customRequestSchema.safeParse({ shopId: RATA, message: "Please call me on 0771234567 to talk about it." }).success).toBe(false);
-    await expect(createCustomRequest(user("user_seller"), { shopId: "shop_ambalangoda-mask-house", message: "Asking my own shop for a mask please." })).rejects.toBeInstanceOf(ForbiddenError);
+    expect(
+      customRequestSchema.safeParse({ shopId: RATA, message: "Please call me on 0771234567 to talk about it." })
+        .success,
+    ).toBe(false);
+    await expect(
+      createCustomRequest(user("user_seller"), {
+        shopId: "shop_ambalangoda-mask-house",
+        message: "Asking my own shop for a mask please.",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
 
 describe("FR-16 role changes", () => {
   it("an admin can make a customer an admin, with an audit row", async () => {
-    await changeRole(user("user_admin"), { userId: "user_applicant", role: "ADMIN", reason: "Joining the support team." });
+    await changeRole(user("user_admin"), {
+      userId: "user_applicant",
+      role: "ADMIN",
+      reason: "Joining the support team.",
+    });
     expect(user("user_applicant").role).toBe("ADMIN");
-    expect(readStore().auditLog.some((a) => a.action === "user.role_changed" && a.targetId === "user_applicant")).toBe(true);
+    expect(readStore().auditLog.some((a) => a.action === "user.role_changed" && a.targetId === "user_applicant")).toBe(
+      true,
+    );
   });
 
   it("RULE-M5 never another admin or themselves; sellers only via closing the shop", async () => {
-    await expect(changeRole(user("user_admin"), { userId: "user_admin", role: "ADMIN", reason: "Promoting myself again." })).rejects.toBeInstanceOf(ForbiddenError);
-    await expect(changeRole(user("user_admin"), { userId: "user_seller", role: "ADMIN", reason: "Seller to admin directly." })).rejects.toBeInstanceOf(ForbiddenError);
-    await expect(changeRole(user("user_customer"), { userId: "user_muted", role: "ADMIN", reason: "Customer tries to promote." })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(
+      changeRole(user("user_admin"), { userId: "user_admin", role: "ADMIN", reason: "Promoting myself again." }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(
+      changeRole(user("user_admin"), { userId: "user_seller", role: "ADMIN", reason: "Seller to admin directly." }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(
+      changeRole(user("user_customer"), { userId: "user_muted", role: "ADMIN", reason: "Customer tries to promote." }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
 
@@ -133,7 +171,9 @@ describe("FR-17 data export and account deletion", () => {
     expect(after.name).toBe("Former customer");
     expect(after.phone).toBeUndefined();
     expect(after.email).not.toContain("@example");
-    expect(db.reviews.filter((r) => r.authorId === reviewer.id).every((r) => r.authorName === "Former customer")).toBe(true);
+    expect(db.reviews.filter((r) => r.authorId === reviewer.id).every((r) => r.authorName === "Former customer")).toBe(
+      true,
+    );
     expect(db.orders.some((o) => o.customerId === reviewer.id)).toBe(true);
     expect(await getSession()).toBeNull();
     vi.unstubAllEnvs();
@@ -144,11 +184,23 @@ describe("FR-19 helpful votes", () => {
   it("toggles one vote per person, never on your own post, and sorts the most helpful first", async () => {
     const reviews = readStore().reviews.filter((r) => r.productId === "prod_custom-pencil-portrait");
     const [first, second] = reviews;
-    expect(await toggleHelpful(user("user_customer"), { targetType: "REVIEW", targetId: second!.id })).toEqual({ voted: true, count: 1 });
-    expect(await toggleHelpful(user("user_customer"), { targetType: "REVIEW", targetId: second!.id })).toEqual({ voted: false, count: 0 });
+    expect(await toggleHelpful(user("user_customer"), { targetType: "REVIEW", targetId: second!.id })).toEqual({
+      voted: true,
+      count: 1,
+    });
+    expect(await toggleHelpful(user("user_customer"), { targetType: "REVIEW", targetId: second!.id })).toEqual({
+      voted: false,
+      count: 0,
+    });
     await toggleHelpful(user("user_customer"), { targetType: "REVIEW", targetId: second!.id });
-    await expect(toggleHelpful(user(first!.authorId), { targetType: "REVIEW", targetId: first!.id })).rejects.toBeInstanceOf(ForbiddenError);
-    const { counts, mine } = helpfulCounts("REVIEW", reviews.map((r) => r.id), "user_customer");
+    await expect(
+      toggleHelpful(user(first!.authorId), { targetType: "REVIEW", targetId: first!.id }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+    const { counts, mine } = helpfulCounts(
+      "REVIEW",
+      reviews.map((r) => r.id),
+      "user_customer",
+    );
     expect(mine.has(second!.id)).toBe(true);
     expect(byHelpfulness(reviews, counts)[0]!.id).toBe(second!.id);
   });

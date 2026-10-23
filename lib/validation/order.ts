@@ -14,10 +14,19 @@ export const orderTransitionSchema = z.discriminatedUnion("to", [
       .string()
       .optional()
       .transform((s) => (s ?? "").trim())
-      .pipe(z.string().max(40, "Tracking numbers are at most 40 characters.").regex(/^[A-Za-z0-9-]*$/, "Use letters, numbers and hyphens only."))
+      .pipe(
+        z
+          .string()
+          .max(40, "Tracking numbers are at most 40 characters.")
+          .regex(/^[A-Za-z0-9-]*$/, "Use letters, numbers and hyphens only."),
+      )
       .transform((s) => s || undefined),
   }),
-  z.object({ sellerOrderId: z.string().min(1), to: z.literal("CANCELLED"), reason: reason(TEXT_LIMITS.reasonMin, TEXT_LIMITS.reasonMax) }),
+  z.object({
+    sellerOrderId: z.string().min(1),
+    to: z.literal("CANCELLED"),
+    reason: reason(TEXT_LIMITS.reasonMin, TEXT_LIMITS.reasonMax),
+  }),
 ]);
 
 export type OrderTransitionInput = z.infer<typeof orderTransitionSchema>;

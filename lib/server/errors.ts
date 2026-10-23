@@ -1,6 +1,7 @@
 import "server-only";
 
-export type ErrorCode = "UNAUTHORIZED" | "FORBIDDEN" | "NOT_FOUND" | "CONFLICT" | "VALIDATION" | "RATE_LIMITED" | "UNAVAILABLE";
+export type ErrorCode =
+  "UNAUTHORIZED" | "FORBIDDEN" | "NOT_FOUND" | "CONFLICT" | "VALIDATION" | "RATE_LIMITED" | "UNAVAILABLE";
 
 /** Errors the services throw on purpose; their messages are safe to show to the person. */
 export class DomainError extends Error {

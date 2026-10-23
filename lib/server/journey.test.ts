@@ -27,14 +27,37 @@ async function demoPurchase(customerId: string, productId: string) {
       id: `order_j${n}`,
       orderNumber: `CM-2026-J${n}`,
       customerId,
-      shippingAddress: { recipientName: "Journey Buyer", line1: "1 Lake Road", city: "Kandy", district: "Kandy", phone: "0771234567" },
+      shippingAddress: {
+        recipientName: "Journey Buyer",
+        line1: "1 Lake Road",
+        city: "Kandy",
+        district: "Kandy",
+        phone: "0771234567",
+      },
       subtotalCents: variant.priceCents,
       shippingCents: SHIPPING_FEE_PER_SHOP_CENTS,
       totalCents: variant.priceCents + SHIPPING_FEE_PER_SHOP_CENTS,
       placedAt: new Date().toISOString(),
     });
-    db.sellerOrders.push({ id: `so_j${n}`, orderId: `order_j${n}`, shopId: shop.id, status: "NEW", subtotalCents: variant.priceCents, shippingCents: SHIPPING_FEE_PER_SHOP_CENTS, updatedAt: new Date().toISOString() });
-    db.orderItems.push({ id: `item_j${n}`, sellerOrderId: `so_j${n}`, productId, variantSku: variant.sku, productTitle: product.title, variantLabel: variant.label, unitPriceCents: variant.priceCents, quantity: 1 });
+    db.sellerOrders.push({
+      id: `so_j${n}`,
+      orderId: `order_j${n}`,
+      shopId: shop.id,
+      status: "NEW",
+      subtotalCents: variant.priceCents,
+      shippingCents: SHIPPING_FEE_PER_SHOP_CENTS,
+      updatedAt: new Date().toISOString(),
+    });
+    db.orderItems.push({
+      id: `item_j${n}`,
+      sellerOrderId: `so_j${n}`,
+      productId,
+      variantSku: variant.sku,
+      productTitle: product.title,
+      variantLabel: variant.label,
+      unitPriceCents: variant.priceCents,
+      quantity: 1,
+    });
     return { sellerOrderId: `so_j${n}`, orderItemId: `item_j${n}` };
   });
 }
@@ -67,25 +90,52 @@ describe("C13 full journey", () => {
     const buyer = user("user_muted");
     const { sellerOrderId, orderItemId } = await demoPurchase(buyer.id, item.id);
     await transitionSellerOrder(seller, { sellerOrderId, to: "ACCEPTED" });
-    await transitionSellerOrder(seller, { sellerOrderId, to: "DISPATCHED", courierName: "Pronto Lanka", trackingRef: undefined });
+    await transitionSellerOrder(seller, {
+      sellerOrderId,
+      to: "DISPATCHED",
+      courierName: "Pronto Lanka",
+      trackingRef: undefined,
+    });
     expect(reviewEligibility(buyer, item.id).canReview).toBe(false);
     await confirmDelivery(buyer, sellerOrderId);
     expect(reviewEligibility(buyer, item.id)).toMatchObject({ canReview: true });
 
     // The buyer is muted, so the admin lifts it first; then the review goes through.
-    await transaction((db) => Object.assign(db.users.find((u) => u.id === buyer.id)!, { postingRestriction: "NONE", mutedUntil: undefined }));
+    await transaction((db) =>
+      Object.assign(
+        db.users.find((u) => u.id === buyer.id)!,
+        { postingRestriction: "NONE", mutedUntil: undefined },
+      ),
+    );
     await createReview(user("user_muted"), { orderItemId, rating: 5, comment: "Beautiful planter, perfectly packed." });
 
     // A third customer asks; the seller answers; someone reports the answer; the admin hides it.
-    const question = await askQuestion(user("user_applicant"), { productId: item.id, body: "Does it have a drainage hole?" });
-    const answer = await answerQuestion(seller, { questionId: question.id, body: "Yes, one hole with a cork stopper." });
-    await reportContent(user("user_applicant"), { targetType: "ANSWER", targetId: answer.id, reason: "Something else" });
-    await moderateContent(admin, { targetType: "ANSWER", targetId: answer.id, action: "hide", reason: "Testing the moderation flow." });
+    const question = await askQuestion(user("user_applicant"), {
+      productId: item.id,
+      body: "Does it have a drainage hole?",
+    });
+    const answer = await answerQuestion(seller, {
+      questionId: question.id,
+      body: "Yes, one hole with a cork stopper.",
+    });
+    await reportContent(user("user_applicant"), {
+      targetType: "ANSWER",
+      targetId: answer.id,
+      reason: "Something else",
+    });
+    await moderateContent(admin, {
+      targetType: "ANSWER",
+      targetId: answer.id,
+      action: "hide",
+      reason: "Testing the moderation flow.",
+    });
 
     const db = readStore();
     expect(db.answers.find((a) => a.id === answer.id)!.status).toBe("HIDDEN");
     expect(db.reviews.some((r) => r.orderItemId === orderItemId && r.status === "VISIBLE")).toBe(true);
-    expect(db.auditLog.map((a) => a.action)).toEqual(expect.arrayContaining(["application.approved", "product.approve", "content.hide"]));
+    expect(db.auditLog.map((a) => a.action)).toEqual(
+      expect.arrayContaining(["application.approved", "product.approve", "content.hide"]),
+    );
     expect(db.notifications.some((n) => n.userId === "user_applicant" && n.type === "question.answered")).toBe(true);
   });
 });

@@ -6,7 +6,12 @@ import { CONTACT_DETAILS_MESSAGE, findContactDetails } from "./contact";
 export function text(label: string, min: number, max: number) {
   return z
     .string({ error: `Enter ${label}.` })
-    .transform((s) => s.trim().replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n"))
+    .transform((s) =>
+      s
+        .trim()
+        .replace(/\r\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n"),
+    )
     .pipe(
       z
         .string()
@@ -38,7 +43,12 @@ export const optionalPhone = z
   .string()
   .optional()
   .transform((s) => (s ?? "").replace(/[\s-]/g, ""))
-  .pipe(z.union([z.literal(""), z.string().regex(/^(\+94|0)7\d{8}$/, "Enter a Sri Lankan mobile number, for example 0771234567.")]))
+  .pipe(
+    z.union([
+      z.literal(""),
+      z.string().regex(/^(\+94|0)7\d{8}$/, "Enter a Sri Lankan mobile number, for example 0771234567."),
+    ]),
+  )
   .transform((s) => s || undefined);
 
 export const district = z.enum(DISTRICTS, { error: "Choose a district." });
@@ -51,7 +61,12 @@ export const httpsUrl = z
   .url("Enter a full web address starting with https://")
   .refine((u) => u.startsWith("https://"), "Use an https:// address.");
 
-export const id = z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9_-]+$/, "Invalid reference.");
+export const id = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .regex(/^[A-Za-z0-9_-]+$/, "Invalid reference.");
 
 /** Makes keys that may be undefined optional, so service callers can leave them out. */
 export type Loose<T> = { [K in keyof T as undefined extends T[K] ? K : never]?: T[K] } & {

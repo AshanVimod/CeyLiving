@@ -17,12 +17,24 @@ const REASONS = [
 ];
 
 /** FR-8: report an item, shop, review, question or answer to the CeyLiving team. */
-export function ReportButton({ targetType, targetId, label }: { targetType: ReportTargetType; targetId: string; label: string }) {
+export function ReportButton({
+  targetType,
+  targetId,
+  label,
+}: {
+  targetType: ReportTargetType;
+  targetId: string;
+  label: string;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   return (
     <>
-      <button type="button" onClick={() => ref.current?.showModal()} className="min-h-10 rounded-sm px-1 text-sm text-ink-soft underline underline-offset-4 hover:text-lacquer">
+      <button
+        type="button"
+        onClick={() => ref.current?.showModal()}
+        className="min-h-10 rounded-sm px-1 text-sm text-ink-soft underline underline-offset-4 hover:text-lacquer"
+      >
         Report<span className="sr-only"> {label}</span>
       </button>
       <dialog
@@ -34,18 +46,29 @@ export function ReportButton({ targetType, targetId, label }: { targetType: Repo
           <h2 id={titleId} className="text-2xl">
             Report {label}
           </h2>
-          <button type="button" onClick={() => ref.current?.close()} aria-label="Close" className="-mr-2 grid size-11 place-items-center rounded-full hover:bg-sage">
+          <button
+            type="button"
+            onClick={() => ref.current?.close()}
+            aria-label="Close"
+            className="-mr-2 grid size-11 place-items-center rounded-full hover:bg-sage"
+          >
             <CloseIcon />
           </button>
         </div>
         <div className="px-6 py-5">
-          <p className="mb-5 text-ink-soft">Our team reviews every report. The person you report isn’t told who reported them.</p>
+          <p className="mb-5 text-ink-soft">
+            Our team reviews every report. The person you report isn’t told who reported them.
+          </p>
           <ActionForm
             action={reportAction}
             submitLabel="Send report"
             pendingLabel="Sending…"
             extraButtons={
-              <button type="button" onClick={() => ref.current?.close()} className="inline-flex h-12 items-center rounded-full border border-ink/25 px-6 font-semibold hover:border-ink">
+              <button
+                type="button"
+                onClick={() => ref.current?.close()}
+                className="inline-flex h-12 items-center rounded-full border border-ink/25 px-6 font-semibold hover:border-ink"
+              >
                 Cancel
               </button>
             }

@@ -32,6 +32,7 @@ export async function requireActor(): Promise<User> {
 
 /** Only same-site paths are allowed as post-sign-in destinations (no open redirects). */
 export function safeNextPath(next: unknown, fallback = "/account"): string {
-  if (typeof next !== "string" || !next.startsWith("/") || next.startsWith("//") || next.includes("\\")) return fallback;
+  if (typeof next !== "string" || !next.startsWith("/") || next.startsWith("//") || next.includes("\\"))
+    return fallback;
   return next;
 }

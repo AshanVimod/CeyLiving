@@ -12,7 +12,9 @@ export function adminCounts(db: StoreData = readStore()) {
     pendingProducts: db.products.filter((p) => p.status === "PENDING_REVIEW").length,
     openReports: openReports.length,
     flaggedContent: flaggedTargets.size,
-    autoHidden: [...db.reviews, ...db.questions, ...db.answers].filter((c) => c.status === "HIDDEN" && c.statusReason?.startsWith("Hidden automatically")).length,
+    autoHidden: [...db.reviews, ...db.questions, ...db.answers].filter(
+      (c) => c.status === "HIDDEN" && c.statusReason?.startsWith("Hidden automatically"),
+    ).length,
     newShopsThisWeek: db.shops.filter((s) => Date.parse(s.createdAt) >= weekAgo).length,
     threshold: AUTO_HIDE_REPORT_THRESHOLD,
   };

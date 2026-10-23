@@ -40,7 +40,9 @@ describe("shops", () => {
   });
 
   it("RULE-S2 refuses a web address another shop uses", async () => {
-    await expect(updateShop(user("user_seller"), validShop({ slug: "kandy-batik-house" }))).rejects.toBeInstanceOf(ValidationError);
+    await expect(updateShop(user("user_seller"), validShop({ slug: "kandy-batik-house" }))).rejects.toBeInstanceOf(
+      ValidationError,
+    );
   });
 
   it("RULE-S3 a draft shop goes ACTIVE only when the checklist is complete", async () => {
@@ -57,7 +59,11 @@ describe("shops", () => {
 
   it("FR-4 suspend hides the shop at once and writes an audit row; reinstate brings it back", async () => {
     const admin = user("user_admin");
-    await decideShop(admin, { decision: "suspend", shopId: "shop_ambalangoda-mask-house", reason: "Copied designs reported." });
+    await decideShop(admin, {
+      decision: "suspend",
+      shopId: "shop_ambalangoda-mask-house",
+      reason: "Copied designs reported.",
+    });
     expect(getPublicShop("ambalangoda-mask-house")).toBeUndefined();
     expect(getPublicProduct("naga-raksha-mask")).toBeUndefined();
     await decideShop(admin, { decision: "reinstate", shopId: "shop_ambalangoda-mask-house" });
@@ -67,11 +73,19 @@ describe("shops", () => {
   });
 
   it("FR-4 a shop with open orders can't be closed", async () => {
-    await expect(decideShop(user("user_admin"), { decision: "close", shopId: "shop_ambalangoda-mask-house", reason: "Owner asked to close." })).rejects.toBeInstanceOf(ConflictError);
+    await expect(
+      decideShop(user("user_admin"), {
+        decision: "close",
+        shopId: "shop_ambalangoda-mask-house",
+        reason: "Owner asked to close.",
+      }),
+    ).rejects.toBeInstanceOf(ConflictError);
   });
 
   it("only admins act on shops", async () => {
-    await expect(decideShop(user("user_seller"), { decision: "verify", shopId: "shop_ambalangoda-mask-house" })).rejects.toBeInstanceOf(ForbiddenError);
+    await expect(
+      decideShop(user("user_seller"), { decision: "verify", shopId: "shop_ambalangoda-mask-house" }),
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
 
@@ -87,16 +101,39 @@ describe("items", () => {
       ["processing days", { type: "MADE_TO_ORDER", processingDays: undefined }, "processingDays"],
     ];
     for (const [, override, path] of cases) {
-      const result = productSchema("submit").safeParse({ ...base, ...override, tags: "", variants: override.variants ?? [{ label: "One", price: "3500", stock: 1 }] });
+      const result = productSchema("submit").safeParse({
+        ...base,
+        ...override,
+        tags: "",
+        variants: override.variants ?? [{ label: "One", price: "3500", stock: 1 }],
+      });
       expect(result.success, path).toBe(false);
-      expect(result.error!.issues.some((i) => i.path[0] === path), path).toBe(true);
+      expect(
+        result.error!.issues.some((i) => i.path[0] === path),
+        path,
+      ).toBe(true);
     }
-    expect(productSchema("draft").safeParse({ title: "Lacquer box draft", type: "READY_TO_SHIP", categorySlug: "", description: "", images: [], variants: [] }).success).toBe(true);
+    expect(
+      productSchema("draft").safeParse({
+        title: "Lacquer box draft",
+        type: "READY_TO_SHIP",
+        categorySlug: "",
+        description: "",
+        images: [],
+        variants: [],
+      }).success,
+    ).toBe(true);
   });
 
   it("RULE-P3 keeps prices in whole cents within range", () => {
     expect(productInput({ variants: [{ label: "One", price: "1,250.50", stock: 2 }] }).variants[0]!.price).toBe(125050);
-    expect(productSchema("submit").safeParse({ ...productInput(), tags: "", variants: [{ label: "One", price: "0.5", stock: 1 }] }).success).toBe(false);
+    expect(
+      productSchema("submit").safeParse({
+        ...productInput(),
+        tags: "",
+        variants: [{ label: "One", price: "0.5", stock: 1 }],
+      }).success,
+    ).toBe(false);
   });
 
   it("RULE-P2 a new shop's items wait for approval; after 3 approved they publish directly", async () => {
@@ -122,13 +159,19 @@ describe("items", () => {
   it("a seller can't touch another shop's item", async () => {
     const beeralu = readStore().products.find((p) => p.shopSlug === "galle-beeralu-studio")!;
     await expect(archiveProduct(user("user_seller"), beeralu.id)).rejects.toBeInstanceOf(NotFoundError);
-    await expect(saveProduct(user("user_seller"), productInput(), "submit", beeralu.id)).rejects.toBeInstanceOf(NotFoundError);
+    await expect(saveProduct(user("user_seller"), productInput(), "submit", beeralu.id)).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
   });
 
   it("FR-9 reject needs a reason and notifies the seller; removed items can't be edited", async () => {
     const seller = await approvedApplicant();
     const p = await saveProduct(seller, productInput(), "submit");
-    await decideProduct(user("user_admin"), { decision: "remove", productId: p.id, reason: "Prohibited item under BR-20." });
+    await decideProduct(user("user_admin"), {
+      decision: "remove",
+      productId: p.id,
+      reason: "Prohibited item under BR-20.",
+    });
     await expect(saveProduct(seller, productInput(), "submit", p.id)).rejects.toBeInstanceOf(ConflictError);
     expect(readStore().notifications.some((n) => n.userId === seller.id && n.type === "product.removed")).toBe(true);
   });

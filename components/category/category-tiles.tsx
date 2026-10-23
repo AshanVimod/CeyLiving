@@ -43,7 +43,9 @@ export function ModernTile({ category }: { category: Category }) {
           className="object-cover transition-transform duration-700 ease-[var(--ease-out-soft)] group-hover:scale-[1.05]"
         />
       </div>
-      <h3 className="mt-2.5 font-sans text-[0.95rem] font-medium leading-snug group-hover:text-forest">{category.name}</h3>
+      <h3 className="mt-2.5 font-sans text-[0.95rem] font-medium leading-snug group-hover:text-forest">
+        {category.name}
+      </h3>
     </Link>
   );
 }

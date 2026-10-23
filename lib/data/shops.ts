@@ -1,6 +1,9 @@
 import type { Shop } from "../types";
 
-export type ShopSeed = Omit<Shop, "id" | "ownerId" | "status" | "statusReason" | "payoutAccountMasked" | "createdAt" | "updatedAt">;
+export type ShopSeed = Omit<
+  Shop,
+  "id" | "ownerId" | "status" | "statusReason" | "payoutAccountMasked" | "createdAt" | "updatedAt"
+>;
 
 // Demo shops, used only to seed the dev store. Names and stories are illustrative.
 export const shopSeeds: ShopSeed[] = [

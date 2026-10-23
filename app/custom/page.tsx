@@ -15,7 +15,10 @@ export const metadata: Metadata = {
 const steps = [
   { title: "Choose a piece or a maker", text: "Pick a personalized listing, or send a request to any maker below." },
   { title: "Tell them what you want", text: "Names, colours, sizes and a budget. Messages stay on CeyLiving." },
-  { title: "Approve the quote", text: "The maker replies with a price and a date. Nothing is charged until you accept." },
+  {
+    title: "Approve the quote",
+    text: "The maker replies with a price and a date. Nothing is charged until you accept.",
+  },
   { title: "They make it for you", text: "You’ll get updates as it’s made, and tracking when it ships." },
 ];
 
@@ -25,8 +28,13 @@ async function RequestSlot() {
   if (!user) {
     return (
       <div className="rounded-lg border border-line bg-paper-raised p-6">
-        <p className="text-ink-soft">Sign in to send a request. Replies arrive in your account, and your contact details are never shared.</p>
-        <Link href="/signin?next=%2Fcustom" className="mt-4 inline-flex h-12 items-center rounded-full bg-forest px-7 font-semibold text-paper hover:bg-forest-deep">
+        <p className="text-ink-soft">
+          Sign in to send a request. Replies arrive in your account, and your contact details are never shared.
+        </p>
+        <Link
+          href="/signin?next=%2Fcustom"
+          className="mt-4 inline-flex h-12 items-center rounded-full bg-forest px-7 font-semibold text-paper hover:bg-forest-deep"
+        >
           Sign in to send a request
         </Link>
       </div>
@@ -62,7 +70,9 @@ export default function CustomPage() {
           <ol className="mt-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {steps.map((s, i) => (
               <li key={s.title}>
-                <span className="grid size-10 place-items-center rounded-full border border-forest font-display text-lg text-forest">{i + 1}</span>
+                <span className="grid size-10 place-items-center rounded-full border border-forest font-display text-lg text-forest">
+                  {i + 1}
+                </span>
                 <h3 className="mt-4 font-sans text-lg font-semibold">{s.title}</h3>
                 <p className="mt-1 text-ink-soft">{s.text}</p>
               </li>
@@ -75,8 +85,8 @@ export default function CustomPage() {
         <div>
           <h2 className="text-[1.85rem] sm:text-[2.25rem]">Request something new</h2>
           <p className="mt-3 max-w-md text-ink-soft">
-            Describe what you have in mind. The maker will reply with a quote within three working days. Your contact details
-            are never shared with the maker.
+            Describe what you have in mind. The maker will reply with a quote within three working days. Your contact
+            details are never shared with the maker.
           </p>
         </div>
         <Suspense fallback={<div className="skeleton h-80 rounded-lg" aria-busy="true" />}>

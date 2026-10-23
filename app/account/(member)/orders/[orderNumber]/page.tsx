@@ -38,12 +38,19 @@ async function OrderDetail({ params }: { params: PageProps<"/account/orders/[ord
           All orders
         </Link>
       </p>
-      <PageTitle title={order.orderNumber} description={`Placed ${formatDate(order.placedAt)}. Total ${formatLkr(order.totalCents)}.`} />
+      <PageTitle
+        title={order.orderNumber}
+        description={`Placed ${formatDate(order.placedAt)}. Total ${formatLkr(order.totalCents)}.`}
+      />
       <div className="space-y-6">
         {sellerOrders.map(({ sellerOrder, items }) => {
           const shop = db.shops.find((s) => s.id === sellerOrder.shopId);
           return (
-            <section key={sellerOrder.id} aria-label={`From ${shop?.name}`} className="rounded-lg border border-line bg-paper-raised">
+            <section
+              key={sellerOrder.id}
+              aria-label={`From ${shop?.name}`}
+              className="rounded-lg border border-line bg-paper-raised"
+            >
               <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-4">
                 <h2 className="font-sans text-base font-semibold">From {shop?.name}</h2>
                 <StatusBadge status={sellerOrder.status} />
@@ -55,11 +62,15 @@ async function OrderDetail({ params }: { params: PageProps<"/account/orders/[ord
                       Sent with {sellerOrder.courierName}
                       {sellerOrder.trackingRef ? `, tracking ${sellerOrder.trackingRef}` : ""}.
                     </p>
-                    <p className="mb-3 text-sm text-ink-soft">Let us know when it arrives. That also lets you review it.</p>
+                    <p className="mb-3 text-sm text-ink-soft">
+                      Let us know when it arrives. That also lets you review it.
+                    </p>
                     <ConfirmDeliveryForm sellerOrderId={sellerOrder.id} />
                   </div>
                 ) : null}
-                {sellerOrder.status === "CANCELLED" && sellerOrder.cancelReason ? <p className="text-ink-soft">Cancelled: {sellerOrder.cancelReason}</p> : null}
+                {sellerOrder.status === "CANCELLED" && sellerOrder.cancelReason ? (
+                  <p className="text-ink-soft">Cancelled: {sellerOrder.cancelReason}</p>
+                ) : null}
                 <ul className="divide-y divide-line">
                   {items.map((item) => {
                     const review = reviewsByItem.get(item.id);
@@ -82,7 +93,8 @@ async function OrderDetail({ params }: { params: PageProps<"/account/orders/[ord
                         ) : null}
                         {review ? (
                           <p className="mt-2 text-sm text-ink-soft">
-                            You reviewed this ({review.rating} of 5){review.status === "HIDDEN" ? ". Hidden by a moderator." : "."}
+                            You reviewed this ({review.rating} of 5)
+                            {review.status === "HIDDEN" ? ". Hidden by a moderator." : "."}
                           </p>
                         ) : null}
                         {review && review.status === "VISIBLE" && daysSince(review.createdAt) <= REVIEW_EDIT_DAYS ? (

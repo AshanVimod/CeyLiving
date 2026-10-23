@@ -18,7 +18,12 @@ import {
 import { requireActor } from "../auth";
 import { formToObject, parseInput, runAction } from "../run-action";
 import { changeRole, toggleHelpful } from "../services/community-extras";
-import { createCustomRequest, declineCustomRequest, quoteCustomRequest, respondToQuote } from "../services/custom-requests";
+import {
+  createCustomRequest,
+  declineCustomRequest,
+  quoteCustomRequest,
+  respondToQuote,
+} from "../services/custom-requests";
 import { generatePayouts, markPayoutPaid } from "../services/payouts";
 import { deleteMyAccount } from "../services/privacy";
 
@@ -30,7 +35,11 @@ export async function createCustomRequestAction(_: ActionState, form: FormData):
     await createCustomRequest(actor, parseInput(customRequestSchema, formToObject(form)));
     revalidatePath("/account/requests");
     revalidatePath("/seller/requests");
-    return { ok: true, message: "Request sent. The maker usually replies within three working days; you’ll find the reply under My account → Requests." };
+    return {
+      ok: true,
+      message:
+        "Request sent. The maker usually replies within three working days; you’ll find the reply under My account → Requests.",
+    };
   });
 }
 
@@ -59,7 +68,11 @@ export async function respondToQuoteAction(_: ActionState, form: FormData): Prom
     const input = parseInput(quoteResponseSchema, formToObject(form));
     await respondToQuote(actor, input.requestId, input.response);
     revalidatePath("/", "layout");
-    return { ok: true, message: input.response === "accept" ? "Quote accepted. The maker will list it for you to buy." : "Quote declined." };
+    return {
+      ok: true,
+      message:
+        input.response === "accept" ? "Quote accepted. The maker will list it for you to buy." : "Quote declined.",
+    };
   });
 }
 
@@ -85,7 +98,10 @@ export async function generatePayoutsAction(): Promise<ActionResult> {
   return runAction(async () => {
     const created = await generatePayouts(await requireActor());
     revalidatePath("/", "layout");
-    return { ok: true, message: created.length ? `${created.length} payout statement(s) created.` : "Nothing is ready to pay out yet." };
+    return {
+      ok: true,
+      message: created.length ? `${created.length} payout statement(s) created.` : "Nothing is ready to pay out yet.",
+    };
   });
 }
 

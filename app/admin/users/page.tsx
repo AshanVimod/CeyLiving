@@ -25,13 +25,27 @@ async function Users({ searchParams }: { searchParams: PageProps<"/admin/users">
         <label htmlFor="user-q" className="sr-only">
           Find a user by name or email
         </label>
-        <input id="user-q" name="q" type="search" defaultValue={q} placeholder="Name or email" className="h-11 flex-1 rounded-full border border-line bg-paper-raised px-4 focus:border-forest focus:outline-none" />
+        <input
+          id="user-q"
+          name="q"
+          type="search"
+          defaultValue={q}
+          placeholder="Name or email"
+          className="h-11 flex-1 rounded-full border border-line bg-paper-raised px-4 focus:border-forest focus:outline-none"
+        />
         <input type="hidden" name="role" value={role} />
         <button type="submit" className="h-11 rounded-full bg-forest px-5 text-sm font-semibold text-paper">
           Find
         </button>
       </form>
-      <FilterLinks current={role} items={ROLES.map((r) => ({ value: r, label: r === "ALL" ? "All" : r.charAt(0) + r.slice(1).toLowerCase(), href: `/admin/users?role=${r}${q ? `&q=${encodeURIComponent(q)}` : ""}` }))} />
+      <FilterLinks
+        current={role}
+        items={ROLES.map((r) => ({
+          value: r,
+          label: r === "ALL" ? "All" : r.charAt(0) + r.slice(1).toLowerCase(),
+          href: `/admin/users?role=${r}${q ? `&q=${encodeURIComponent(q)}` : ""}`,
+        }))}
+      />
       {users.length ? (
         <DataTable caption="Users" headers={["Name", "Email", "Role", "Posting", "Joined"]}>
           {users.map((u) => (

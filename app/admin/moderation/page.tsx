@@ -22,15 +22,35 @@ async function Queue({ searchParams }: { searchParams: PageProps<"/admin/moderat
   const href = (t: string, v: string) => `/admin/moderation?type=${t}&filter=${v}`;
   return (
     <>
-      <FilterLinks label="Post type" current={type} items={TYPES.map((t) => ({ value: t, label: t === "ALL" ? "All posts" : `${t.charAt(0)}${t.slice(1).toLowerCase()}s`, href: href(t, view) }))} />
-      <FilterLinks label="Status" current={view} items={VIEWS.map((v) => ({ value: v, label: v === "all" ? "Not deleted" : v.charAt(0).toUpperCase() + v.slice(1), href: href(type, v) }))} />
+      <FilterLinks
+        label="Post type"
+        current={type}
+        items={TYPES.map((t) => ({
+          value: t,
+          label: t === "ALL" ? "All posts" : `${t.charAt(0)}${t.slice(1).toLowerCase()}s`,
+          href: href(t, view),
+        }))}
+      />
+      <FilterLinks
+        label="Status"
+        current={view}
+        items={VIEWS.map((v) => ({
+          value: v,
+          label: v === "all" ? "Not deleted" : v.charAt(0).toUpperCase() + v.slice(1),
+          href: href(type, v),
+        }))}
+      />
       {items.length ? (
         <ul className="space-y-4">
           {items.map((i) => (
             <li key={`${i.type}-${i.id}`} className="rounded-lg border border-line bg-paper-raised p-5">
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <StatusBadge status={i.status} />
-                {i.openReports ? <span className="font-semibold text-lacquer">{i.openReports} open {i.openReports === 1 ? "report" : "reports"}</span> : null}
+                {i.openReports ? (
+                  <span className="font-semibold text-lacquer">
+                    {i.openReports} open {i.openReports === 1 ? "report" : "reports"}
+                  </span>
+                ) : null}
                 <span className="text-ink-soft">
                   {i.context.href ? (
                     <Link href={i.context.href} className="underline underline-offset-4">
@@ -66,7 +86,10 @@ async function Queue({ searchParams }: { searchParams: PageProps<"/admin/moderat
 export default function ModerationPage(props: PageProps<"/admin/moderation">) {
   return (
     <>
-      <PageTitle title="Moderation" description="Reviews, questions and answers. Most-reported first. You can hide, restore, delete or reply, but never edit what someone wrote." />
+      <PageTitle
+        title="Moderation"
+        description="Reviews, questions and answers. Most-reported first. You can hide, restore, delete or reply, but never edit what someone wrote."
+      />
       <Suspense fallback={<div className="skeleton h-64 rounded-lg" aria-busy="true" />}>
         <Queue searchParams={props.searchParams} />
       </Suspense>
