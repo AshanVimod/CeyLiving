@@ -1,6 +1,9 @@
 import "server-only";
 import type { ContentStatus } from "@/lib/types";
-import { readStore } from "./store/dev-store";
+import { db } from "./db/tx";
+import { listProducts } from "./repositories/catalogue";
+import { listAnswers, listQuestions, listReports, listReviews } from "./repositories/content";
+import { listUsers } from "./repositories/people";
 
 export interface QueueItem {
   type: "REVIEW" | "QUESTION" | "ANSWER";
@@ -16,15 +19,22 @@ export interface QueueItem {
 }
 
 /** FR-5: one queue for reviews, questions and answers, most-reported first, then newest. */
-export function moderationQueue(filter: { type?: string; view?: string }): QueueItem[] {
-  const db = readStore();
+export async function moderationQueue(filter: { type?: string; view?: string }): Promise<QueueItem[]> {
+  const [allReports, products, users, reviews, questions, answers] = await Promise.all([
+    listReports(db),
+    listProducts(db),
+    listUsers(db),
+    listReviews(db),
+    listQuestions(db),
+    listAnswers(db),
+  ]);
   const reports = (type: string, id: string) =>
-    db.reports.filter((r) => r.targetType === type && r.targetId === id && r.status === "OPEN").length;
-  const productOf = (productId: string) => db.products.find((p) => p.id === productId);
-  const userName = (id: string) => db.users.find((u) => u.id === id)?.name ?? "Unknown";
+    allReports.filter((r) => r.targetType === type && r.targetId === id && r.status === "OPEN").length;
+  const productOf = (productId: string) => products.find((p) => p.id === productId);
+  const userName = (id: string) => users.find((u) => u.id === id)?.name ?? "Unknown";
 
   const items: QueueItem[] = [
-    ...db.reviews.map((r): QueueItem => {
+    ...reviews.map((r): QueueItem => {
       const p = productOf(r.productId);
       return {
         type: "REVIEW",
@@ -39,7 +49,7 @@ export function moderationQueue(filter: { type?: string; view?: string }): Queue
         context: { title: `Review of ${p?.title ?? "an item"}`, href: p ? `/p/${p.slug}#review-${r.id}` : undefined },
       };
     }),
-    ...db.questions.map((q): QueueItem => {
+    ...questions.map((q): QueueItem => {
       const p = productOf(q.productId);
       return {
         type: "QUESTION",
@@ -54,8 +64,8 @@ export function moderationQueue(filter: { type?: string; view?: string }): Queue
         context: { title: `Question on ${p?.title ?? "an item"}`, href: p ? `/p/${p.slug}#q-${q.id}` : undefined },
       };
     }),
-    ...db.answers.map((a): QueueItem => {
-      const q = db.questions.find((x) => x.id === a.questionId);
+    ...answers.map((a): QueueItem => {
+      const q = questions.find((x) => x.id === a.questionId);
       const p = q ? productOf(q.productId) : undefined;
       return {
         type: "ANSWER",

@@ -15,7 +15,7 @@ export const instant = false;
 async function AdminShell({ children }: { children: React.ReactNode }) {
   // SEC-A1: customers and sellers are redirected; every admin action checks the role again.
   await requireRole(["ADMIN"], "/admin");
-  const c = adminCounts();
+  const c = await adminCounts();
   return (
     <AreaShell
       title="Admin"

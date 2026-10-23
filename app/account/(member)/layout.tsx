@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { db } from "@/lib/server/db/tx";
 import { Suspense } from "react";
 import { accountNavItems } from "@/components/account/account-nav";
 import { AreaShell, AreaSkeleton } from "@/components/account/area-shell";
@@ -13,7 +14,7 @@ export const instant = false;
 async function MemberShell({ children }: { children: React.ReactNode }) {
   // SEC-A1: the layout checks the session on the server; each page checks again for its own path.
   const user = await requireUser("/account");
-  const unread = notificationsOf(user.id).filter((n) => !n.readAt).length;
+  const unread = (await notificationsOf(db, user.id)).filter((n) => !n.readAt).length;
   return (
     <AreaShell title="My account" navLabel="Account" items={accountNavItems(unread)} exact={["/account"]}>
       {children}

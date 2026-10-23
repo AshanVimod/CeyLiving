@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import { db as readDb } from "@/lib/server/db/tx";
 import { productInput, validApplication, validShop } from "@/test/fixtures";
 import { withTestStore, user } from "@/test/store-helpers";
 import { getPublicProduct, getPublicShop } from "./catalogue";
@@ -78,13 +79,13 @@ describe("C13 full journey", () => {
     const item = await saveProduct(seller, productInput({ title: "Kelani clay planter" }), "submit");
     expect(item.status).toBe("PENDING_REVIEW");
     await savePayoutDetails(seller, { bankName: "Sampath Bank", accountNumber: "1029384756" });
-    expect(findShopByOwner(seller.id)!.status).toBe("ACTIVE");
-    expect(getPublicProduct(item.slug)).toBeUndefined();
+    expect((await findShopByOwner(readDb, seller.id))!.status).toBe("ACTIVE");
+    expect(await getPublicProduct(item.slug)).toBeUndefined();
 
     // The admin approves the item: it is now public.
     await decideProduct(admin, { decision: "approve", productId: item.id });
-    expect(getPublicShop("kelani-clay-studio")).toBeDefined();
-    expect(getPublicProduct(item.slug)).toBeDefined();
+    expect(await getPublicShop("kelani-clay-studio")).toBeDefined();
+    expect(await getPublicProduct(item.slug)).toBeDefined();
 
     // Another customer buys it; the seller accepts and dispatches; the buyer confirms delivery.
     const buyer = user("user_muted");
@@ -96,9 +97,9 @@ describe("C13 full journey", () => {
       courierName: "Pronto Lanka",
       trackingRef: undefined,
     });
-    expect(reviewEligibility(buyer, item.id).canReview).toBe(false);
+    expect((await reviewEligibility(buyer, item.id)).canReview).toBe(false);
     await confirmDelivery(buyer, sellerOrderId);
-    expect(reviewEligibility(buyer, item.id)).toMatchObject({ canReview: true });
+    expect(await reviewEligibility(buyer, item.id)).toMatchObject({ canReview: true });
 
     // The buyer is muted, so the admin lifts it first; then the review goes through.
     await transaction((db) =>

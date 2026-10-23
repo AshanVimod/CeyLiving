@@ -8,7 +8,7 @@ export const metadata = { title: "Dashboard" };
 
 async function Dashboard() {
   await requireRole(["ADMIN"], "/admin");
-  const c = adminCounts();
+  const c = await adminCounts();
   const tiles = [
     { label: "Applications waiting", value: c.pendingApplications, href: "/admin/applications" },
     { label: "Items waiting for approval", value: c.pendingProducts, href: "/admin/products" },

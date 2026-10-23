@@ -14,7 +14,7 @@ export const instant = false;
 async function SellerShell({ children }: { children: React.ReactNode }) {
   // SEC-A1: only sellers get in; every action re-checks the role and loads the shop by owner.
   const { shop } = await sellerContext("/seller");
-  const c = sellerCounts(shop.id, shop.slug);
+  const c = await sellerCounts(shop.id, shop.slug);
   return (
     <AreaShell
       title={shop.name}

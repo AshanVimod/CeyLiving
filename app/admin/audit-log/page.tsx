@@ -1,8 +1,9 @@
 import { Suspense } from "react";
+import { db } from "@/lib/server/db/tx";
 import { EmptyState, PageTitle } from "@/components/account/area-shell";
 import { DataTable, FilterLinks, Td } from "@/components/admin/data-table";
 import { requireRole } from "@/lib/server/auth";
-import { findUserById, listAuditLog } from "@/lib/server/repositories/people";
+import { listAuditLog, listUsers } from "@/lib/server/repositories/people";
 
 export const metadata = { title: "Audit log" };
 
@@ -19,7 +20,8 @@ async function AuditLog({ searchParams }: { searchParams: PageProps<"/admin/audi
   await requireRole(["ADMIN"], "/admin/audit-log");
   const { type } = await searchParams;
   const current = TYPES.find((t) => t === type) ?? "ALL";
-  const entries = listAuditLog().filter((e) => current === "ALL" || e.targetType === current);
+  const entries = (await listAuditLog(db)).filter((e) => current === "ALL" || e.targetType === current);
+  const userNames = new Map((await listUsers(db)).map((u) => [u.id, u.name]));
   return (
     <>
       <FilterLinks
@@ -35,7 +37,7 @@ async function AuditLog({ searchParams }: { searchParams: PageProps<"/admin/audi
           {entries.map((e) => (
             <tr key={e.id}>
               <Td className="whitespace-nowrap">{dateTime.format(new Date(e.createdAt))}</Td>
-              <Td>{findUserById(e.actorId)?.name ?? e.actorId}</Td>
+              <Td>{userNames.get(e.actorId) ?? e.actorId}</Td>
               <Td className="font-semibold">{e.action}</Td>
               <Td className="text-sm text-ink-soft [overflow-wrap:anywhere]">
                 {e.targetType} {e.targetId}

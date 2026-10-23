@@ -2,10 +2,18 @@ import "server-only";
 import { CUSTOM_REQUEST_EXPIRY_DAYS } from "@/lib/config";
 import type { CustomRequest, CustomRequestStatus } from "@/lib/types";
 import type { CustomRequestInput, QuoteInput } from "@/lib/validation/more";
+import { db, withTx, type Tx } from "../db/tx";
 import { ForbiddenError, NotFoundError } from "../errors";
 import { assertCanPost, shopOfSeller, type Actor } from "../permissions";
+import { findShopById } from "../repositories/catalogue";
+import {
+  customRequestsOfCustomer,
+  customRequestsOfShop,
+  findCustomRequest,
+  insertCustomRequest,
+  updateCustomRequest,
+} from "../repositories/commerce";
 import { addNotification, newId } from "../repositories/people";
-import { readStore, transaction, type StoreData } from "../store/dev-store";
 import { assertRateLimit, assertTransition } from "./shared";
 
 // FR-14 status flow: OPEN → QUOTED → ACCEPTED / DECLINED; open or quoted requests expire after 14 days.
@@ -20,10 +28,12 @@ export function effectiveStatus(request: CustomRequest, now = new Date()): Custo
   return stale && (request.status === "OPEN" || request.status === "QUOTED") ? "EXPIRED" : request.status;
 }
 
-function load(db: StoreData, id: string, now: Date): CustomRequest {
-  const request = db.customRequests.find((r) => r.id === id);
+/** Loads a request inside a transaction, recording the expiry if it has gone stale. */
+async function load(tx: Tx, id: string, now: Date): Promise<CustomRequest> {
+  const request = await findCustomRequest(tx, id);
   if (!request) throw new NotFoundError("Request not found.");
-  if (effectiveStatus(request, now) === "EXPIRED") request.status = "EXPIRED";
+  if (effectiveStatus(request, now) === "EXPIRED" && request.status !== "EXPIRED")
+    return (await updateCustomRequest(tx, id, { status: "EXPIRED" }))!;
   return request;
 }
 
@@ -34,12 +44,12 @@ export async function createCustomRequest(
   now = new Date(),
 ): Promise<CustomRequest> {
   assertCanPost(actor, now);
-  return transaction((db) => {
-    const shop = db.shops.find((s) => s.id === input.shopId && s.status === "ACTIVE");
-    if (!shop) throw new NotFoundError("That maker isn’t taking requests right now.");
+  return withTx(async (tx) => {
+    const shop = await findShopById(tx, input.shopId);
+    if (!shop || shop.status !== "ACTIVE") throw new NotFoundError("That maker isn’t taking requests right now.");
     if (shop.ownerId === actor.id) throw new ForbiddenError("You can’t send a request to your own shop.");
-    assertRateLimit(db, actor.id, "customRequest", now);
-    const request: CustomRequest = {
+    await assertRateLimit(tx, actor.id, "customRequest", now);
+    const request = await insertCustomRequest(tx, {
       id: newId("req"),
       customerId: actor.id,
       customerName: actor.name,
@@ -49,27 +59,38 @@ export async function createCustomRequest(
       status: "OPEN",
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
-    };
-    db.customRequests.push(request);
-    addNotification(db, shop.ownerId, "request.created", `New custom request from ${actor.name}`, "/seller/requests");
+    });
+    await addNotification(
+      tx,
+      shop.ownerId,
+      "request.created",
+      `New custom request from ${actor.name}`,
+      "/seller/requests",
+    );
     return request;
   });
 }
 
 /** The shop's seller sends a price and time (RULE-S1: the shop comes from the session, not the form). */
 export async function quoteCustomRequest(actor: Actor, input: QuoteInput, now = new Date()): Promise<CustomRequest> {
-  return transaction((db) => {
-    const shop = shopOfSeller(actor, db);
-    const request = load(db, input.requestId, now);
+  return withTx(async (tx) => {
+    const shop = await shopOfSeller(actor, tx);
+    const request = await load(tx, input.requestId, now);
     if (request.shopId !== shop.id) throw new NotFoundError("Request not found.");
     assertTransition(FLOW, request.status, "QUOTED", "request");
-    Object.assign(request, {
+    const updated = (await updateCustomRequest(tx, request.id, {
       status: "QUOTED",
       quote: { priceCents: input.price, days: input.days, message: input.message, quotedAt: now.toISOString() },
       updatedAt: now.toISOString(),
-    });
-    addNotification(db, request.customerId, "request.quoted", `${shop.name} sent you a quote`, "/account/requests");
-    return request;
+    }))!;
+    await addNotification(
+      tx,
+      request.customerId,
+      "request.quoted",
+      `${shop.name} sent you a quote`,
+      "/account/requests",
+    );
+    return updated;
   });
 }
 
@@ -79,20 +100,24 @@ export async function declineCustomRequest(
   reason: string,
   now = new Date(),
 ): Promise<CustomRequest> {
-  return transaction((db) => {
-    const shop = shopOfSeller(actor, db);
-    const request = load(db, requestId, now);
+  return withTx(async (tx) => {
+    const shop = await shopOfSeller(actor, tx);
+    const request = await load(tx, requestId, now);
     if (request.shopId !== shop.id) throw new NotFoundError("Request not found.");
     assertTransition(FLOW, request.status, "DECLINED", "request");
-    Object.assign(request, { status: "DECLINED", declineReason: reason, updatedAt: now.toISOString() });
-    addNotification(
-      db,
+    const updated = (await updateCustomRequest(tx, request.id, {
+      status: "DECLINED",
+      declineReason: reason,
+      updatedAt: now.toISOString(),
+    }))!;
+    await addNotification(
+      tx,
       request.customerId,
       "request.declined",
       `${shop.name} can’t take on your request`,
       "/account/requests",
     );
-    return request;
+    return updated;
   });
 }
 
@@ -103,33 +128,31 @@ export async function respondToQuote(
   response: "accept" | "decline",
   now = new Date(),
 ): Promise<CustomRequest> {
-  return transaction((db) => {
-    const request = load(db, requestId, now);
+  return withTx(async (tx) => {
+    const request = await load(tx, requestId, now);
     if (request.customerId !== actor.id) throw new NotFoundError("Request not found.");
     const to: CustomRequestStatus = response === "accept" ? "ACCEPTED" : "DECLINED";
     if (request.status !== "QUOTED") throw new NotFoundError("There’s no quote to answer on this request.");
     assertTransition(FLOW, request.status, to, "request");
-    Object.assign(request, { status: to, updatedAt: now.toISOString() });
-    const shop = db.shops.find((s) => s.id === request.shopId);
+    const updated = (await updateCustomRequest(tx, request.id, { status: to, updatedAt: now.toISOString() }))!;
+    const shop = await findShopById(tx, request.shopId);
     if (shop)
-      addNotification(
-        db,
+      await addNotification(
+        tx,
         shop.ownerId,
         `request.${response}ed`,
         `${actor.name} ${response === "accept" ? "accepted" : "declined"} your quote`,
         "/seller/requests",
       );
-    return request;
+    return updated;
   });
 }
 
-export function requestsOfCustomer(actor: Actor, db: StoreData = readStore()): CustomRequest[] {
-  return db.customRequests
-    .filter((r) => r.customerId === actor.id)
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+export async function requestsOfCustomer(actor: Actor, tx: Tx = db): Promise<CustomRequest[]> {
+  return customRequestsOfCustomer(tx, actor.id);
 }
 
-export function requestsOfSeller(actor: Actor, db: StoreData = readStore()): CustomRequest[] {
-  const shop = shopOfSeller(actor, db);
-  return db.customRequests.filter((r) => r.shopId === shop.id).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+export async function requestsOfSeller(actor: Actor, tx: Tx = db): Promise<CustomRequest[]> {
+  const shop = await shopOfSeller(actor, tx);
+  return customRequestsOfShop(tx, shop.id);
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { db } from "@/lib/server/db/tx";
 import { Suspense } from "react";
 import { EmptyState, PageTitle } from "@/components/account/area-shell";
 import { DataTable, FilterLinks, Td } from "@/components/admin/data-table";
@@ -16,7 +17,7 @@ async function Users({ searchParams }: { searchParams: PageProps<"/admin/users">
   const sp = await searchParams;
   const role = ROLES.find((r) => r === sp.role) ?? "ALL";
   const q = typeof sp.q === "string" ? sp.q.trim().toLowerCase().slice(0, 80) : "";
-  const users = listUsers()
+  const users = (await listUsers(db))
     .filter((u) => role === "ALL" || (role === "RESTRICTED" ? u.postingRestriction !== "NONE" : u.role === role))
     .filter((u) => !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
   return (

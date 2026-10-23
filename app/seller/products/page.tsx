@@ -13,7 +13,7 @@ export const metadata = { title: "Items" };
 
 async function Products() {
   const { shop, db } = await sellerContext("/seller/products");
-  const items = productsOfShop(shop.id, db).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const items = (await productsOfShop(db, shop.id)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   if (!items.length) {
     return (
       <EmptyState

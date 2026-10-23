@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { db } from "@/lib/server/db/tx";
 import { formatDate } from "@/lib/format";
 import { currentUser } from "@/lib/server/auth";
 import { canPost } from "@/lib/server/permissions";
@@ -25,15 +26,18 @@ export async function ProductQuestions({
   const user = await currentUser();
   const isOwner = user?.id === shop.ownerId;
   const isAdmin = user?.role === "ADMIN";
-  const listed = questionsOfProduct(productId).filter(
+  const listed = (await questionsOfProduct(db, productId)).filter(
     (q) => q.status === "VISIBLE" || (q.status === "HIDDEN" && q.authorId === user?.id),
   );
-  const { counts, mine } = helpfulCounts(
+  const { counts, mine } = await helpfulCounts(
     "QUESTION",
     listed.map((q) => q.id),
     user?.id,
   );
   const questions = byHelpfulness(listed, counts); // FR-19: most useful first
+  const answersByQuestion = new Map(
+    await Promise.all(questions.map(async (q) => [q.id, await answersOf(db, q.id)] as const)),
+  );
 
   return (
     <section id="questions" aria-labelledby="questions-heading" className="mt-20 scroll-mt-40">
@@ -45,7 +49,7 @@ export async function ProductQuestions({
       {questions.length ? (
         <ul className="mt-6 space-y-5">
           {questions.map((q) => {
-            const answers = answersOf(q.id).filter((a) => a.status === "VISIBLE");
+            const answers = answersByQuestion.get(q.id)!.filter((a) => a.status === "VISIBLE");
             return (
               <li key={q.id} id={`q-${q.id}`} className="scroll-mt-40 border-t border-line pt-5">
                 {q.status === "HIDDEN" ? (

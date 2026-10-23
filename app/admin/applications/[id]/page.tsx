@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { db } from "@/lib/server/db/tx";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -16,10 +17,10 @@ export const metadata = { title: "Application" };
 async function Application({ params }: { params: PageProps<"/admin/applications/[id]">["params"] }) {
   await requireRole(["ADMIN"], "/admin/applications");
   const { id } = await params;
-  const app = findApplicationById(id);
+  const app = await findApplicationById(db, id);
   if (!app) notFound();
-  const applicant = findUserById(app.userId);
-  const decider = app.decidedById ? findUserById(app.decidedById) : undefined;
+  const applicant = await findUserById(db, app.userId);
+  const decider = app.decidedById ? await findUserById(db, app.decidedById) : undefined;
   const rows: [string, React.ReactNode][] = [
     ["Applicant", `${applicant?.name ?? "Unknown"} (${applicant?.email ?? ""})`],
     ["Phone", app.phone],

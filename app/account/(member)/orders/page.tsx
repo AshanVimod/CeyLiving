@@ -5,15 +5,16 @@ import { EmptyState, PageTitle } from "@/components/account/area-shell";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDate, formatLkr } from "@/lib/format";
 import { requireUser } from "@/lib/server/auth";
+import { listShops } from "@/lib/server/repositories/catalogue";
 import { ordersOfCustomer } from "@/lib/server/repositories/commerce";
-import { readStore } from "@/lib/server/store/dev-store";
+import { db } from "@/lib/server/db/tx";
 
 export const metadata: Metadata = { title: "My orders" };
 
 async function Orders() {
   const user = await requireUser("/account/orders");
-  const db = readStore();
-  const orders = ordersOfCustomer(user.id, db);
+  const orders = await ordersOfCustomer(db, user.id);
+  const shops = await listShops(db);
   if (!orders.length) {
     return (
       <EmptyState
@@ -49,10 +50,7 @@ async function Orders() {
                 <li key={sellerOrder.id} className="flex flex-wrap items-center justify-between gap-2 text-[0.95rem]">
                   <span className="min-w-0">
                     {items.map((i) => i.productTitle).join(", ")}
-                    <span className="text-ink-soft">
-                      {" "}
-                      from {db.shops.find((s) => s.id === sellerOrder.shopId)?.name}
-                    </span>
+                    <span className="text-ink-soft"> from {shops.find((s) => s.id === sellerOrder.shopId)?.name}</span>
                   </span>
                   <StatusBadge status={sellerOrder.status} />
                 </li>

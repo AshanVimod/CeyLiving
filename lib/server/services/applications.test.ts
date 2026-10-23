@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import { db as readDb } from "@/lib/server/db/tx";
 import { applicationSchema, decisionSchema } from "@/lib/validation/application";
 import { validApplication } from "@/test/fixtures";
 import { withTestStore, user } from "@/test/store-helpers";
@@ -62,7 +63,7 @@ describe("seller applications", () => {
     await decideApplication(user("user_admin"), { decision: "approve", applicationId: "app_tharindu" });
     const db = readStore();
     expect(db.users.find((u) => u.id === "user_applicant")!.role).toBe("SELLER");
-    const shop = findShopByOwner("user_applicant", db)!;
+    const shop = (await findShopByOwner(readDb, "user_applicant"))!;
     expect(shop.status).toBe("DRAFT");
     expect(shop.slug).toBe("matale-laksha-works");
     expect(db.auditLog.some((a) => a.action === "application.approved" && a.targetId === "app_tharindu")).toBe(true);

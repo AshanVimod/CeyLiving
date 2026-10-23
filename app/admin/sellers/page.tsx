@@ -5,9 +5,10 @@ import { DataTable, FilterLinks, Td } from "@/components/admin/data-table";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { requireRole } from "@/lib/server/auth";
 import { shopRating } from "@/lib/server/catalogue";
-import { listShops } from "@/lib/server/repositories/catalogue";
+import { listShops, productsOfShopSlug } from "@/lib/server/repositories/catalogue";
+import { openReportsFor } from "@/lib/server/repositories/content";
 import { findUserById } from "@/lib/server/repositories/people";
-import { readStore } from "@/lib/server/store/dev-store";
+import { db } from "@/lib/server/db/tx";
 
 export const metadata = { title: "Sellers" };
 
@@ -17,8 +18,16 @@ async function Sellers({ searchParams }: { searchParams: PageProps<"/admin/selle
   await requireRole(["ADMIN"], "/admin/sellers");
   const { status } = await searchParams;
   const current = FILTERS.find((f) => f === status) ?? "ALL";
-  const db = readStore();
-  const shops = listShops(db).filter((s) => current === "ALL" || s.status === current);
+  const shops = (await listShops(db)).filter((s) => current === "ALL" || s.status === current);
+  const rows = await Promise.all(
+    shops.map(async (s) => ({
+      s,
+      rating: await shopRating(s.slug),
+      ownerName: (await findUserById(db, s.ownerId))?.name ?? "Unknown",
+      reports: (await openReportsFor(db, "SHOP", s.id)).length,
+      itemCount: (await productsOfShopSlug(db, s.slug)).filter((p) => p.status !== "REMOVED").length,
+    })),
+  );
   return (
     <>
       <FilterLinks
@@ -31,34 +40,26 @@ async function Sellers({ searchParams }: { searchParams: PageProps<"/admin/selle
       />
       {shops.length ? (
         <DataTable caption="Shops" headers={["Shop", "Owner", "Status", "Items", "Rating", "Open reports"]}>
-          {shops.map((s) => {
-            const rating = shopRating(s.slug);
-            const reports = db.reports.filter(
-              (r) => r.status === "OPEN" && r.targetType === "SHOP" && r.targetId === s.id,
-            ).length;
-            return (
-              <tr key={s.id}>
-                <Td>
-                  <Link
-                    href={`/admin/sellers/${s.id}`}
-                    className="font-semibold text-forest underline underline-offset-4"
-                  >
-                    {s.name}
-                  </Link>
-                  {s.isVerified ? <span className="ml-2 text-sm text-forest">Verified</span> : null}
-                </Td>
-                <Td>{findUserById(s.ownerId, db)?.name ?? "Unknown"}</Td>
-                <Td>
-                  <StatusBadge status={s.status} />
-                </Td>
-                <Td className="tabular-nums">
-                  {db.products.filter((p) => p.shopSlug === s.slug && p.status !== "REMOVED").length}
-                </Td>
-                <Td className="tabular-nums">{rating ? `${rating.average.toFixed(1)} (${rating.count})` : "None"}</Td>
-                <Td className="tabular-nums">{reports}</Td>
-              </tr>
-            );
-          })}
+          {rows.map(({ s, rating, ownerName, reports, itemCount }) => (
+            <tr key={s.id}>
+              <Td>
+                <Link
+                  href={`/admin/sellers/${s.id}`}
+                  className="font-semibold text-forest underline underline-offset-4"
+                >
+                  {s.name}
+                </Link>
+                {s.isVerified ? <span className="ml-2 text-sm text-forest">Verified</span> : null}
+              </Td>
+              <Td>{ownerName}</Td>
+              <Td>
+                <StatusBadge status={s.status} />
+              </Td>
+              <Td className="tabular-nums">{itemCount}</Td>
+              <Td className="tabular-nums">{rating ? `${rating.average.toFixed(1)} (${rating.count})` : "None"}</Td>
+              <Td className="tabular-nums">{reports}</Td>
+            </tr>
+          ))}
         </DataTable>
       ) : (
         <EmptyState title="No shops" text="No shops match this filter." />

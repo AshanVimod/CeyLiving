@@ -6,8 +6,9 @@ import { QuoteResponse } from "@/components/requests/request-forms";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDate, formatLkr } from "@/lib/format";
 import { requireUser } from "@/lib/server/auth";
+import { listShops } from "@/lib/server/repositories/catalogue";
 import { effectiveStatus, requestsOfCustomer } from "@/lib/server/services/custom-requests";
-import { readStore } from "@/lib/server/store/dev-store";
+import { db } from "@/lib/server/db/tx";
 
 export const metadata: Metadata = { title: "Custom requests" };
 
@@ -21,8 +22,8 @@ const LABEL = {
 
 async function Requests() {
   const user = await requireUser("/account/requests");
-  const db = readStore();
-  const requests = requestsOfCustomer(user, db);
+  const requests = await requestsOfCustomer(user, db);
+  const shops = await listShops(db);
   if (!requests.length) {
     return (
       <EmptyState
@@ -43,7 +44,7 @@ async function Requests() {
     <ul className="space-y-4">
       {requests.map((r) => {
         const status = effectiveStatus(r);
-        const shop = db.shops.find((s) => s.id === r.shopId);
+        const shop = shops.find((s) => s.id === r.shopId);
         return (
           <li key={r.id} className="rounded-lg border border-line bg-paper-raised p-5">
             <p className="flex flex-wrap items-center gap-3">

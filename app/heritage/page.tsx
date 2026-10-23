@@ -55,10 +55,8 @@ const crafts = [
   },
 ];
 
-export default function HeritagePage() {
-  const heritage = publicCatalogue()
-    .filter((p) => p.isHeritage)
-    .slice(0, 8);
+export default async function HeritagePage() {
+  const heritage = (await publicCatalogue()).filter((p) => p.isHeritage).slice(0, 8);
   return (
     <>
       <section className="dumbara border-b border-line">

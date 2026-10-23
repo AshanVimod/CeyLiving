@@ -16,7 +16,7 @@ const dateTime = new Intl.DateTimeFormat("en-LK", {
 
 async function Notifications() {
   const user = await requireUser("/account/notifications");
-  const { items, unread } = myNotifications(user);
+  const { items, unread } = await myNotifications(user);
   if (!items.length)
     return (
       <EmptyState

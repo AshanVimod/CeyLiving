@@ -40,14 +40,14 @@ async function RequestSlot() {
       </div>
     );
   }
-  const shops = publicShops()
+  const shops = (await publicShops())
     .filter((s) => s.ownerId !== user.id)
     .map((s) => ({ value: s.id, label: `${s.name}: ${s.craft}` }));
   return <CustomRequestForm shops={shops} />;
 }
 
-export default function CustomPage() {
-  const customizable = publicCatalogue().filter((p) => p.isCustomizable);
+export default async function CustomPage() {
+  const customizable = (await publicCatalogue()).filter((p) => p.isCustomizable);
   return (
     <>
       <Container className="pt-10">
