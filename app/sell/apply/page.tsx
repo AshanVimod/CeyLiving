@@ -10,7 +10,7 @@ import { daysSince, formatDate } from "@/lib/format";
 import { requireUser } from "@/lib/server/auth";
 import { applicationsOf } from "@/lib/server/repositories/people";
 
-export const metadata: Metadata = { title: "Apply to sell", robots: { index: false } };
+export const metadata: Metadata = { title: "Apply to open a shop", robots: { index: false } };
 
 function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -66,7 +66,7 @@ async function Apply() {
           {editing.adminNote}
         </p>
       ) : null}
-      <ApplicationForm existing={editing} defaultPhone={user.phone} />
+      <ApplicationForm existing={editing} defaultName={user.name} defaultPhone={user.phone} />
     </>
   );
 }
@@ -74,10 +74,11 @@ async function Apply() {
 export default function ApplyPage() {
   return (
     <Container className="max-w-3xl pt-10">
-      <h1 className="text-[2.4rem] sm:text-[3rem]">Apply to sell</h1>
+      <h1 className="text-[2.4rem] sm:text-[3rem]">Apply to open a shop</h1>
       <p className="mt-3 mb-8 text-lg text-ink-soft">
-        Tell us about your work. We review every application, usually within five working days. Approved makers set up
-        their shop and start listing straight away.
+        To sell on CeyLiving you first open a shop. Tell us about you, your work and where you send orders from. We
+        review every application, usually within five working days. Once approved, you set up your shop and start
+        posting items.
       </p>
       <Suspense fallback={<div className="skeleton h-96 rounded-lg" aria-busy="true" />}>
         <Apply />

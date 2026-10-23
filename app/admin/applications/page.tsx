@@ -31,7 +31,7 @@ async function Applications({ searchParams }: { searchParams: PageProps<"/admin/
       />
       {list.length ? (
         <DataTable
-          caption="Seller applications"
+          caption="Shop applications"
           headers={["Shop", "Applicant", "Craft", "District", "Submitted", "Status"]}
         >
           {list.map((a) => (
@@ -46,7 +46,7 @@ async function Applications({ searchParams }: { searchParams: PageProps<"/admin/
               </Td>
               <Td>{userNames.get(a.userId) ?? "Unknown"}</Td>
               <Td className="max-w-[220px]">{a.craft}</Td>
-              <Td>{a.district}</Td>
+              <Td>{a.address.district}</Td>
               <Td>{formatDate(a.createdAt)}</Td>
               <Td>
                 <StatusBadge status={a.status} />
@@ -64,7 +64,7 @@ async function Applications({ searchParams }: { searchParams: PageProps<"/admin/
 export default function AdminApplicationsPage(props: PageProps<"/admin/applications">) {
   return (
     <>
-      <PageTitle title="Seller applications" description="Approve makers, reject with a reason, or ask for changes." />
+      <PageTitle title="Shop applications" description="Approve makers, reject with a reason, or ask for changes." />
       <Suspense fallback={<div className="skeleton h-64 rounded-lg" aria-busy="true" />}>
         <Applications searchParams={props.searchParams} />
       </Suspense>

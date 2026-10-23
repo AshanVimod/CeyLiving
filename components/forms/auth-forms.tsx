@@ -101,7 +101,7 @@ export function RegisterForm({ seller, next }: { seller: boolean; next: string }
   const signInHref = `/signin?next=${encodeURIComponent(next)}`;
   return (
     <AuthShell
-      title={seller ? "Apply to sell" : "Create an account"}
+      title={seller ? "Create an account to open a shop" : "Create an account"}
       footer={
         <p>
           Already have an account?{" "}

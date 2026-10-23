@@ -72,13 +72,13 @@ function ApplicationCard({ application }: { application?: SellerApplication }) {
       <Card title="Sell on CeyLiving">
         <p className="text-ink-soft">Make things by hand? Apply to open a shop. We review every application.</p>
         <Link href="/sell/apply" className={`${button} mt-4 border border-ink/25 hover:border-ink`}>
-          Apply to sell
+          Apply to open a shop
         </Link>
       </Card>
     );
   }
   return (
-    <Card title="Your seller application">
+    <Card title="Your shop application">
       <p className="flex flex-wrap items-center gap-3">
         <span className="font-medium">{application.shopName}</span>
         <StatusBadge status={application.status} />
