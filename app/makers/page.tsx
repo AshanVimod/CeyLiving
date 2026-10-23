@@ -11,9 +11,17 @@ export const metadata: Metadata = {
   description: "Meet the independent Sri Lankan makers who sell on CeyLiving.",
 };
 
-export default function MakersPage() {
-  const shops = publicShops();
+export default async function MakersPage() {
+  const shops = await publicShops();
   const [first, ...rest] = shops;
+  const stats = new Map(
+    await Promise.all(
+      rest.map(
+        async (s) =>
+          [s.slug, { count: (await publicProductsOfShop(s.slug)).length, rating: await shopRating(s.slug) }] as const,
+      ),
+    ),
+  );
 
   return (
     <>
@@ -63,8 +71,7 @@ export default function MakersPage() {
         <h2 className="mb-8 text-[1.85rem]">All makers</h2>
         <ul className="grid gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
           {rest.map((s) => {
-            const count = publicProductsOfShop(s.slug).length;
-            const rating = shopRating(s.slug);
+            const { count, rating } = stats.get(s.slug)!;
             return (
               <li key={s.slug}>
                 <Link href={`/shop/${s.slug}`} className="group block">

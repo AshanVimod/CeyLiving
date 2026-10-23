@@ -20,7 +20,7 @@ export async function ProductReviewSlot({ productId, productSlug }: { productId:
       </p>
     );
   }
-  const eligibility = reviewEligibility(user, productId);
+  const eligibility = await reviewEligibility(user, productId);
   if (!eligibility.canReview) return <p className="text-ink-soft">{eligibility.reason}</p>;
   return (
     <section aria-labelledby="write-review" className="rounded-lg border border-line bg-paper-raised p-5">

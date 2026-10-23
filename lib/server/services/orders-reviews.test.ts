@@ -60,9 +60,9 @@ describe("FR-7 seller orders (BR-07)", () => {
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
-  it("SEC-A5 a customer can't open someone else's order", () => {
+  it("SEC-A5 a customer can't open someone else's order", async () => {
     const theirs = readStore().orders.find((o) => o.customerId !== "user_customer")!;
-    expect(() => customerOrder(user("user_customer"), theirs.orderNumber)).toThrow(NotFoundError);
+    await expect(customerOrder(user("user_customer"), theirs.orderNumber)).rejects.toThrow(NotFoundError);
   });
 
   it("SEC-A10 buyer details disappear 30 days after delivery", () => {
@@ -80,8 +80,8 @@ describe("FR-7 seller orders (BR-07)", () => {
 
 describe("FR-3a reviews", () => {
   it("RULE-R1 blocks a review without a delivered order", async () => {
-    const naga = getPublicProduct("naga-raksha-mask")!;
-    expect(reviewEligibility(user("user_muted"), naga.id).canReview).toBe(false);
+    const naga = (await getPublicProduct("naga-raksha-mask"))!;
+    expect((await reviewEligibility(user("user_muted"), naga.id)).canReview).toBe(false);
     await expect(
       createReview(user("user_applicant"), { orderItemId: DELIVERED_ITEM, rating: 5 }),
     ).rejects.toBeInstanceOf(NotFoundError);
@@ -92,10 +92,10 @@ describe("FR-3a reviews", () => {
   });
 
   it("FR-6 confirming delivery unlocks the review", async () => {
-    const mayura = getPublicProduct("mayura-raksha-wall-mask")!;
-    expect(reviewEligibility(user("user_customer"), mayura.id).canReview).toBe(false);
+    const mayura = (await getPublicProduct("mayura-raksha-wall-mask"))!;
+    expect((await reviewEligibility(user("user_customer"), mayura.id)).canReview).toBe(false);
     await confirmDelivery(user("user_customer"), DISPATCHED);
-    expect(reviewEligibility(user("user_customer"), mayura.id)).toMatchObject({ canReview: true });
+    expect(await reviewEligibility(user("user_customer"), mayura.id)).toMatchObject({ canReview: true });
   });
 
   it("RULE-R1 allows one review per bought item", async () => {
@@ -110,8 +110,8 @@ describe("FR-3a reviews", () => {
   });
 
   it("RULE-R3 a seller can't review their own items, and replies once (editable)", async () => {
-    const naga = getPublicProduct("naga-raksha-mask")!;
-    expect(reviewEligibility(user("user_seller"), naga.id)).toMatchObject({
+    const naga = (await getPublicProduct("naga-raksha-mask"))!;
+    expect(await reviewEligibility(user("user_seller"), naga.id)).toMatchObject({
       canReview: false,
       reason: expect.stringMatching(/own shop/),
     });

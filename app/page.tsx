@@ -40,9 +40,9 @@ function priceChipCount(products: CatalogueProduct[], min?: number, max?: number
   }).length;
 }
 
-export default function HomePage() {
-  const products = publicCatalogue();
-  const shops = publicShops();
+export default async function HomePage() {
+  const products = await publicCatalogue();
+  const shops = await publicShops();
   const districts = new Set(shops.map((s) => s.district)).size;
   // The mask leads the hero; if its shop is ever suspended, the top featured heritage piece takes its place.
   const hero =

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { db } from "@/lib/server/db/tx";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { PageTitle } from "@/components/account/area-shell";
@@ -8,18 +9,19 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/format";
 import { requireRole } from "@/lib/server/auth";
 import { findShopById, productsOfShop } from "@/lib/server/repositories/catalogue";
-import { findUserById, listAuditLog } from "@/lib/server/repositories/people";
+import { findUserById, listAuditLog, listUsers } from "@/lib/server/repositories/people";
 
 export const metadata = { title: "Shop" };
 
 async function Shop({ params }: { params: PageProps<"/admin/sellers/[shopId]">["params"] }) {
   await requireRole(["ADMIN"], "/admin/sellers");
   const { shopId } = await params;
-  const shop = findShopById(shopId);
+  const shop = await findShopById(db, shopId);
   if (!shop) notFound();
-  const owner = findUserById(shop.ownerId);
-  const items = productsOfShop(shop.id);
-  const history = listAuditLog().filter((a) => a.targetId === shop.id);
+  const owner = await findUserById(db, shop.ownerId);
+  const items = await productsOfShop(db, shop.id);
+  const history = (await listAuditLog(db)).filter((a) => a.targetId === shop.id);
+  const userNames = new Map((await listUsers(db)).map((u) => [u.id, u.name]));
   return (
     <>
       <p className="mb-3">
@@ -60,7 +62,7 @@ async function Shop({ params }: { params: PageProps<"/admin/sellers/[shopId]">["
         <ul className="space-y-2 text-[0.95rem]">
           {history.map((h) => (
             <li key={h.id} className="rounded-md border border-line bg-paper-raised px-4 py-3">
-              <span className="font-semibold">{h.action}</span> by {findUserById(h.actorId)?.name ?? h.actorId},{" "}
+              <span className="font-semibold">{h.action}</span> by {userNames.get(h.actorId) ?? h.actorId},{" "}
               {formatDate(h.createdAt)}
               {h.reason ? <span className="block text-ink-soft">Reason: {h.reason}</span> : null}
             </li>

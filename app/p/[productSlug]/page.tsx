@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { db } from "@/lib/server/db/tx";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -23,15 +24,15 @@ import { formatLkr, photoUrl } from "@/lib/format";
 import { getPublicProduct, getPublicShop, publicCatalogue, relatedProducts } from "@/lib/server/catalogue";
 import { visibleReviewsOfProduct } from "@/lib/server/repositories/content";
 
-export function generateStaticParams() {
-  return publicCatalogue().map((p) => ({ productSlug: p.slug }));
+export async function generateStaticParams() {
+  return (await publicCatalogue()).map((p) => ({ productSlug: p.slug }));
 }
 
 export async function generateMetadata(props: PageProps<"/p/[productSlug]">): Promise<Metadata> {
   const { productSlug } = await props.params;
-  const product = getPublicProduct(productSlug);
+  const product = await getPublicProduct(productSlug);
   if (!product) return {};
-  const shop = getPublicShop(product.shopSlug);
+  const shop = await getPublicShop(product.shopSlug);
   return {
     title: product.title,
     description: `${product.description.slice(0, 140)} Made by ${shop?.ownerName ?? "an independent maker"}.`,
@@ -83,13 +84,13 @@ function ProductSkeleton() {
 async function ProductContent({ params }: { params: PageProps<"/p/[productSlug]">["params"] }) {
   const { productSlug } = await params;
   // RULE-S4: hidden items and items of suspended shops return 404.
-  const product = getPublicProduct(productSlug);
-  const shop = product ? getPublicShop(product.shopSlug) : undefined;
+  const product = await getPublicProduct(productSlug);
+  const shop = product ? await getPublicShop(product.shopSlug) : undefined;
   if (!product || !shop) notFound();
   const category = getCategory(product.categorySlug)!;
   const rating = product.rating;
-  const reviews = visibleReviewsOfProduct(product.id);
-  const related = relatedProducts(product);
+  const reviews = await visibleReviewsOfProduct(db, product.id);
+  const related = await relatedProducts(product);
 
   return (
     <Container className="pt-6 pb-10">

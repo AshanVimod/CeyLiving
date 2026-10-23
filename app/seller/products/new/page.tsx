@@ -10,7 +10,7 @@ export const metadata = { title: "Add an item" };
 async function NewProduct() {
   const { shop, db } = await sellerContext("/seller/products/new");
   if (shop.status === "CLOSED") return <p className="text-ink-soft">This shop is closed.</p>;
-  const approved = approvedCount(shop, db);
+  const approved = await approvedCount(shop, db);
   return (
     <>
       <p className="mb-6 rounded-md bg-sage px-4 py-3 text-[0.95rem]">

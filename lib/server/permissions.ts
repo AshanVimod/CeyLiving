@@ -2,7 +2,7 @@ import "server-only";
 import type { Role, Shop, User } from "@/lib/types";
 import { ForbiddenError, NotFoundError, UnauthorizedError } from "./errors";
 import { findShopByOwner } from "./repositories/catalogue";
-import type { StoreData } from "./store/dev-store";
+import type { Tx } from "./db/tx";
 
 export type Actor = User;
 
@@ -17,16 +17,16 @@ export function assertRole(actor: Actor, roles: Role[]): void {
 }
 
 /** RULE-S1: the seller's shop, loaded by owner. Sellers without a shop get 404. */
-export function shopOfSeller(actor: Actor, db: StoreData): Shop {
+export async function shopOfSeller(actor: Actor, tx: Tx): Promise<Shop> {
   assertRole(actor, ["SELLER"]);
-  const shop = findShopByOwner(actor.id, db);
+  const shop = await findShopByOwner(tx, actor.id);
   if (!shop) throw new NotFoundError("You don’t have a shop yet.");
   return shop;
 }
 
 /** Throws 404 (not 403) when the shop isn't the actor's, so other shops' data isn't revealed (SEC-A5). */
-export function assertShopOwner(actor: Actor, shopId: string, db: StoreData): Shop {
-  const shop = actor.role === "SELLER" ? findShopByOwner(actor.id, db) : undefined;
+export async function assertShopOwner(actor: Actor, shopId: string, tx: Tx): Promise<Shop> {
+  const shop = actor.role === "SELLER" ? await findShopByOwner(tx, actor.id) : undefined;
   if (!shop || shop.id !== shopId) throw new NotFoundError();
   return shop;
 }

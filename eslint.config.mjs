@@ -12,6 +12,24 @@ const eslintConfig = defineConfig([
     ignores: ["**/*.test.{ts,tsx}"],
     rules: { "no-console": "error" },
   },
+  // BE-01: only repositories (and the transaction handle) touch stored rows; everything else goes through them.
+  {
+    files: ["app/**", "lib/**", "components/**", "proxy.ts"],
+    ignores: ["lib/server/db/**", "lib/server/repositories/**", "lib/server/store/**", "**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/store/dev-store"],
+              message: "Read and write data through lib/server/repositories with a db or withTx handle (BE-01).",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

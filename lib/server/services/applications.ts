@@ -2,11 +2,22 @@ import "server-only";
 import { REAPPLY_WAIT_DAYS } from "@/lib/config";
 import type { ApplicationStatus, SellerApplication, Shop } from "@/lib/types";
 import type { ApplicationInput, DecisionInput } from "@/lib/validation/application";
+import { withTx, type Tx } from "../db/tx";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
 import { assertRole, type Actor } from "../permissions";
-import { addNotification, adminIds, newId, updateUser } from "../repositories/people";
-import { transaction, type StoreData } from "../store/dev-store";
-import { assertRateLimit, assertTransition, audit, slugify, uniqueSlug } from "./shared";
+import { insertShop, shopSlugs } from "../repositories/catalogue";
+import {
+  addNotification,
+  applicationsOf,
+  findApplicationById,
+  findUserById,
+  insertApplication,
+  listAdminIds,
+  newId,
+  updateApplication,
+  updateUser,
+} from "../repositories/people";
+import { assertRateLimit, assertTransition, audit, slugify, staleStatus, uniqueSlug } from "./shared";
 
 // Feature spec 8.1: seller application status flow.
 const FLOW: Partial<Record<ApplicationStatus, readonly ApplicationStatus[]>> = {
@@ -20,8 +31,8 @@ const toPhoto = (url: string, alt: string) => ({
   alt,
 });
 
-function notifyAdmins(db: StoreData, title: string, href: string) {
-  adminIds(db).forEach((id) => addNotification(db, id, "application.submitted", title, href));
+async function notifyAdmins(tx: Tx, title: string, href: string) {
+  for (const id of await listAdminIds(tx)) await addNotification(tx, id, "application.submitted", title, href);
 }
 
 /** RULE-A1: one open application per person; a rejected applicant waits before applying again. */
@@ -31,8 +42,8 @@ export async function submitApplication(
   now = new Date(),
 ): Promise<SellerApplication> {
   if (actor.role !== "CUSTOMER") throw new ForbiddenError("Only customer accounts can apply to sell.");
-  return transaction((db) => {
-    const mine = db.applications.filter((a) => a.userId === actor.id);
+  return withTx(async (tx) => {
+    const mine = await applicationsOf(tx, actor.id);
     const open = mine.find((a) => OPEN.includes(a.status));
     if (open?.status === "PENDING") throw new ConflictError("You already have an application waiting for review.");
     const lastRejected = mine
@@ -44,7 +55,7 @@ export async function submitApplication(
         `You can apply again from ${new Date(waitUntil).toLocaleDateString("en-LK", { day: "numeric", month: "long", timeZone: "Asia/Colombo" })}.`,
       );
     }
-    assertRateLimit(db, actor.id, "application", now);
+    await assertRateLimit(tx, actor.id, "application", now);
     const fields = {
       shopName: input.shopName,
       craft: input.craft,
@@ -60,35 +71,40 @@ export async function submitApplication(
     if (open) {
       // NEEDS_CHANGES → PENDING: the applicant edits and resubmits the same application.
       assertTransition(FLOW, open.status, "PENDING", "application");
-      Object.assign(open, fields, { status: "PENDING" as const });
-      notifyAdmins(db, `${input.shopName} updated their application`, `/admin/applications/${open.id}`);
-      return open;
+      const updated = await updateApplication(tx, open.id, { ...fields, status: "PENDING" }, { from: open.status });
+      if (!updated) throw staleStatus("application");
+      await notifyAdmins(tx, `${input.shopName} updated their application`, `/admin/applications/${open.id}`);
+      return updated;
     }
-    const application: SellerApplication = {
+    const application = await insertApplication(tx, {
       id: newId("app"),
       userId: actor.id,
       status: "PENDING",
       createdAt: now.toISOString(),
       ...fields,
-    };
-    db.applications.push(application);
-    notifyAdmins(db, `New seller application: ${input.shopName}`, `/admin/applications/${application.id}`);
+    });
+    await notifyAdmins(tx, `New seller application: ${input.shopName}`, `/admin/applications/${application.id}`);
     return application;
   });
 }
 
 export async function withdrawApplication(actor: Actor): Promise<void> {
-  await transaction((db) => {
-    const open = db.applications.find((a) => a.userId === actor.id && OPEN.includes(a.status));
+  await withTx(async (tx) => {
+    const open = (await applicationsOf(tx, actor.id)).find((a) => OPEN.includes(a.status));
     if (!open) throw new NotFoundError("You have no open application.");
     assertTransition(FLOW, open.status, "WITHDRAWN", "application");
-    open.status = "WITHDRAWN";
-    open.updatedAt = new Date().toISOString();
+    const updated = await updateApplication(
+      tx,
+      open.id,
+      { status: "WITHDRAWN", updatedAt: new Date().toISOString() },
+      { from: open.status },
+    );
+    if (!updated) throw staleStatus("application");
   });
 }
 
-function shopFromApplication(app: SellerApplication, ownerName: string, db: StoreData, now: Date): Shop {
-  const slug = uniqueSlug(slugify(app.shopName), new Set(db.shops.map((s) => s.slug)));
+function shopFromApplication(app: SellerApplication, ownerName: string, taken: Set<string>, now: Date): Shop {
+  const slug = uniqueSlug(slugify(app.shopName), taken);
   return {
     id: newId("shop"),
     ownerId: app.userId,
@@ -121,29 +137,34 @@ export async function decideApplication(
   now = new Date(),
 ): Promise<SellerApplication> {
   assertRole(actor, ["ADMIN"]);
-  return transaction((db) => {
-    const app = db.applications.find((a) => a.id === input.applicationId);
+  return withTx(async (tx) => {
+    const app = await findApplicationById(tx, input.applicationId);
     if (!app) throw new NotFoundError("Application not found.");
     const to: ApplicationStatus =
       input.decision === "approve" ? "APPROVED" : input.decision === "reject" ? "REJECTED" : "NEEDS_CHANGES";
     assertTransition(FLOW, app.status, to, "application");
     const before = app.status;
-    Object.assign(app, {
-      status: to,
-      decidedById: actor.id,
-      decidedAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-    });
-    app.adminNote = input.decision === "approve" ? undefined : input.reason;
+    const decided = await updateApplication(
+      tx,
+      app.id,
+      {
+        status: to,
+        decidedById: actor.id,
+        decidedAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+        adminNote: input.decision === "approve" ? undefined : input.reason,
+      },
+      { from: before },
+    );
+    if (!decided) throw staleStatus("application");
     if (to === "APPROVED") {
-      const applicant = db.users.find((u) => u.id === app.userId);
+      const applicant = await findUserById(tx, app.userId);
       if (!applicant || applicant.role !== "CUSTOMER")
         throw new ConflictError("This person can no longer become a seller.");
-      updateUser(db, applicant.id, { role: "SELLER" });
-      const shop = shopFromApplication(app, applicant.name, db, now);
-      db.shops.push(shop);
-      addNotification(
-        db,
+      await updateUser(tx, applicant.id, { role: "SELLER" });
+      await insertShop(tx, shopFromApplication(decided, applicant.name, await shopSlugs(tx), now));
+      await addNotification(
+        tx,
         app.userId,
         "application.approved",
         "Your shop is approved. Set it up to start selling.",
@@ -152,13 +173,13 @@ export async function decideApplication(
     } else {
       const title =
         to === "REJECTED" ? "Your seller application was not approved" : "Changes requested on your seller application";
-      addNotification(db, app.userId, `application.${to.toLowerCase()}`, title, "/account");
+      await addNotification(tx, app.userId, `application.${to.toLowerCase()}`, title, "/account");
     }
-    audit(db, actor, `application.${to.toLowerCase()}`, "APPLICATION", app.id, {
+    await audit(tx, actor, `application.${to.toLowerCase()}`, "APPLICATION", app.id, {
       reason: input.decision === "approve" ? undefined : input.reason,
       before,
       after: to,
     });
-    return app;
+    return decided;
   });
 }

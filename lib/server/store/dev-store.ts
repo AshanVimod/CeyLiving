@@ -22,6 +22,7 @@ import type {
   User,
 } from "@/lib/types";
 import { StoreUnavailableError } from "../errors";
+import { isProductionRuntime } from "../runtime";
 import { buildSeed, SEED_TIME } from "./seed";
 
 export const STORE_VERSION = 2;
@@ -51,9 +52,7 @@ export interface StoreData {
 // A development stepping stone (feature spec 7.4): one JSON file, serialised atomic writes.
 // In production it serves the seed read-only and refuses every write (SEC-A8).
 
-export function isProductionRuntime(): boolean {
-  return process.env.NODE_ENV === "production";
-}
+export { isProductionRuntime };
 
 function storePath(): string {
   // The ignore comment stops the bundler from tracing the whole project for this runtime-only path.
@@ -118,12 +117,12 @@ export function readStore(): StoreData {
  * Runs `fn` against a private copy and writes it only if `fn` returns without throwing,
  * so multi-step changes (RULE-A3) are all-or-nothing. Writes run one at a time.
  */
-export function transaction<T>(fn: (draft: StoreData) => T): Promise<T> {
+export function transaction<T>(fn: (draft: StoreData) => T | Promise<T>): Promise<T> {
   if (isProductionRuntime()) return Promise.reject(new StoreUnavailableError());
   const run = async () => {
     const file = storePath();
     const draft = structuredClone(loadFromDisk(file)) as StoreData;
-    const result = fn(draft);
+    const result = await fn(draft);
     writeAtomic(file, draft);
     cache = null;
     return result;

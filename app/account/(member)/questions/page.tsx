@@ -4,25 +4,28 @@ import { Suspense } from "react";
 import { EmptyState, PageTitle } from "@/components/account/area-shell";
 import { formatDate } from "@/lib/format";
 import { requireUser } from "@/lib/server/auth";
-import { answersOf, questionsByAuthor } from "@/lib/server/repositories/content";
-import { readStore } from "@/lib/server/store/dev-store";
+import { listProducts } from "@/lib/server/repositories/catalogue";
+import { listAnswers, questionsByAuthor } from "@/lib/server/repositories/content";
+import { db } from "@/lib/server/db/tx";
 
 export const metadata: Metadata = { title: "My questions" };
 
 async function MyQuestions() {
   const user = await requireUser("/account/questions");
-  const db = readStore();
-  const questions = questionsByAuthor(user.id, db).filter((q) => q.status !== "DELETED");
+  const questions = (await questionsByAuthor(db, user.id)).filter((q) => q.status !== "DELETED");
   if (!questions.length) {
     return (
       <EmptyState title="No questions yet" text="Ask a maker about size, materials or delivery from any item page." />
     );
   }
+  const [products, allAnswers] = await Promise.all([listProducts(db), listAnswers(db)]);
   return (
     <ul className="space-y-4">
       {questions.map((q) => {
-        const product = db.products.find((p) => p.id === q.productId);
-        const answers = answersOf(q.id, db).filter((a) => a.status === "VISIBLE");
+        const product = products.find((p) => p.id === q.productId);
+        const answers = allAnswers
+          .filter((a) => a.questionId === q.id && a.status === "VISIBLE")
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
         return (
           <li key={q.id} className="rounded-lg border border-line bg-paper-raised p-5">
             {q.status === "HIDDEN" ? (

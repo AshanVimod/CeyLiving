@@ -18,7 +18,7 @@ async function Queue({ searchParams }: { searchParams: PageProps<"/admin/moderat
   const sp = await searchParams;
   const type = TYPES.find((t) => t === sp.type) ?? "ALL";
   const view = VIEWS.find((v) => v === sp.filter) ?? "all";
-  const items = moderationQueue({ type, view });
+  const items = await moderationQueue({ type, view });
   const href = (t: string, v: string) => `/admin/moderation?type=${t}&filter=${v}`;
   return (
     <>

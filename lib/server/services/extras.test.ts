@@ -57,7 +57,7 @@ describe("FR-13 payouts (BR-10, BR-11)", () => {
 
   it("a seller's summary shows only their own shop", async () => {
     await generatePayouts(user("user_admin"));
-    const summary = sellerPayoutSummary(user("user_seller"));
+    const summary = await sellerPayoutSummary(user("user_seller"));
     expect(summary.payouts.every((p) => p.shopId === "shop_ambalangoda-mask-house")).toBe(true);
   });
 });
@@ -142,8 +142,8 @@ describe("FR-16 role changes", () => {
 });
 
 describe("FR-17 data export and account deletion", () => {
-  it("the export contains only the requester's own data", () => {
-    const data = exportMyData(user("user_customer"));
+  it("the export contains only the requester's own data", async () => {
+    const data = await exportMyData(user("user_customer"));
     expect(data.profile.email).toBe("anushka@example.lk");
     expect(data.orders.length).toBeGreaterThan(0);
     const db = readStore();
@@ -196,7 +196,7 @@ describe("FR-19 helpful votes", () => {
     await expect(
       toggleHelpful(user(first!.authorId), { targetType: "REVIEW", targetId: first!.id }),
     ).rejects.toBeInstanceOf(ForbiddenError);
-    const { counts, mine } = helpfulCounts(
+    const { counts, mine } = await helpfulCounts(
       "REVIEW",
       reviews.map((r) => r.id),
       "user_customer",

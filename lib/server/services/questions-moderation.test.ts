@@ -13,13 +13,13 @@ import { answerQuestion, askQuestion } from "./questions";
 
 withTestStore();
 
-const naga = () => getPublicProduct("naga-raksha-mask")!;
-const vase = () => getPublicProduct("terracotta-vase-trio")!;
+const naga = async () => (await getPublicProduct("naga-raksha-mask"))!;
+const vase = async () => (await getPublicProduct("terracotta-vase-trio"))!;
 
 describe("FR-3b questions", () => {
   it("RULE-Q1 a signed-in customer can ask; the seller is notified (RULE-Q3)", async () => {
     const q = await askQuestion(user("user_customer"), {
-      productId: naga().id,
+      productId: (await naga()).id,
       body: "Does it come with a hanging hook?",
     });
     expect(q.status).toBe("VISIBLE");
@@ -30,15 +30,18 @@ describe("FR-3b questions", () => {
 
   it("RULE-Q1 a seller can't ask about their own item", async () => {
     await expect(
-      askQuestion(user("user_seller"), { productId: naga().id, body: "Is this a real question?" }),
+      askQuestion(user("user_seller"), { productId: (await naga()).id, body: "Is this a real question?" }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
   it("RULE-Q1 limits questions to 5 an hour", async () => {
     for (let i = 0; i < 5; i++)
-      await askQuestion(user("user_customer"), { productId: vase().id, body: `Question number ${i} about glaze?` });
+      await askQuestion(user("user_customer"), {
+        productId: (await vase()).id,
+        body: `Question number ${i} about glaze?`,
+      });
     await expect(
-      askQuestion(user("user_customer"), { productId: vase().id, body: "One question too many today?" }),
+      askQuestion(user("user_customer"), { productId: (await vase()).id, body: "One question too many today?" }),
     ).rejects.toBeInstanceOf(RateLimitError);
   });
 
@@ -80,7 +83,7 @@ describe("FR-3b questions", () => {
 
   it("RULE-M3 a muted customer can't ask", async () => {
     await expect(
-      askQuestion(user("user_muted"), { productId: naga().id, body: "Can I ask while muted?" }),
+      askQuestion(user("user_muted"), { productId: (await naga()).id, body: "Can I ask while muted?" }),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
@@ -155,7 +158,7 @@ describe("FR-5 / FR-8 reports and moderation", () => {
   it("reports can be dismissed with a reason", async () => {
     const report = await reportContent(user("user_muted"), {
       targetType: "PRODUCT",
-      targetId: naga().id,
+      targetId: (await naga()).id,
       reason: "Counterfeit or copied design",
     });
     await resolveReport(user("user_admin"), {
@@ -169,10 +172,10 @@ describe("FR-5 / FR-8 reports and moderation", () => {
 
 describe("FR-11 notifications", () => {
   it("RULE-N1 people only read and mark their own notifications", async () => {
-    expect(myNotifications(user("user_customer")).unread).toBe(1);
+    expect((await myNotifications(user("user_customer"))).unread).toBe(1);
     await markNotificationsRead(user("user_seller"), ["notif_seed_shipped"]);
-    expect(myNotifications(user("user_customer")).unread).toBe(1);
+    expect((await myNotifications(user("user_customer"))).unread).toBe(1);
     await markNotificationsRead(user("user_customer"));
-    expect(myNotifications(user("user_customer")).unread).toBe(0);
+    expect((await myNotifications(user("user_customer"))).unread).toBe(0);
   });
 });

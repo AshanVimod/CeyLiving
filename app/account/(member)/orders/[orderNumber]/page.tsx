@@ -10,26 +10,28 @@ import { REVIEW_EDIT_DAYS } from "@/lib/config";
 import { daysSince, formatDate, formatLkr } from "@/lib/format";
 import { requireUser } from "@/lib/server/auth";
 import { NotFoundError } from "@/lib/server/errors";
+import { listShops } from "@/lib/server/repositories/catalogue";
 import { findOrderByNumber } from "@/lib/server/repositories/commerce";
+import { reviewsByAuthor } from "@/lib/server/repositories/content";
 import { customerOrder } from "@/lib/server/services/orders";
 import { reviewableItems } from "@/lib/server/services/reviews";
-import { readStore } from "@/lib/server/store/dev-store";
+import { db } from "@/lib/server/db/tx";
 
 export const metadata: Metadata = { title: "Order" };
 
 async function OrderDetail({ params }: { params: PageProps<"/account/orders/[orderNumber]">["params"] }) {
   const { orderNumber } = await params;
   const user = await requireUser(`/account/orders/${orderNumber}`);
-  const db = readStore();
   try {
-    customerOrder(user, orderNumber, db); // SEC-A5: other people's orders are "not found"
+    await customerOrder(user, orderNumber, db); // SEC-A5: other people's orders are "not found"
   } catch (error) {
     if (error instanceof NotFoundError) notFound();
     throw error;
   }
-  const { order, sellerOrders } = findOrderByNumber(orderNumber, db)!;
-  const reviewable = new Set(reviewableItems(user, db).map((i) => i.id));
-  const reviewsByItem = new Map(db.reviews.filter((r) => r.authorId === user.id).map((r) => [r.orderItemId, r]));
+  const { order, sellerOrders } = (await findOrderByNumber(db, orderNumber))!;
+  const reviewable = new Set((await reviewableItems(user, db)).map((i) => i.id));
+  const reviewsByItem = new Map((await reviewsByAuthor(db, user.id)).map((r) => [r.orderItemId, r]));
+  const shops = await listShops(db);
   const a = order.shippingAddress;
   return (
     <>
@@ -44,7 +46,7 @@ async function OrderDetail({ params }: { params: PageProps<"/account/orders/[ord
       />
       <div className="space-y-6">
         {sellerOrders.map(({ sellerOrder, items }) => {
-          const shop = db.shops.find((s) => s.id === sellerOrder.shopId);
+          const shop = shops.find((s) => s.id === sellerOrder.shopId);
           return (
             <section
               key={sellerOrder.id}
