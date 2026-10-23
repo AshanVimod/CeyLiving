@@ -211,10 +211,10 @@ async function ProductContent({ params }: { params: PageProps<"/p/[productSlug]"
               Visit {shop.name}
             </Link>
           </section>
-          <p className="mt-4 flex flex-wrap gap-x-4">
+          <div className="mt-4 flex flex-wrap gap-x-4">
             <ReportButton targetType="PRODUCT" targetId={product.id} label="this item" />
             <ReportButton targetType="SHOP" targetId={shop.id} label={shop.name} />
-          </p>
+          </div>
         </div>
       </div>
 

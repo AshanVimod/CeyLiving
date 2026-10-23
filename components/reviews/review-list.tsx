@@ -28,7 +28,7 @@ export function ReviewList({ reviews, shopName, productTitles, helpful }: Review
           {r.comment ? (
             <p className="mt-2 max-w-prose whitespace-pre-line [overflow-wrap:anywhere]">{r.comment}</p>
           ) : null}
-          <p className="mt-2 flex flex-wrap items-center gap-x-3 text-sm text-ink-soft">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 text-sm text-ink-soft">
             <span>
               {r.authorName}
               {r.orderItemId ? ", verified purchase" : ""}
@@ -37,7 +37,7 @@ export function ReviewList({ reviews, shopName, productTitles, helpful }: Review
               {r.editedAt ? " (edited)" : ""}
             </span>
             <ReportButton targetType="REVIEW" targetId={r.id} label="this review" />
-          </p>
+          </div>
           {helpful ? (
             <div className="mt-2">
               <HelpfulButton
