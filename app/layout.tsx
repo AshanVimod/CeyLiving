@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { Hanken_Grotesk, Noto_Sans_Sinhala, Young_Serif } from "next/font/google";
+import { DemoBanner } from "@/components/layout/demo-banner";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Toaster } from "@/components/ui/toaster";
+import { getEnv } from "@/lib/env";
 import "./globals.css";
 
 const display = Young_Serif({
@@ -33,6 +35,8 @@ export const metadata: Metadata = {
   },
   description:
     "Buy masks, batik, Beeralu lace, pottery, art and home decor directly from independent makers across Sri Lanka.",
+  // Feature-02: keep the public demo out of search results.
+  ...(getEnv().DEMO_MODE ? { robots: { index: false, follow: false } } : {}),
 };
 
 export const viewport: Viewport = {
@@ -51,6 +55,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to content
         </a>
+        <DemoBanner />
         <SiteHeader />
         <main id="main" className="flex-1">
           {children}

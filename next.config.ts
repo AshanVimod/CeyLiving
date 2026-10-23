@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === "development";
+const isDemo = process.env.DEMO_MODE === "true";
 
 // SEC-06: security headers. Nonce-based CSP is incompatible with Partial Prerendering (see the Next.js CSP guide),
 // so scripts allow 'unsafe-inline' for Next's inline bootstrap; everything else is locked to this site and the image CDN.
@@ -26,6 +27,8 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   ...(isDev ? [] : [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" }]),
+  // Feature-02: no page of the public demo is indexed, whatever its own metadata says.
+  ...(isDemo ? [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] : []),
 ];
 
 const nextConfig: NextConfig = {
