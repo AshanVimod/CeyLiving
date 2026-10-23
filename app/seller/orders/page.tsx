@@ -21,16 +21,23 @@ const ORDER: Record<string, number> = {
 
 async function Orders() {
   const { shop, db } = await sellerContext("/seller/orders");
-  const orders = sellerOrdersOfShop(shop.id, db).sort(
+  const orders = (await sellerOrdersOfShop(db, shop.id)).sort(
     (a, b) => (ORDER[a.status] ?? 9) - (ORDER[b.status] ?? 9) || b.updatedAt.localeCompare(a.updatedAt),
+  );
+  const details = new Map(
+    await Promise.all(
+      orders.map(
+        async (so) =>
+          [so.id, { order: await orderOfSellerOrder(db, so), items: await itemsOfSellerOrder(db, so.id) }] as const,
+      ),
+    ),
   );
   if (!orders.length)
     return <EmptyState title="No orders yet" text="New orders appear here. Accept them within 3 days." />;
   return (
     <DataTable caption="Your orders" headers={["Order", "Items", "Total", "Placed", "Status"]}>
       {orders.map((so) => {
-        const order = orderOfSellerOrder(so, db);
-        const items = itemsOfSellerOrder(so.id, db);
+        const { order, items } = details.get(so.id)!;
         return (
           <tr key={so.id}>
             <Td>

@@ -1,10 +1,10 @@
 import "server-only";
-import type { HelpfulVote } from "@/lib/types";
 import type { RoleChangeInput, VoteInput } from "@/lib/validation/more";
+import { db, withTx, type Tx } from "../db/tx";
 import { ForbiddenError, NotFoundError } from "../errors";
 import { assertRole, type Actor } from "../permissions";
-import { addNotification } from "../repositories/people";
-import { readStore, transaction, type StoreData } from "../store/dev-store";
+import { countVotes, deleteVote, findQuestion, findReview, insertVote, votesFor } from "../repositories/content";
+import { addNotification, findUserById, updateUser } from "../repositories/people";
 import { assertRateLimit, audit } from "./shared";
 
 /**
@@ -13,16 +13,16 @@ import { assertRateLimit, audit } from "./shared";
  */
 export async function changeRole(actor: Actor, input: RoleChangeInput): Promise<void> {
   assertRole(actor, ["ADMIN"]);
-  await transaction((db) => {
-    const target = db.users.find((u) => u.id === input.userId && !u.deletedAt);
-    if (!target) throw new NotFoundError("User not found.");
+  await withTx(async (tx) => {
+    const target = await findUserById(tx, input.userId);
+    if (!target || target.deletedAt) throw new NotFoundError("User not found.");
     if (target.id === actor.id || target.role === "ADMIN")
       throw new ForbiddenError("Admins can’t change the role of another admin or themselves.");
     if (target.role === "SELLER") throw new ForbiddenError("Sellers change role only when their shop is closed.");
     const before = target.role;
-    target.role = input.role;
-    addNotification(db, target.id, "user.role", "Your account now has admin access", "/admin");
-    audit(db, actor, "user.role_changed", "USER", target.id, { reason: input.reason, before, after: input.role });
+    await updateUser(tx, target.id, { role: input.role });
+    await addNotification(tx, target.id, "user.role", "Your account now has admin access", "/admin");
+    await audit(tx, actor, "user.role_changed", "USER", target.id, { reason: input.reason, before, after: input.role });
   });
 }
 
@@ -32,44 +32,29 @@ export async function toggleHelpful(
   input: VoteInput,
   now = new Date(),
 ): Promise<{ voted: boolean; count: number }> {
-  return transaction((db) => {
+  return withTx(async (tx) => {
     const target =
-      input.targetType === "REVIEW"
-        ? db.reviews.find((r) => r.id === input.targetId)
-        : db.questions.find((q) => q.id === input.targetId);
+      input.targetType === "REVIEW" ? await findReview(tx, input.targetId) : await findQuestion(tx, input.targetId);
     if (!target || target.status !== "VISIBLE") throw new NotFoundError("That post isn’t available.");
     if (target.authorId === actor.id) throw new ForbiddenError("You can’t vote on your own post.");
-    assertRateLimit(db, actor.id, "vote", now);
-    const index = db.helpfulVotes.findIndex(
-      (v) => v.userId === actor.id && v.targetType === input.targetType && v.targetId === input.targetId,
-    );
-    if (index >= 0) db.helpfulVotes.splice(index, 1);
-    else
-      db.helpfulVotes.push({
+    await assertRateLimit(tx, actor.id, "vote", now);
+    const removed = await deleteVote(tx, actor.id, input.targetType, input.targetId);
+    if (!removed)
+      await insertVote(tx, {
         userId: actor.id,
         targetType: input.targetType,
         targetId: input.targetId,
         createdAt: now.toISOString(),
-      } satisfies HelpfulVote);
-    return {
-      voted: index < 0,
-      count: db.helpfulVotes.filter((v) => v.targetType === input.targetType && v.targetId === input.targetId).length,
-    };
+      });
+    return { voted: !removed, count: await countVotes(tx, input.targetType, input.targetId) };
   });
 }
 
 /** Vote counts for many posts at once, and which of them the viewer has voted on. */
-export function helpfulCounts(
-  targetType: "REVIEW" | "QUESTION",
-  ids: string[],
-  viewerId?: string,
-  db: StoreData = readStore(),
-) {
-  const wanted = new Set(ids);
+export async function helpfulCounts(targetType: "REVIEW" | "QUESTION", ids: string[], viewerId?: string, tx: Tx = db) {
   const counts = new Map<string, number>();
   const mine = new Set<string>();
-  for (const v of db.helpfulVotes) {
-    if (v.targetType !== targetType || !wanted.has(v.targetId)) continue;
+  for (const v of await votesFor(tx, targetType, ids)) {
     counts.set(v.targetId, (counts.get(v.targetId) ?? 0) + 1);
     if (v.userId === viewerId) mine.add(v.targetId);
   }

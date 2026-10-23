@@ -3,11 +3,20 @@ import { TEXT_LIMITS } from "@/lib/config";
 import type { Shop, ShopStatus } from "@/lib/types";
 import { photoIdFromUrl } from "@/lib/validation/photo";
 import type { PayoutInput, ShopDecisionInput, ShopInput } from "@/lib/validation/shop";
+import { db, withTx, type Tx } from "../db/tx";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { assertRole, shopOfSeller, type Actor } from "../permissions";
+import {
+  archiveProductsOfShopSlug,
+  findShopById,
+  findShopBySlug,
+  moveProductsToShopSlug,
+  productsOfShopSlug,
+  updateShop as updateShopRow,
+} from "../repositories/catalogue";
+import { sellerOrdersOfShop } from "../repositories/commerce";
 import { addNotification, updateUser } from "../repositories/people";
-import { transaction, type StoreData } from "../store/dev-store";
-import { assertTransition, audit } from "./shared";
+import { assertTransition, audit, staleStatus } from "./shared";
 
 // Feature spec 8.2: shop status flow.
 const FLOW: Partial<Record<ShopStatus, readonly ShopStatus[]>> = {
@@ -27,43 +36,40 @@ export interface Checklist {
 }
 
 /** FR-2b set-up checklist; RULE-S3 decides when a DRAFT shop can go public. */
-export function shopChecklist(shop: Shop, db: StoreData): Checklist {
+export async function shopChecklist(shop: Shop, tx: Tx = db): Promise<Checklist> {
+  const products = await productsOfShopSlug(tx, shop.slug);
   return {
     profileComplete:
       hasPhoto(shop.logo) &&
       hasPhoto(shop.banner) &&
       shop.story.length >= TEXT_LIMITS.storyMin &&
       Boolean(shop.district && shop.dispatchDays && shop.returnPolicy),
-    firstItem: db.products.some(
-      (p) => p.shopSlug === shop.slug && (p.status === "ACTIVE" || p.status === "PENDING_REVIEW"),
-    ),
+    firstItem: products.some((p) => p.status === "ACTIVE" || p.status === "PENDING_REVIEW"),
     payoutAdded: Boolean(shop.payoutAccountMasked),
   };
 }
 
 /** Moves a DRAFT shop to ACTIVE once every checklist item is done (RULE-S3). */
-export function activateIfReady(shop: Shop, db: StoreData): void {
-  if (shop.status !== "DRAFT") return;
-  const c = shopChecklist(shop, db);
+export async function activateIfReady(tx: Tx, shopId: string): Promise<void> {
+  const shop = await findShopById(tx, shopId);
+  if (!shop || shop.status !== "DRAFT") return;
+  const c = await shopChecklist(shop, tx);
   if (c.profileComplete && c.firstItem && c.payoutAdded) {
-    shop.status = "ACTIVE";
-    shop.updatedAt = new Date().toISOString();
-    addNotification(db, shop.ownerId, "shop.active", "Your shop is now live on CeyLiving", `/shop/${shop.slug}`);
+    await updateShopRow(tx, shop.id, { status: "ACTIVE", updatedAt: new Date().toISOString() }, { from: "DRAFT" });
+    await addNotification(tx, shop.ownerId, "shop.active", "Your shop is now live on CeyLiving", `/shop/${shop.slug}`);
   }
 }
 
 /** FR-2b: the seller edits their own shop, always loaded by owner (RULE-S1). */
 export async function updateShop(actor: Actor, input: ShopInput): Promise<Shop> {
-  return transaction((db) => {
-    const shop = shopOfSeller(actor, db);
+  return withTx(async (tx) => {
+    const shop = await shopOfSeller(actor, tx);
     if (shop.status === "CLOSED") throw new ConflictError("This shop is closed.");
-    if (input.slug !== shop.slug && db.shops.some((s) => s.slug === input.slug)) {
+    if (input.slug !== shop.slug && (await findShopBySlug(tx, input.slug))) {
       throw new ValidationError("That web address is taken.", { slug: "That web address is taken. Choose another." });
     }
-    if (input.slug !== shop.slug) {
-      db.products.filter((p) => p.shopSlug === shop.slug).forEach((p) => (p.shopSlug = input.slug));
-    }
-    Object.assign(shop, {
+    if (input.slug !== shop.slug) await moveProductsToShopSlug(tx, shop.slug, input.slug);
+    await updateShopRow(tx, shop.id, {
       name: input.name,
       slug: input.slug,
       craft: input.craft,
@@ -76,66 +82,75 @@ export async function updateShop(actor: Actor, input: ShopInput): Promise<Shop> 
       banner: { id: photoIdFromUrl(input.banner.url)!, alt: input.banner.alt },
       updatedAt: new Date().toISOString(),
     });
-    activateIfReady(shop, db);
-    return shop;
+    await activateIfReady(tx, shop.id);
+    return (await findShopById(tx, shop.id))!;
   });
 }
 
 /** FR-13: only the last four digits are kept; full bank details belong in the payment provider. */
 export async function savePayoutDetails(actor: Actor, input: PayoutInput): Promise<void> {
-  await transaction((db) => {
-    const shop = shopOfSeller(actor, db);
-    shop.payoutAccountMasked = `${input.bankName} •••• ${input.accountNumber.slice(-4)}`;
-    shop.updatedAt = new Date().toISOString();
-    activateIfReady(shop, db);
+  await withTx(async (tx) => {
+    const shop = await shopOfSeller(actor, tx);
+    await updateShopRow(tx, shop.id, {
+      payoutAccountMasked: `${input.bankName} •••• ${input.accountNumber.slice(-4)}`,
+      updatedAt: new Date().toISOString(),
+    });
+    await activateIfReady(tx, shop.id);
   });
 }
 
 /** FR-4: admin actions on a shop. Every action writes an audit row (SEC-A9). */
 export async function decideShop(actor: Actor, input: ShopDecisionInput): Promise<Shop> {
   assertRole(actor, ["ADMIN"]);
-  return transaction((db) => {
-    const shop = db.shops.find((s) => s.id === input.shopId);
+  return withTx(async (tx) => {
+    const shop = await findShopById(tx, input.shopId);
     if (!shop) throw new NotFoundError("Shop not found.");
     const before = { status: shop.status, isVerified: shop.isVerified };
     const reason = "reason" in input ? input.reason : undefined;
+    let patch: Partial<Shop> = {};
     switch (input.decision) {
       case "suspend":
         assertTransition(FLOW, shop.status, "SUSPENDED", "shop");
-        Object.assign(shop, { status: "SUSPENDED", statusReason: reason });
-        addNotification(db, shop.ownerId, "shop.suspended", "Your shop has been suspended", "/seller");
+        patch = { status: "SUSPENDED", statusReason: reason };
+        await addNotification(tx, shop.ownerId, "shop.suspended", "Your shop has been suspended", "/seller");
         break;
       case "reinstate":
         assertTransition(FLOW, shop.status, "ACTIVE", "shop");
-        Object.assign(shop, { status: "ACTIVE", statusReason: undefined });
-        addNotification(db, shop.ownerId, "shop.reinstated", "Your shop is live again", "/seller");
+        patch = { status: "ACTIVE", statusReason: undefined };
+        await addNotification(tx, shop.ownerId, "shop.reinstated", "Your shop is live again", "/seller");
         break;
       case "verify":
       case "unverify":
-        shop.isVerified = input.decision === "verify";
+        patch = { isVerified: input.decision === "verify" };
         break;
       case "close":
-        closeShop(db, shop, reason!);
+        patch = await closeShop(tx, shop, reason!);
         break;
     }
-    shop.updatedAt = new Date().toISOString();
-    audit(db, actor, `shop.${input.decision}`, "SHOP", shop.id, {
+    const updated = await updateShopRow(
+      tx,
+      shop.id,
+      { ...patch, updatedAt: new Date().toISOString() },
+      { from: shop.status },
+    );
+    if (!updated) throw staleStatus("shop");
+    await audit(tx, actor, `shop.${input.decision}`, "SHOP", shop.id, {
       reason,
       before,
-      after: { status: shop.status, isVerified: shop.isVerified },
+      after: { status: updated.status, isVerified: updated.isVerified },
     });
-    return shop;
+    return updated;
   });
 }
 
 /** Permanent close: only without open orders; items archived and the owner becomes a customer again. */
-function closeShop(db: StoreData, shop: Shop, reason: string) {
+async function closeShop(tx: Tx, shop: Shop, reason: string): Promise<Partial<Shop>> {
   assertTransition(FLOW, shop.status, "CLOSED", "shop");
-  const openOrders = db.sellerOrders.filter((so) => so.shopId === shop.id && OPEN_ORDER.includes(so.status));
+  const openOrders = (await sellerOrdersOfShop(tx, shop.id)).filter((so) => OPEN_ORDER.includes(so.status));
   if (openOrders.length)
     throw new ConflictError(`Finish or refund ${openOrders.length} open order(s) before closing this shop.`);
-  Object.assign(shop, { status: "CLOSED", statusReason: reason });
-  db.products.filter((p) => p.shopSlug === shop.slug && p.status !== "REMOVED").forEach((p) => (p.status = "ARCHIVED"));
-  updateUser(db, shop.ownerId, { role: "CUSTOMER" });
-  addNotification(db, shop.ownerId, "shop.closed", "Your shop has been closed", "/account");
+  await archiveProductsOfShopSlug(tx, shop.slug);
+  await updateUser(tx, shop.ownerId, { role: "CUSTOMER" });
+  await addNotification(tx, shop.ownerId, "shop.closed", "Your shop has been closed", "/account");
+  return { status: "CLOSED", statusReason: reason };
 }

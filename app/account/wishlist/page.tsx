@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { db } from "@/lib/server/db/tx";
 import { Suspense } from "react";
 import { accountNavItems } from "@/components/account/account-nav";
 import { AreaShell } from "@/components/account/area-shell";
@@ -29,7 +30,7 @@ async function Wishlist() {
       </Container>
     );
   }
-  const unread = notificationsOf(user.id).filter((n) => !n.readAt).length;
+  const unread = (await notificationsOf(db, user.id)).filter((n) => !n.readAt).length;
   return (
     <AreaShell title="My account" navLabel="Account" items={accountNavItems(unread)} exact={["/account"]}>
       <WishlistBody />

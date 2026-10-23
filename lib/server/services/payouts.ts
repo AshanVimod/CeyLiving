@@ -3,8 +3,17 @@ import { COMMISSION_RATE_BPS, PAYOUT_HOLD_DAYS } from "@/lib/config";
 import type { Payout, SellerOrder, Shop } from "@/lib/types";
 import { ConflictError, NotFoundError } from "../errors";
 import { assertRole, shopOfSeller, type Actor } from "../permissions";
+import { db, withTx, type Tx } from "../db/tx";
+import { findShopById } from "../repositories/catalogue";
+import {
+  findPayout,
+  insertPayout,
+  payoutsOfShop,
+  setPayoutOnSellerOrders,
+  unpaidCompletedSellerOrders,
+  updatePayout,
+} from "../repositories/commerce";
 import { addNotification, newId } from "../repositories/people";
-import { readStore, transaction, type StoreData } from "../store/dev-store";
 import { audit } from "./shared";
 
 const DAY = 86_400_000;
@@ -19,9 +28,9 @@ export function payableFrom(sellerOrder: SellerOrder): Date | undefined {
 }
 
 /** BR-11: delivered, past the hold period, and not yet in any payout. */
-function payableOrders(db: StoreData, now: Date): SellerOrder[] {
-  return db.sellerOrders.filter(
-    (so) => so.status === "COMPLETED" && !so.payoutId && (payableFrom(so)?.getTime() ?? Infinity) <= now.getTime(),
+async function payableOrders(tx: Tx, now: Date): Promise<SellerOrder[]> {
+  return (await unpaidCompletedSellerOrders(tx)).filter(
+    (so) => (payableFrom(so)?.getTime() ?? Infinity) <= now.getTime(),
   );
 }
 
@@ -50,18 +59,21 @@ function buildPayout(shop: Shop, orders: SellerOrder[], now: Date): Payout {
  */
 export async function generatePayouts(actor: Actor, now = new Date()): Promise<Payout[]> {
   assertRole(actor, ["ADMIN"]);
-  return transaction((db) => {
+  return withTx(async (tx) => {
     const byShop = new Map<string, SellerOrder[]>();
-    payableOrders(db, now).forEach((so) => byShop.set(so.shopId, [...(byShop.get(so.shopId) ?? []), so]));
+    (await payableOrders(tx, now)).forEach((so) => byShop.set(so.shopId, [...(byShop.get(so.shopId) ?? []), so]));
     const created: Payout[] = [];
     for (const [shopId, orders] of byShop) {
-      const shop = db.shops.find((s) => s.id === shopId);
+      const shop = await findShopById(tx, shopId);
       if (!shop?.payoutAccountMasked) continue;
-      const payout = buildPayout(shop, orders, now);
-      db.payouts.push(payout);
-      orders.forEach((so) => (so.payoutId = payout.id));
-      addNotification(db, shop.ownerId, "payout.scheduled", "A new payout statement is ready", "/seller/payouts");
-      audit(db, actor, "payout.generated", "PAYOUT", payout.id, {
+      const payout = await insertPayout(tx, buildPayout(shop, orders, now));
+      await setPayoutOnSellerOrders(
+        tx,
+        orders.map((so) => so.id),
+        payout.id,
+      );
+      await addNotification(tx, shop.ownerId, "payout.scheduled", "A new payout statement is ready", "/seller/payouts");
+      await audit(tx, actor, "payout.generated", "PAYOUT", payout.id, {
         after: { shopId, netCents: payout.netCents, orders: orders.length },
       });
       created.push(payout);
@@ -78,30 +90,40 @@ export async function markPayoutPaid(
   now = new Date(),
 ): Promise<Payout> {
   assertRole(actor, ["ADMIN"]);
-  return transaction((db) => {
-    const payout = db.payouts.find((p) => p.id === payoutId);
+  return withTx(async (tx) => {
+    const payout = await findPayout(tx, payoutId);
     if (!payout) throw new NotFoundError("Payout not found.");
-    if (payout.status !== "SCHEDULED") throw new ConflictError("Only scheduled payouts can be marked paid.");
-    Object.assign(payout, { status: "PAID", paidAt: now.toISOString(), reference });
-    const shop = db.shops.find((s) => s.id === payout.shopId);
+    // DB-06: only a SCHEDULED payout can be marked paid, so a double click can't record two transfers.
+    const paid = await updatePayout(
+      tx,
+      payout.id,
+      { status: "PAID", paidAt: now.toISOString(), reference },
+      { from: "SCHEDULED" },
+    );
+    if (!paid) throw new ConflictError("Only scheduled payouts can be marked paid.");
+    const shop = await findShopById(tx, payout.shopId);
     if (shop)
-      addNotification(db, shop.ownerId, "payout.paid", "Your payout has been sent to your bank", "/seller/payouts");
-    audit(db, actor, "payout.paid", "PAYOUT", payout.id, { reason: `Bank reference ${reference}` });
-    return payout;
+      await addNotification(
+        tx,
+        shop.ownerId,
+        "payout.paid",
+        "Your payout has been sent to your bank",
+        "/seller/payouts",
+      );
+    await audit(tx, actor, "payout.paid", "PAYOUT", payout.id, { reason: `Bank reference ${reference}` });
+    return paid;
   });
 }
 
 /** FR-13: the seller's own statements, plus earnings still on hold or waiting for the next run. */
-export function sellerPayoutSummary(actor: Actor, now = new Date(), db: StoreData = readStore()) {
-  const shop = shopOfSeller(actor, db);
-  const payouts = db.payouts.filter((p) => p.shopId === shop.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const upcoming = db.sellerOrders
-    .filter((so) => so.shopId === shop.id && so.status === "COMPLETED" && !so.payoutId)
-    .map((so) => ({
-      sellerOrder: so,
-      payableFrom: payableFrom(so)!,
-      netCents: so.subtotalCents + so.shippingCents - commissionFor(so),
-    }));
+export async function sellerPayoutSummary(actor: Actor, now = new Date(), tx: Tx = db) {
+  const shop = await shopOfSeller(actor, tx);
+  const payouts = await payoutsOfShop(tx, shop.id);
+  const upcoming = (await unpaidCompletedSellerOrders(tx, shop.id)).map((so) => ({
+    sellerOrder: so,
+    payableFrom: payableFrom(so)!,
+    netCents: so.subtotalCents + so.shippingCents - commissionFor(so),
+  }));
   const onHold = upcoming.filter((u) => u.payableFrom.getTime() > now.getTime());
   const ready = upcoming.filter((u) => u.payableFrom.getTime() <= now.getTime());
   return { shop, payouts, onHold, ready, rateBps: COMMISSION_RATE_BPS };

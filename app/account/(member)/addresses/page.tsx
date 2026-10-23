@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { db } from "@/lib/server/db/tx";
 import { Suspense } from "react";
 import { AddAddressForm, DeleteAddressForm } from "@/components/account/address-forms";
 import { EmptyState, PageTitle } from "@/components/account/area-shell";
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: "Saved addresses" };
 
 async function Addresses() {
   const user = await requireUser("/account/addresses");
-  const addresses = addressesOf(user.id);
+  const addresses = await addressesOf(db, user.id);
   return (
     <>
       <PageTitle title="Saved addresses" description="Used to fill in checkout. Only you can see them." />

@@ -10,7 +10,7 @@ export const GET = withRoute("account.export", async (_request, log) => {
   const session = await getSession();
   if (!session) return new Response("Sign in to download your data.", { status: 401 });
   log.info({ userId: session.user.id }, "account.export.started");
-  const body = JSON.stringify(exportMyData(session.user), null, 2);
+  const body = JSON.stringify(await exportMyData(session.user), null, 2);
   const date = new Date().toISOString().slice(0, 10);
   return new Response(body, {
     headers: {

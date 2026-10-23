@@ -19,7 +19,7 @@ const ORDER = { OPEN: 0, QUOTED: 1, ACCEPTED: 2, DECLINED: 3, EXPIRED: 4 } as co
 
 async function Requests() {
   const user = await requireRole(["SELLER"], "/seller/requests");
-  const requests = requestsOfSeller(user)
+  const requests = (await requestsOfSeller(user))
     .map((r) => ({ r, status: effectiveStatus(r) }))
     .sort((a, b) => ORDER[a.status] - ORDER[b.status]);
   if (!requests.length)

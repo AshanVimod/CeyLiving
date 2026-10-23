@@ -2,7 +2,8 @@ import "server-only";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { findUserById } from "./server/repositories/people";
-import { isProductionRuntime } from "./server/store/dev-store";
+import { db } from "./server/db/tx";
+import { isProductionRuntime } from "./server/runtime";
 import type { Role, User } from "./types";
 
 export type { Role };
@@ -26,7 +27,7 @@ export async function getSession(): Promise<Session | null> {
   if (isProductionRuntime()) return null;
   const userId = store.get(DEMO_SESSION_COOKIE)?.value;
   if (!userId) return null;
-  const user = findUserById(userId);
+  const user = await findUserById(db, userId);
   // FR-17: a deleted account can never sign in again.
   return user && !user.deletedAt ? { user } : null;
 }

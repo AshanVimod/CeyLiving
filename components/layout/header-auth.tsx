@@ -7,7 +7,7 @@ import { HeaderAuthView } from "./header-auth-view";
 
 export async function HeaderAuth() {
   const session = await getSession();
-  const notifications = session ? myNotifications(session.user, 5) : undefined;
+  const notifications = session ? await myNotifications(session.user, 5) : undefined;
   return <HeaderAuthView session={session} signOutAction={signOut} notifications={notifications} />;
 }
 

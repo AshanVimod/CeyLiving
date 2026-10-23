@@ -2,8 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeEach } from "vitest";
-import { resetStoreForTests } from "@/lib/server/store/dev-store";
-import { findUserById } from "@/lib/server/repositories/people";
+import { readStore, resetStoreForTests } from "@/lib/server/store/dev-store";
 import type { User } from "@/lib/types";
 
 /** Gives the calling test file its own throwaway store, reseeded before every test. */
@@ -17,7 +16,7 @@ export function withTestStore() {
 }
 
 export function user(id: string): User {
-  const found = findUserById(id);
+  const found = readStore().users.find((u) => u.id === id);
   if (!found) throw new Error(`Seed user ${id} missing`);
   return found;
 }

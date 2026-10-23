@@ -17,7 +17,7 @@ async function SellerOrder({ params }: { params: PageProps<"/seller/orders/[id]"
   const user = await requireRole(["SELLER"], `/seller/orders/${id}`);
   let detail;
   try {
-    detail = sellerOrderForSeller(user, id); // other shops' orders are "not found" (SEC-A5)
+    detail = await sellerOrderForSeller(user, id); // other shops' orders are "not found" (SEC-A5)
   } catch (error) {
     if (error instanceof NotFoundError) notFound();
     throw error;

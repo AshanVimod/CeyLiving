@@ -6,16 +6,26 @@ import { ReportResolution } from "@/components/admin/user-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/format";
 import { requireRole } from "@/lib/server/auth";
-import { listReports } from "@/lib/server/repositories/content";
-import { readStore, type StoreData } from "@/lib/server/store/dev-store";
-import type { Report } from "@/lib/types";
+import { listProducts, listShops } from "@/lib/server/repositories/catalogue";
+import { listAnswers, listQuestions, listReports, listReviews } from "@/lib/server/repositories/content";
+import { listUsers } from "@/lib/server/repositories/people";
+import { db } from "@/lib/server/db/tx";
+import type { Product, ProductAnswer, ProductQuestion, Report, Review, Shop } from "@/lib/types";
 
 export const metadata = { title: "Reports" };
 
 const FILTERS = ["OPEN", "RESOLVED", "DISMISSED"] as const;
 
 /** A short preview of what was reported, with a link to where it lives. */
-function preview(r: Report, db: StoreData): { text: string; href?: string } {
+interface Lookup {
+  products: Product[];
+  shops: Shop[];
+  reviews: Review[];
+  questions: ProductQuestion[];
+  answers: ProductAnswer[];
+}
+
+function preview(r: Report, db: Lookup): { text: string; href?: string } {
   if (r.targetType === "PRODUCT") {
     const p = db.products.find((x) => x.id === r.targetId);
     return { text: p ? `Item: ${p.title}` : "Item (gone)", href: p ? `/admin/products?status=${p.status}` : undefined };
@@ -40,8 +50,16 @@ async function Reports({ searchParams }: { searchParams: PageProps<"/admin/repor
   await requireRole(["ADMIN"], "/admin/reports");
   const { status } = await searchParams;
   const current = FILTERS.find((f) => f === status) ?? "OPEN";
-  const db = readStore();
-  const reports = listReports(db).filter((r) => r.status === current);
+  const reports = (await listReports(db)).filter((r) => r.status === current);
+  const [products, shops, reviews, questions, answers, users] = await Promise.all([
+    listProducts(db),
+    listShops(db),
+    listReviews(db),
+    listQuestions(db),
+    listAnswers(db),
+    listUsers(db),
+  ]);
+  const lookup: Lookup = { products, shops, reviews, questions, answers };
   return (
     <>
       <FilterLinks
@@ -55,8 +73,8 @@ async function Reports({ searchParams }: { searchParams: PageProps<"/admin/repor
       {reports.length ? (
         <ul className="space-y-4">
           {reports.map((r) => {
-            const p = preview(r, db);
-            const reporter = db.users.find((u) => u.id === r.reporterId);
+            const p = preview(r, lookup);
+            const reporter = users.find((u) => u.id === r.reporterId);
             return (
               <li key={r.id} className="rounded-lg border border-line bg-paper-raised p-5">
                 <p className="flex flex-wrap items-center gap-3">

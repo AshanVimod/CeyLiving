@@ -3,16 +3,23 @@ import { Suspense } from "react";
 import { EmptyState, PageTitle } from "@/components/account/area-shell";
 import { AnswerForm } from "@/components/questions/question-forms";
 import { formatDate } from "@/lib/format";
-import { answersOf, questionsOfShop } from "@/lib/server/repositories/content";
+import { productsOfShopSlug } from "@/lib/server/repositories/catalogue";
+import { listAnswers, questionsOfShop } from "@/lib/server/repositories/content";
 import { sellerContext } from "@/lib/server/seller-context";
 
 export const metadata = { title: "Questions" };
 
 async function Questions() {
   const { shop, db } = await sellerContext("/seller/questions");
-  const questions = questionsOfShop(shop.id, db)
+  const [allAnswers, products] = await Promise.all([listAnswers(db), productsOfShopSlug(db, shop.slug)]);
+  const questions = (await questionsOfShop(db, shop.id))
     .filter((q) => q.status === "VISIBLE")
-    .map((q) => ({ q, answers: answersOf(q.id, db).filter((a) => a.status === "VISIBLE") }))
+    .map((q) => ({
+      q,
+      answers: allAnswers
+        .filter((a) => a.questionId === q.id && a.status === "VISIBLE")
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    }))
     .sort((a, b) => Number(a.answers.length > 0) - Number(b.answers.length > 0));
   if (!questions.length)
     return (
@@ -21,7 +28,7 @@ async function Questions() {
   return (
     <ul className="space-y-4">
       {questions.map(({ q, answers }) => {
-        const product = db.products.find((p) => p.id === q.productId);
+        const product = products.find((p) => p.id === q.productId);
         return (
           <li key={q.id} className="rounded-lg border border-line bg-paper-raised p-5">
             <p className="text-sm text-ink-soft">

@@ -5,8 +5,8 @@ import { photoUrl } from "@/lib/format";
 import type { Category } from "@/lib/types";
 
 /** Traditional crafts get the arch and a larger tile; modern design keeps square corners. */
-export function TraditionalTile({ category }: { category: Category }) {
-  const count = productCountByCategory(category.slug);
+export async function TraditionalTile({ category }: { category: Category }) {
+  const count = await productCountByCategory(category.slug);
   return (
     <Link href={`/c/${category.slug}`} className="group block rounded-sm">
       <div className="arch relative aspect-[3/4] overflow-hidden bg-sage">

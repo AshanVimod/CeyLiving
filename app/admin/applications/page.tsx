@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { db } from "@/lib/server/db/tx";
 import { Suspense } from "react";
 import { EmptyState, PageTitle } from "@/components/account/area-shell";
 import { DataTable, FilterLinks, Td } from "@/components/admin/data-table";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/format";
 import { requireRole } from "@/lib/server/auth";
-import { findUserById, listApplications } from "@/lib/server/repositories/people";
+import { listApplications, listUsers } from "@/lib/server/repositories/people";
 
 export const metadata = { title: "Applications" };
 
@@ -15,7 +16,8 @@ async function Applications({ searchParams }: { searchParams: PageProps<"/admin/
   await requireRole(["ADMIN"], "/admin/applications");
   const { status } = await searchParams;
   const current = FILTERS.find((f) => f === status) ?? "PENDING";
-  const list = listApplications().filter((a) => current === "ALL" || a.status === current);
+  const list = (await listApplications(db)).filter((a) => current === "ALL" || a.status === current);
+  const userNames = new Map((await listUsers(db)).map((u) => [u.id, u.name]));
   return (
     <>
       <FilterLinks
@@ -42,7 +44,7 @@ async function Applications({ searchParams }: { searchParams: PageProps<"/admin/
                   {a.shopName}
                 </Link>
               </Td>
-              <Td>{findUserById(a.userId)?.name ?? "Unknown"}</Td>
+              <Td>{userNames.get(a.userId) ?? "Unknown"}</Td>
               <Td className="max-w-[220px]">{a.craft}</Td>
               <Td>{a.district}</Td>
               <Td>{formatDate(a.createdAt)}</Td>
