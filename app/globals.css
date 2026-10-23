@@ -1,0 +1,221 @@
+@import "tailwindcss";
+
+/* Lacquer & Loom: colours from Laksha lacquerware, structure from Dumbara weaving. */
+@theme {
+  --color-paper: #eef0e8;
+  --color-paper-raised: #f8f9f4;
+  --color-sage: #e1e5d9;
+  --color-line: #c9cfc2;
+  --color-ink: #13241c;
+  --color-ink-soft: #46534b;
+  --color-forest: #1f4d3a;
+  --color-forest-deep: #15382a;
+  --color-turmeric: #d4a017;
+  --color-turmeric-soft: #f1dc9c;
+  --color-lacquer: #9b2c24;
+
+  --font-display: var(--font-young-serif), Georgia, serif;
+  --font-sans: var(--font-hanken), system-ui, sans-serif;
+  --font-sinhala: var(--font-noto-sinhala), var(--font-hanken), sans-serif;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-soft: cubic-bezier(0.55, 0, 0.75, 0.2);
+
+  --animate-shimmer: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+@layer base {
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: 6rem;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+p { text-wrap: pretty; }
+
+:focus-visible {
+  outline: 2px solid var(--color-forest);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+::selection {
+  background: var(--color-turmeric-soft);
+  color: var(--color-ink);
+}
+
+a, button, [role="button"], label[for], select, summary {
+  touch-action: manipulation;
+}
+
+button:not(:disabled), summary, select { cursor: pointer; }
+}
+
+@layer components {
+/* Traditional crafts sit under an arch, like a Kandyan doorway; modern work keeps square corners. */
+.arch { border-radius: 999px 999px 4px 4px; }
+
+/* The lacquer band marks heritage content: the same stripes a lathe leaves on Laksha ware. */
+.lacquer-band {
+  height: 10px;
+  background: linear-gradient(
+    to bottom,
+    var(--color-ink) 0 2px,
+    var(--color-turmeric) 2px 4px,
+    var(--color-lacquer) 4px 7px,
+    var(--color-turmeric) 7px 8px,
+    var(--color-ink) 8px 10px
+  );
+}
+
+.dumbara {
+  background-image:
+    linear-gradient(45deg, rgb(19 36 28 / 0.06) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(19 36 28 / 0.06) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgb(19 36 28 / 0.06) 75%),
+    linear-gradient(-45deg, transparent 75%, rgb(19 36 28 / 0.06) 75%);
+  background-size: 22px 22px;
+  background-position: 0 0, 0 11px, 11px -11px, -11px 0;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--color-sage) 0%, var(--color-paper-raised) 50%, var(--color-sage) 100%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+}
+
+/* ---------- Hero: the one orchestrated moment on the site ---------- */
+
+.lathe-ring {
+  stroke-dasharray: var(--len) var(--len);
+  stroke-dashoffset: var(--len);
+  animation: lathe-draw 1.5s var(--ease-out-soft) forwards;
+  animation-delay: var(--delay, 0s);
+}
+
+@keyframes lathe-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.lathe-spin {
+  transform-origin: 50% 50%;
+  animation: lathe-settle 2.2s var(--ease-out-soft) both;
+}
+
+@keyframes lathe-settle {
+  from { transform: rotate(-120deg); }
+  to { transform: rotate(-90deg); }
+}
+
+.hero-photo {
+  animation: hero-photo-in 1.4s var(--ease-out-soft) 0.35s both;
+}
+
+@keyframes hero-photo-in {
+  from { opacity: 0; transform: scale(1.08); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.line-reveal {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.08em;
+}
+
+.line-reveal > span {
+  display: block;
+  animation: line-up 0.9s var(--ease-out-soft) both;
+  animation-delay: var(--delay, 0s);
+}
+
+@keyframes line-up {
+  from { transform: translateY(105%); }
+  to { transform: translateY(0); }
+}
+
+.fade-late {
+  animation: fade-late 0.8s var(--ease-out-soft) both;
+  animation-delay: var(--delay, 0.6s);
+}
+
+@keyframes fade-late {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ---------- Responsive motion: answers to what the customer does ---------- */
+
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+
+.pop { animation: pop 0.38s var(--ease-out-soft); }
+
+@keyframes drawer-in {
+  from { transform: translateX(100%); }
+  to { transform: none; }
+}
+
+@keyframes drawer-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}
+
+@keyframes scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Page-to-page: a quiet crossfade; product photos morph via named view transitions. */
+::view-transition-old(root) { animation: 160ms var(--ease-in-soft) both vt-fade-out; }
+::view-transition-new(root) { animation: 240ms var(--ease-out-soft) both vt-fade-in; }
+::view-transition-group(*) { animation-duration: 420ms; animation-timing-function: var(--ease-out-soft); }
+
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+}
