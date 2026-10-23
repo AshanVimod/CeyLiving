@@ -1,7 +1,15 @@
 import type { MetadataRoute } from "next";
 import { getEnv } from "@/lib/env";
 
-/** Feature-02: the public demo asks search engines to stay away; otherwise everything may be crawled. */
+/** Signed-in areas and the JSON API aren't for search engines (they redirect or need a session anyway). */
+const PRIVATE_PATHS = ["/account", "/seller", "/admin", "/sell/apply", "/checkout", "/api/"];
+
+/** Feature-02: the public demo asks every search engine to stay away; the real site lists its sitemap. */
 export default function robots(): MetadataRoute.Robots {
-  return getEnv().DEMO_MODE ? { rules: { userAgent: "*", disallow: "/" } } : { rules: { userAgent: "*", allow: "/" } };
+  const { DEMO_MODE, SITE_URL } = getEnv();
+  if (DEMO_MODE) return { rules: { userAgent: "*", disallow: "/" } };
+  return {
+    rules: { userAgent: "*", allow: "/", disallow: PRIVATE_PATHS },
+    sitemap: `${SITE_URL}/sitemap.xml`,
+  };
 }
