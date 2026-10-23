@@ -1,5 +1,7 @@
 # CeyLiving
 
+A marketplace connecting Sri Lankan artisans and entrepreneurs with customers.
+
 Marketplace for independent Sri Lankan makers: the public storefront (build spec T08) plus accounts, seller shops, items, orders, verified reviews, questions and admin moderation (feature spec `CeyLiving_Feature_Spec.docx`, tasks C01–C13). Data lives in a development store until the NestJS API and database arrive.
 
 ## Run it
