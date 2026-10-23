@@ -40,28 +40,26 @@ async function Sellers({ searchParams }: { searchParams: PageProps<"/admin/selle
       />
       {shops.length ? (
         <DataTable caption="Shops" headers={["Shop", "Owner", "Status", "Items", "Rating", "Open reports"]}>
-          {rows.map(({ s, rating, ownerName, reports, itemCount }) => {
-            return (
-              <tr key={s.id}>
-                <Td>
-                  <Link
-                    href={`/admin/sellers/${s.id}`}
-                    className="font-semibold text-forest underline underline-offset-4"
-                  >
-                    {s.name}
-                  </Link>
-                  {s.isVerified ? <span className="ml-2 text-sm text-forest">Verified</span> : null}
-                </Td>
-                <Td>{ownerName}</Td>
-                <Td>
-                  <StatusBadge status={s.status} />
-                </Td>
-                <Td className="tabular-nums">{itemCount}</Td>
-                <Td className="tabular-nums">{rating ? `${rating.average.toFixed(1)} (${rating.count})` : "None"}</Td>
-                <Td className="tabular-nums">{reports}</Td>
-              </tr>
-            );
-          })}
+          {rows.map(({ s, rating, ownerName, reports, itemCount }) => (
+            <tr key={s.id}>
+              <Td>
+                <Link
+                  href={`/admin/sellers/${s.id}`}
+                  className="font-semibold text-forest underline underline-offset-4"
+                >
+                  {s.name}
+                </Link>
+                {s.isVerified ? <span className="ml-2 text-sm text-forest">Verified</span> : null}
+              </Td>
+              <Td>{ownerName}</Td>
+              <Td>
+                <StatusBadge status={s.status} />
+              </Td>
+              <Td className="tabular-nums">{itemCount}</Td>
+              <Td className="tabular-nums">{rating ? `${rating.average.toFixed(1)} (${rating.count})` : "None"}</Td>
+              <Td className="tabular-nums">{reports}</Td>
+            </tr>
+          ))}
         </DataTable>
       ) : (
         <EmptyState title="No shops" text="No shops match this filter." />
