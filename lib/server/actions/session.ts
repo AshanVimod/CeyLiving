@@ -7,8 +7,15 @@ import { DEMO_SESSION_COOKIE } from "@/lib/session";
 import { safeNextPath } from "../auth";
 import { findUserById } from "../repositories/people";
 import { db } from "../db/tx";
+import { z } from "zod";
 import { demoSignInAllowed } from "../runtime";
 import { DEMO_ACCOUNTS } from "../store/seed";
+
+/** SEC-A3: the demo form carries only an account from the demo list and an optional return path. */
+const demoSignInSchema = z.object({
+  userId: z.enum(DEMO_ACCOUNTS.map((a) => a.id) as [string, ...string[]]),
+  next: z.string().max(500).optional(),
+});
 
 /**
  * Development-only sign-in as one of the seeded demo accounts (feature spec 7.5); also on the public demo (DEMO_MODE).
@@ -16,10 +23,14 @@ import { DEMO_ACCOUNTS } from "../store/seed";
  */
 export async function signInAsDemo(formData: FormData): Promise<void> {
   if (!demoSignInAllowed()) redirect("/signin");
-  const userId = formData.get("userId");
-  const allowed = DEMO_ACCOUNTS.some((a) => a.id === userId);
-  const user = typeof userId === "string" && allowed ? await findUserById(db, userId) : undefined;
-  if (typeof userId !== "string" || !user || user.deletedAt) redirect("/signin");
+  const parsed = demoSignInSchema.safeParse({
+    userId: formData.get("userId") ?? undefined,
+    next: formData.get("next") ?? undefined,
+  });
+  if (!parsed.success) redirect("/signin");
+  const { userId, next } = parsed.data;
+  const user = await findUserById(db, userId);
+  if (!user || user.deletedAt) redirect("/signin");
   const store = await cookies();
   store.set(DEMO_SESSION_COOKIE, userId, {
     httpOnly: true,
@@ -28,7 +39,7 @@ export async function signInAsDemo(formData: FormData): Promise<void> {
     path: "/",
     maxAge: DEMO_SESSION_MAX_AGE_SECONDS,
   });
-  redirect(safeNextPath(formData.get("next")));
+  redirect(safeNextPath(next));
 }
 
 /** Ends the session. With Better Auth this becomes its signOut call. */

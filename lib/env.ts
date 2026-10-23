@@ -23,6 +23,11 @@ export const envSchema = z
     DEMO_MODE: flag,
     // Feature-02: the external form the demo banner links to. Ignored unless DEMO_MODE=true.
     FEEDBACK_URL: z.url({ protocol: /^https$/, error: "must be an https:// URL" }).optional(),
+    // FR-2c: the site's public address, used for absolute links in sitemap.xml and robots.txt. No trailing slash.
+    SITE_URL: z
+      .url({ protocol: /^https?$/, error: "must be an http:// or https:// address" })
+      .default("http://localhost:3000")
+      .transform((url) => url.replace(/\/+$/, "")),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV === "production" && env.ENABLE_DEMO_LOGIN) {
@@ -31,6 +36,10 @@ export const envSchema = z
         path: ["ENABLE_DEMO_LOGIN"],
         message: "must not be true when NODE_ENV=production (AU-09)",
       });
+    }
+    const local = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(env.SITE_URL);
+    if (env.NODE_ENV === "production" && !env.SITE_URL.startsWith("https://") && !local) {
+      ctx.addIssue({ code: "custom", path: ["SITE_URL"], message: "must be an https:// address in production" });
     }
   });
 

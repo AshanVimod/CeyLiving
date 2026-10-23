@@ -5,109 +5,11 @@ import { MATERIAL_LABELS, MATERIALS, STYLE_LABELS, STYLES } from "@/lib/catalogu
 import { PRODUCT_LIMITS as L } from "@/lib/config";
 import { categories } from "@/lib/data/categories";
 import { saveProductAction } from "@/lib/server/actions/selling";
-import type { Material, Product, Style } from "@/lib/types";
-import { ActionForm, useFieldError, useFieldErrorUnder } from "../forms/action-form";
-import { PlusIcon } from "../ui/icons";
-
-interface Row<T> {
-  key: number;
-  value: T;
-}
-type ImageRow = { url: string; alt: string };
-type VariantRow = { label: string; price: string; compareAt: string; stock: string };
-type CustomRow = {
-  label: string;
-  kind: "TEXT" | "SELECT";
-  options: string;
-  maxLength: string;
-  isRequired: boolean;
-  helper: string;
-};
-
-let nextKey = 1;
-const rows = <T,>(values: T[]): Row<T>[] => values.map((value) => ({ key: nextKey++, value }));
-
-const input =
-  "h-11 w-full rounded-md border border-line bg-paper-raised px-3 focus:border-forest focus:outline-none aria-[invalid=true]:border-lacquer";
-const smallButton =
-  "inline-flex min-h-10 items-center gap-1.5 rounded-full border border-ink/25 px-4 text-sm font-semibold hover:border-ink";
-
-function FieldError({ name, under = false }: { name: string; under?: boolean }) {
-  const exact = useFieldError(name);
-  const nested = useFieldErrorUnder(name);
-  const error = under ? nested : exact;
-  return error ? (
-    <p role="alert" className="mt-1 text-sm text-lacquer">
-      {error}
-    </p>
-  ) : null;
-}
-
-function Labeled({
-  label,
-  name,
-  children,
-  required,
-}: {
-  label: string;
-  name: string;
-  children: React.ReactNode;
-  required?: boolean;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-[0.95rem] font-medium">
-        {label}
-        {required ? <span className="text-lacquer"> *</span> : null}
-      </span>
-      {children}
-      <FieldError name={name} />
-    </label>
-  );
-}
-
-function toInitial(p?: Product) {
-  const rupees = (c?: number) => (c === undefined ? "" : String(c / 100));
-  return {
-    title: p?.title ?? "",
-    categorySlug: p?.categorySlug ?? "",
-    subcategory: p?.subcategory ?? "",
-    description: p?.description ?? "",
-    materials: p?.materials ?? ([] as Material[]),
-    materialNote: p?.materialNote ?? "",
-    styles: p?.styles ?? ([] as Style[]),
-    tags: p?.tags.join(", ") ?? "",
-    type: p?.type ?? "READY_TO_SHIP",
-    processingDays: p?.processingDays ? String(p.processingDays) : "",
-    dimensions: p?.dimensions ?? "",
-    care: p?.care ?? "",
-    isHeritage: p?.isHeritage ?? false,
-    isEcoFriendly: p?.isEcoFriendly ?? false,
-    images: rows<ImageRow>(
-      p?.images.map((i) => ({ url: `https://images.unsplash.com/photo-${i.id}`, alt: i.alt })) ?? [
-        { url: "", alt: "" },
-      ],
-    ),
-    variants: rows<VariantRow>(
-      p?.variants.map((v) => ({
-        label: v.label,
-        price: rupees(v.priceCents),
-        compareAt: rupees(v.compareAtPriceCents),
-        stock: String(v.stock),
-      })) ?? [{ label: "One size", price: "", compareAt: "", stock: "1" }],
-    ),
-    customization: rows<CustomRow>(
-      p?.customization?.map((f) => ({
-        label: f.label,
-        kind: f.kind,
-        options: f.options?.join(", ") ?? "",
-        maxLength: String(f.maxLength),
-        isRequired: f.isRequired,
-        helper: f.helper ?? "",
-      })) ?? [],
-    ),
-  };
-}
+import type { Product } from "@/lib/types";
+import { ActionForm } from "../forms/action-form";
+import { input, Labeled } from "./product-form-fields";
+import { rows, toInitial, type CustomRow, type ImageRow, type Row, type VariantRow } from "./product-form-model";
+import { CustomizationRows, PhotoRows, VariantRows } from "./product-form-rows";
 
 /** FR-2c item editor. The browser only collects; every rule (RULE-P1 to P3) is checked on the server. */
 export function ProductForm({ product }: { product?: Product }) {
@@ -318,189 +220,33 @@ export function ProductForm({ product }: { product?: Product }) {
         </Labeled>
       </div>
 
-      <fieldset className="rounded-md border border-line p-4">
-        <legend className="px-1 font-semibold">Photos (1 to {L.maxImages})</legend>
-        <p className="mb-3 text-sm text-ink-soft">
-          Links starting with https://images.unsplash.com/photo-. The first photo is the main one. Describe each photo
-          for screen readers.
-        </p>
-        <FieldError name="images" />
-        <ul className="space-y-3">
-          {f.images.map((r, i) => (
-            <li key={r.key} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-start">
-              <div>
-                <input
-                  aria-label={`Photo ${i + 1} link`}
-                  name={`images.${i}.url`}
-                  className={input}
-                  value={r.value.url}
-                  onChange={(e) => updateRow<ImageRow>("images", r.key, { url: e.target.value })}
-                />
-                <FieldError name={`images.${i}.url`} />
-              </div>
-              <div>
-                <input
-                  aria-label={`Photo ${i + 1} description`}
-                  name={`images.${i}.alt`}
-                  className={input}
-                  value={r.value.alt}
-                  maxLength={160}
-                  onChange={(e) => updateRow<ImageRow>("images", r.key, { alt: e.target.value })}
-                />
-                <FieldError name={`images.${i}.alt`} />
-              </div>
-              <button
-                type="button"
-                className={smallButton}
-                onClick={() => removeRow("images", r.key)}
-                aria-label={`Remove photo ${i + 1}`}
-              >
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
-        {f.images.length < L.maxImages ? (
-          <button
-            type="button"
-            className={`${smallButton} mt-3`}
-            onClick={() => set("images", [...f.images, ...rows([{ url: "", alt: "" }])])}
-          >
-            <PlusIcon size={16} /> Add photo
-          </button>
-        ) : null}
-      </fieldset>
+      <PhotoRows
+        items={f.images}
+        onChange={(rowKey, patch) => updateRow<ImageRow>("images", rowKey, patch)}
+        onRemove={(rowKey) => removeRow("images", rowKey)}
+        onAdd={() => set("images", [...f.images, ...rows([{ url: "", alt: "" }])])}
+      />
 
-      <fieldset className="rounded-md border border-line p-4">
-        <legend className="px-1 font-semibold">Options and prices</legend>
-        <p className="mb-3 text-sm text-ink-soft">Prices in rupees. For made-to-order items, stock is ignored.</p>
-        <FieldError name="variants" />
-        <ul className="space-y-4">
-          {f.variants.map((r, i) => (
-            <li key={r.key} className="grid gap-2 sm:grid-cols-[1.3fr_1fr_1fr_0.8fr_auto] sm:items-start">
-              {(["label", "price", "compareAt", "stock"] as const).map((k) => (
-                <div key={k}>
-                  <input
-                    aria-label={`Option ${i + 1} ${k === "compareAt" ? "original price (optional)" : k}`}
-                    placeholder={
-                      k === "label"
-                        ? "Option name"
-                        : k === "price"
-                          ? "Price"
-                          : k === "compareAt"
-                            ? "Was (optional)"
-                            : "Stock"
-                    }
-                    name={`variants.${i}.${k}`}
-                    inputMode={k === "label" ? undefined : "decimal"}
-                    className={input}
-                    value={r.value[k]}
-                    onChange={(e) => updateRow<VariantRow>("variants", r.key, { [k]: e.target.value })}
-                  />
-                  <FieldError name={`variants.${i}.${k}`} />
-                </div>
-              ))}
-              <button
-                type="button"
-                className={smallButton}
-                onClick={() => removeRow("variants", r.key)}
-                aria-label={`Remove option ${i + 1}`}
-              >
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
-        {f.variants.length < L.maxVariants ? (
-          <button
-            type="button"
-            className={`${smallButton} mt-3`}
-            onClick={() =>
-              set("variants", [...f.variants, ...rows([{ label: "", price: "", compareAt: "", stock: "1" }])])
-            }
-          >
-            <PlusIcon size={16} /> Add option
-          </button>
-        ) : null}
-      </fieldset>
+      <VariantRows
+        items={f.variants}
+        onChange={(rowKey, patch) => updateRow<VariantRow>("variants", rowKey, patch)}
+        onRemove={(rowKey) => removeRow("variants", rowKey)}
+        onAdd={() => set("variants", [...f.variants, ...rows([{ label: "", price: "", compareAt: "", stock: "1" }])])}
+      />
 
-      <fieldset className="rounded-md border border-line p-4">
-        <legend className="px-1 font-semibold">Personalization (optional, up to {L.maxCustomFields})</legend>
-        <FieldError name="customization" under />
-        <ul className="space-y-4">
-          {f.customization.map((r, i) => (
-            <li key={r.key} className="grid gap-2 rounded-md bg-sage/50 p-3 sm:grid-cols-2">
-              <input
-                aria-label={`Field ${i + 1} label`}
-                placeholder="What should the customer enter?"
-                name={`customization.${i}.label`}
-                className={input}
-                value={r.value.label}
-                onChange={(e) => updateRow<CustomRow>("customization", r.key, { label: e.target.value })}
-              />
-              <select
-                aria-label={`Field ${i + 1} type`}
-                className={input}
-                value={r.value.kind}
-                onChange={(e) =>
-                  updateRow<CustomRow>("customization", r.key, { kind: e.target.value as CustomRow["kind"] })
-                }
-              >
-                <option value="TEXT">Text</option>
-                <option value="SELECT">Choice from a list</option>
-              </select>
-              {r.value.kind === "SELECT" ? (
-                <input
-                  aria-label={`Field ${i + 1} choices`}
-                  placeholder="Choices, comma separated"
-                  className={input}
-                  value={r.value.options}
-                  onChange={(e) => updateRow<CustomRow>("customization", r.key, { options: e.target.value })}
-                />
-              ) : (
-                <input
-                  aria-label={`Field ${i + 1} maximum length`}
-                  inputMode="numeric"
-                  placeholder="Max characters"
-                  className={input}
-                  value={r.value.maxLength}
-                  onChange={(e) => updateRow<CustomRow>("customization", r.key, { maxLength: e.target.value })}
-                />
-              )}
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <label className="flex min-h-10 items-center gap-2">
-                  <input
-                    type="checkbox"
-                    className="size-[18px] accent-forest"
-                    checked={r.value.isRequired}
-                    onChange={(e) => updateRow<CustomRow>("customization", r.key, { isRequired: e.target.checked })}
-                  />
-                  Required
-                </label>
-                <button type="button" className={smallButton} onClick={() => removeRow("customization", r.key)}>
-                  Remove field
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-        {f.customization.length < L.maxCustomFields ? (
-          <button
-            type="button"
-            className={`${smallButton} mt-3`}
-            onClick={() =>
-              set("customization", [
-                ...f.customization,
-                ...rows<CustomRow>([
-                  { label: "", kind: "TEXT", options: "", maxLength: "30", isRequired: false, helper: "" },
-                ]),
-              ])
-            }
-          >
-            <PlusIcon size={16} /> Add personalization field
-          </button>
-        ) : null}
-      </fieldset>
+      <CustomizationRows
+        items={f.customization}
+        onChange={(rowKey, patch) => updateRow<CustomRow>("customization", rowKey, patch)}
+        onRemove={(rowKey) => removeRow("customization", rowKey)}
+        onAdd={() =>
+          set("customization", [
+            ...f.customization,
+            ...rows<CustomRow>([
+              { label: "", kind: "TEXT", options: "", maxLength: "30", isRequired: false, helper: "" },
+            ]),
+          ])
+        }
+      />
     </ActionForm>
   );
 }
