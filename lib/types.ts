@@ -51,15 +51,32 @@ export interface User {
   deletedAt?: string;
 }
 
+export type BusinessType = "INDIVIDUAL" | "REGISTERED_BUSINESS";
+
+/** Where a shop sends its orders from. Only CeyLiving staff and the applicant see it. */
+export interface ShopAddress {
+  line1: string;
+  line2?: string;
+  city: string;
+  district: string;
+  postalCode?: string;
+}
+
+/** FR-2a: an application to open a shop. */
 export interface SellerApplication {
   id: string;
   userId: string;
+  /** About the applicant. */
+  applicantName: string;
+  phone: string;
+  businessType: BusinessType;
+  businessRegNo?: string;
+  /** About the shop. */
   shopName: string;
   craft: string;
-  categorySlug: string;
-  district: string;
+  categorySlugs: string[];
+  address: ShopAddress;
   story: string;
-  phone: string;
   workPhotoUrls: string[];
   socialUrl?: string;
   acceptedTermsAt: string;

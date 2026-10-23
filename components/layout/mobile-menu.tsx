@@ -8,7 +8,8 @@ import { LogoMark } from "./logo";
 import { NAV_LINKS } from "./nav-links";
 
 /** `account` holds the server-rendered Login/Sign Up or account entries, so the drawer matches the session. */
-export function MobileMenu({ account }: { account?: React.ReactNode }) {
+/** `sellLink` is chosen per role on the server (Open a shop, My shop application, Post an item, or nothing). */
+export function MobileMenu({ account, sellLink }: { account?: React.ReactNode; sellLink?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -115,14 +116,7 @@ export function MobileMenu({ account }: { account?: React.ReactNode }) {
                   ))}
               </ul>
             </nav>
-            <div className="mt-auto border-t border-line p-4">
-              <Link
-                href="/sell"
-                className="flex h-12 items-center justify-center rounded-full border border-forest font-semibold text-forest hover:bg-forest hover:text-paper"
-              >
-                Become a seller
-              </Link>
-            </div>
+            {sellLink ? <div className="mt-auto border-t border-line p-4 empty:hidden">{sellLink}</div> : null}
           </div>
         </div>
       ) : null}

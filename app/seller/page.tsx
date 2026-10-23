@@ -59,7 +59,22 @@ async function Dashboard() {
   ];
   return (
     <>
-      <PageTitle title="Dashboard" action={<StatusBadge status={shop.status} />} />
+      <PageTitle
+        title="Dashboard"
+        action={
+          <div className="flex flex-wrap items-center gap-3">
+            <StatusBadge status={shop.status} />
+            {shop.status === "SUSPENDED" ? null : (
+              <Link
+                href="/seller/products/new"
+                className="inline-flex h-11 items-center rounded-full bg-forest px-6 font-semibold text-paper hover:bg-forest-deep"
+              >
+                Post a new item
+              </Link>
+            )}
+          </div>
+        }
+      />
       {shop.status === "SUSPENDED" ? (
         <p role="status" className="mb-6 rounded-md bg-lacquer/10 px-4 py-3 text-lacquer">
           Your shop is suspended and hidden from customers. {shop.statusReason ? `Reason: ${shop.statusReason}` : ""}{" "}

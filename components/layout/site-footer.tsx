@@ -15,7 +15,7 @@ const columns = [
   {
     title: "Sell",
     links: [
-      { href: "/sell", label: "Become a seller" },
+      { href: "/sell", label: "Open a shop" },
       { href: "/sell#fees", label: "Fees and payouts" },
       { href: "/help#selling", label: "Seller help" },
     ],

@@ -27,8 +27,22 @@ export async function submitApplicationAction(_: ActionState, form: FormData): P
   const result = await runAction(async () => {
     const actor = await requireActor();
     const raw = formToObject(form);
-    const photos = form.getAll("workPhotoUrls").map(String);
-    await submitApplication(actor, parseInput(applicationSchema, { ...raw, workPhotoUrls: photos }));
+    const field = (name: string) => (typeof raw[name] === "string" ? raw[name] : undefined);
+    await submitApplication(
+      actor,
+      parseInput(applicationSchema, {
+        ...raw,
+        categorySlugs: form.getAll("categorySlugs").map(String),
+        workPhotoUrls: form.getAll("workPhotoUrls").map(String),
+        address: {
+          line1: field("address.line1"),
+          line2: field("address.line2"),
+          city: field("address.city"),
+          district: field("address.district"),
+          postalCode: field("address.postalCode"),
+        },
+      }),
+    );
   });
   if (result.ok) {
     revalidatePath("/account");

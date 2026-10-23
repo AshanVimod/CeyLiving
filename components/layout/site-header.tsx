@@ -8,6 +8,12 @@ import { Logo } from "./logo";
 import { MobileMenu } from "./mobile-menu";
 import { NAV_LINKS } from "./nav-links";
 import { SearchBox } from "./search-box";
+import { OPEN_A_SHOP, SellLink, SellLinkView } from "./sell-link";
+
+const sellLinkClass =
+  "ml-auto rounded-sm py-2 font-medium text-forest underline decoration-forest/30 underline-offset-[6px] transition-colors hover:decoration-forest";
+const mobileSellLinkClass =
+  "flex h-12 items-center justify-center rounded-full border border-forest font-semibold text-forest hover:bg-forest hover:text-paper";
 
 export function SiteHeader() {
   return (
@@ -18,6 +24,11 @@ export function SiteHeader() {
             account={
               <Suspense fallback={null}>
                 <MobileAccountLinks />
+              </Suspense>
+            }
+            sellLink={
+              <Suspense fallback={<SellLinkView target={OPEN_A_SHOP} className={mobileSellLinkClass} />}>
+                <SellLink className={mobileSellLinkClass} />
               </Suspense>
             }
           />
@@ -47,12 +58,9 @@ export function SiteHeader() {
             {l.label}
           </Link>
         ))}
-        <Link
-          href="/sell"
-          className="ml-auto rounded-sm py-2 font-medium text-forest underline decoration-forest/30 underline-offset-[6px] transition-colors hover:decoration-forest"
-        >
-          Become a seller
-        </Link>
+        <Suspense fallback={<SellLinkView target={OPEN_A_SHOP} className={sellLinkClass} />}>
+          <SellLink className={sellLinkClass} />
+        </Suspense>
       </nav>
     </header>
   );
