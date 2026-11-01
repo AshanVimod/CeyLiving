@@ -2,6 +2,7 @@ import "server-only";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getEnv } from "@/lib/env";
 import { Prisma, PrismaClient } from "./generated/client";
+import { translateDbError } from "./pg-errors";
 
 // Backend plan 6.1, PostgreSQL side: the same handle shape as tx.ts (`db` for reads, `withTx` for writes), backed by
 // Prisma. Only repositories under repositories/pg look inside a handle (BE-01). B04 switches services over to it.
@@ -48,7 +49,7 @@ export function handlesFor(getClient: () => PrismaClient): PgHandles {
         try {
           return await getClient().$transaction((client) => fn(asTx({ client, writable: true })), { isolationLevel });
         } catch (error) {
-          if (attempt >= MAX_TX_ATTEMPTS || !isRetryable(error)) throw error;
+          if (attempt >= MAX_TX_ATTEMPTS || !isRetryable(error)) throw translateDbError(error);
         }
       }
     },

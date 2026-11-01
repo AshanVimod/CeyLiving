@@ -1,79 +1,61 @@
-import { execFileSync } from "node:child_process";
-import path from "node:path";
-import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import { randomUUID } from "node:crypto";
+import { inject } from "vitest";
 import { Client } from "pg";
 import type { PrismaClient } from "@/lib/server/db/generated/client";
 import { loadStoreData } from "@/lib/server/db/load-seed";
 import { createPrismaClient, handlesFor, type PgHandles } from "@/lib/server/db/pg";
 import type { StoreData } from "@/lib/server/store/dev-store";
 
-// Backend plan 15: a throwaway PostgreSQL in Docker (Testcontainers) with the real migrations applied, the same image
-// as infra/docker-compose.dev.yml, and the two database users of DB-10. Without Docker the tests that need it are
-// skipped with a warning locally; in CI (CI=true) a missing Docker fails the run instead.
+// Backend plan 15: each contract test file gets its own copy of the migrated database from the global setup
+// (test/contract/global-setup.ts), so files run in parallel without seeing each other's rows.
 
 export interface TestDatabase {
-  container: StartedPostgreSqlContainer;
   /** Connected as ceyliving_app, the way the app connects (DB-10). */
   app: PrismaClient;
-  /** Connected as ceyliving_migrator, the schema owner. Tests use it only to reset and load data. */
+  /** Connected as ceyliving_migrator, the schema owner. Tests use it only to load data. */
   migrator: PrismaClient;
   handles: PgHandles;
   appUrl: string;
-  /** Empties the tables and loads `data` (DB-04: in one transaction). */
+  /** Replaces every row with `data`, in one transaction. */
   reset(data: StoreData): Promise<void>;
   stop(): Promise<void>;
 }
 
-const APP_PASSWORD = "test_app";
+const withDatabase = (url: string, database: string) => {
+  const next = new URL(url);
+  next.pathname = `/${database}`;
+  return next.toString();
+};
 
-export async function startTestDatabase(): Promise<TestDatabase | undefined> {
-  let container: StartedPostgreSqlContainer;
+/** Undefined when Docker isn't available (the global setup has already warned). */
+export async function openTestDatabase(): Promise<TestDatabase | undefined> {
+  const postgres = inject("postgres");
+  if (!postgres) return undefined;
+
+  const name = `test_${randomUUID().replaceAll("-", "")}`;
+  const admin = new Client({ connectionString: withDatabase(postgres.migratorUrl, "postgres") });
+  await admin.connect();
   try {
-    container = await new PostgreSqlContainer("postgres:17.11-alpine")
-      .withUsername("ceyliving_migrator")
-      .withPassword("test_migrator")
-      .withDatabase("ceyliving")
-      .start();
-  } catch (error) {
-    if (process.env.CI) throw error;
-    console.warn(`PostgreSQL tests skipped: Docker is not available (${(error as Error).message.split("\n")[0]})`);
-    return undefined;
+    await admin.query(`CREATE DATABASE "${name}" TEMPLATE ceyliving`);
+  } finally {
+    await admin.end();
   }
 
-  const migratorUrl = container.getConnectionUri();
-  const url = new URL(migratorUrl);
-  url.username = "ceyliving_app";
-  url.password = APP_PASSWORD;
-  const appUrl = url.toString();
+  const migratorUrl = withDatabase(postgres.migratorUrl, name);
+  const appUrl = new URL(migratorUrl);
+  appUrl.username = "ceyliving_app";
+  appUrl.password = postgres.appPassword;
 
-  const admin = new Client({ connectionString: migratorUrl });
-  await admin.connect();
-  await admin.query(`CREATE ROLE ceyliving_app LOGIN PASSWORD '${APP_PASSWORD}'`);
-  await admin.end();
-
-  execFileSync(process.execPath, [path.join("node_modules", "prisma", "build", "index.js"), "migrate", "deploy"], {
-    env: { ...process.env, DATABASE_MIGRATION_URL: migratorUrl },
-    stdio: "pipe",
-  });
-
-  const app = createPrismaClient(appUrl);
+  const app = createPrismaClient(appUrl.toString());
   const migrator = createPrismaClient(migratorUrl);
   return {
-    container,
     app,
     migrator,
     handles: handlesFor(() => app),
-    appUrl,
-    async reset(data) {
-      // Every table, not only the loaded ones, so foreign keys never block the TRUNCATE.
-      const tables = await migrator.$queryRaw<{ name: string }[]>`
-        SELECT tablename AS name FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
-      await migrator.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.name}"`).join(", ")} RESTART IDENTITY`);
-      await loadStoreData(migrator, data);
-    },
+    appUrl: appUrl.toString(),
+    reset: (data) => loadStoreData(migrator, data, { replace: true }),
     async stop() {
       await Promise.all([app.$disconnect(), migrator.$disconnect()]);
-      await container.stop();
     },
   };
 }

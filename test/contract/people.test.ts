@@ -1,52 +1,17 @@
-// @vitest-environment node
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Client } from "pg";
 import * as devPeople from "@/lib/server/repositories/people";
 import * as pgPeople from "@/lib/server/repositories/pg/people";
-import { db as devDb, withTx as devWithTx, type Tx } from "@/lib/server/db/tx";
 import { clientOf, MAX_TX_ATTEMPTS } from "@/lib/server/db/pg";
-import { readStore, type StoreData } from "@/lib/server/store/dev-store";
+import type { StoreData } from "@/lib/server/store/dev-store";
 import { buildSeed } from "@/lib/server/store/seed";
 import type { SellerApplication } from "@/lib/types";
-import { withTestStore } from "@/test/store-helpers";
-import { startTestDatabase } from "@/test/db";
+import { byId, contractBackends, isNewestFirst } from "./backends";
 
-// Backend plan 6.2 step 2: one suite, run against the dev store and against PostgreSQL. Both must give the same
-// results. PostgreSQL-only guarantees (constraints, database rights, retries) follow at the end.
+// Users, applications, addresses, notifications, the audit log and rate events: the same suite on both backends,
+// then what only PostgreSQL guarantees (constraints, database rights, retries).
 
-withTestStore();
-const pg = await startTestDatabase();
-afterAll(() => pg?.stop());
-
-interface Backend {
-  repo: typeof devPeople;
-  db: Tx;
-  withTx: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
-  /** Fresh seed data in the backend; returns what was loaded. */
-  reset(): Promise<StoreData>;
-}
-
-const backends: [string, Backend | undefined][] = [
-  ["dev store", { repo: devPeople, db: devDb, withTx: devWithTx, reset: async () => readStore() }],
-  [
-    "PostgreSQL",
-    pg && {
-      // The signatures match with PgTx in place of Tx (repositories/pg/conformance.ts); the cast only swaps that.
-      repo: pgPeople as unknown as typeof devPeople,
-      db: pg.handles.db as unknown as Tx,
-      withTx: pg.handles.withTx as unknown as Backend["withTx"],
-      async reset() {
-        const data = buildSeed(new Date());
-        await pg.reset(data);
-        return data;
-      },
-    },
-  ],
-];
-
-const byId = <T extends { id: string }>(rows: readonly T[]) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
-const isNewestFirst = (rows: readonly { createdAt: string }[]) =>
-  rows.every((row, i) => i === 0 || rows[i - 1].createdAt >= row.createdAt);
+const { backends, pg } = await contractBackends(devPeople, pgPeople);
 
 function application(id: string, userId: string, createdAt: string): SellerApplication {
   return {
@@ -227,7 +192,7 @@ for (const [name, backend] of backends) {
   });
 }
 
-describe.skipIf(!pg)("PostgreSQL guarantees", () => {
+describe.skipIf(!pg)("people (PostgreSQL only)", () => {
   if (!pg) return;
   const { handles, appUrl } = pg;
   beforeAll(() => pg.reset(buildSeed(new Date())));

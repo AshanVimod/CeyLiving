@@ -54,7 +54,9 @@ PostgreSQL 17 with Prisma 7 (`prisma/schema.prisma`, migrations in `prisma/migra
 - **Append-only audit log (DB-09):** `ceyliving_app` may not update, delete or truncate `audit_log`.
 - **In the schema, not just the code (DB-07):** CHECK constraints for limits and totals, and partial unique indexes for one open application per person (RULE-A1), one open shop per owner and one open report per reporter.
 - **Code:** `lib/server/db/pg.ts` holds the PostgreSQL handle (`db` and `withTx`, READ COMMITTED, retried up to 3 times on serialization or deadlock errors: DB-05). `lib/server/db/mappers.ts` turns rows into `lib/types.ts` objects (BE-01). `lib/server/repositories/pg/` holds the PostgreSQL repositories; `conformance.ts` makes `npm run typecheck` fail if one stops matching the dev-store version.
-- **Done so far:** B03a (people: users, applications, addresses, notifications, audit log, rate events). B03b adds catalogue and content, B03c commerce.
+- **Errors people see:** the services check every rule first, so the database only refuses a write when two requests race. A unique clash (a second open application, a web address just taken, a repeated vote or report) becomes a `ConflictError` with a plain message (`lib/server/db/pg-errors.ts`); any other database error is logged and shown as the generic message with a reference. Raw PostgreSQL text never reaches a page.
+- **Seed loader:** `lib/server/db/load-seed.ts` loads the categories and the dev-store seed into every table in one transaction. With `{ replace: true }` it empties the tables first, so running it again never duplicates rows; it refuses to replace data in production.
+- **Done so far:** B03a (people: users, applications, addresses, notifications, audit log, rate events) and B03b (catalogue: shops, products; content: reviews, questions, answers, reports, helpful votes). B03c adds commerce.
 
 ## Logging and request IDs
 
@@ -137,7 +139,7 @@ Requests follow the feature spec (section 7.2): **form → server action → ser
 - **Unit tests:** every business rule, named with its ID (for example `RULE-R1 blocks a review without a delivered order`).
 - **Permission tests:** every server action is called as a guest, plus wrong-role and other-owner cases.
 - **Production guards:** the demo session and dev store are refused in production.
-- **Repository contract (`test/contract/`):** one suite runs against the dev store and against a throwaway PostgreSQL started by Testcontainers (`test/db.ts`) with the real migrations. The PostgreSQL part also proves DB-05 retries, DB-07 constraints, DB-09 and DB-10 rights. Without Docker it is skipped with a warning; in CI (`CI=true`) a missing Docker fails the run.
+- **Repository contract (`test/contract/`):** one suite per repository runs against the dev store and against PostgreSQL. A Vitest global setup starts one throwaway PostgreSQL (Testcontainers) and migrates it; each test file gets its own copy of that database (`test/db.ts`). Rules only PostgreSQL enforces sit in blocks named "(PostgreSQL only)". The PostgreSQL part also proves DB-05 retries, DB-07 constraints, DB-09 and DB-10 rights. Without Docker it is skipped with a warning; in CI (`CI=true`) a missing Docker fails the run.
 - **Transactions:** a failed step writes nothing (DB-04), a status that changed first gives a clear conflict (DB-06), and the shared read handle refuses writes (BE-03).
 - **Environment:** `lib/env.ts` refuses demo login in production (AU-09) and names bad keys without echoing values.
 - **Logging (OPS-01 to OPS-03):** redaction of secrets and personal data, request-ID rules, the proxy's header and redirects, and the `runAction` and `withRoute` references.

@@ -1,32 +1,66 @@
 import "server-only";
+import { categories } from "@/lib/data/categories";
 import type { StoreData } from "../store/dev-store";
-import { applicationColumns } from "./mappers";
+import {
+  applicationColumns,
+  customizationRows,
+  customRequestColumns,
+  imageRows,
+  orderColumns,
+  payoutColumns,
+  productColumns,
+  reviewColumns,
+  sellerOrderColumns,
+  shopColumns,
+  toCategoryColumns,
+  variantRows,
+  withDates,
+} from "./mappers";
 import { Prisma, type PrismaClient } from "./generated/client";
 
-// Copies dev-store data (the seed from buildSeed) into an empty PostgreSQL database in one transaction, so the
-// contract tests compare both backends on the same rows. B04 builds prisma/seed.ts on it. B03b and B03c add the
-// catalogue, content and commerce tables as their repositories arrive.
+// Copies dev-store data (the seed from buildSeed) and the launch categories into PostgreSQL in one transaction, so
+// the contract tests compare both backends on the same rows. B04 builds prisma/seed.ts on it.
+//
+// Repeatable: with `replace` every table is emptied first, inside the same transaction, so running it twice gives
+// the same rows, never duplicates. Without `replace` it refuses a database that already has users. Emptying tables
+// needs the schema owner (ceyliving_migrator), and it is refused outright in production.
 
-const date = (value: string | undefined) => (value === undefined ? undefined : new Date(value));
 const json = (value: unknown) =>
   value === undefined ? undefined : value === null ? Prisma.JsonNull : (value as Prisma.InputJsonValue);
 
-export async function loadStoreData(client: PrismaClient, data: StoreData): Promise<void> {
+type Create<T> = T extends { createMany(args: { data: infer D }): unknown } ? D : never;
+const rows = <T>(data: Record<string, unknown>[]) => data as unknown as Create<T>;
+
+export async function loadStoreData(
+  client: PrismaClient,
+  data: StoreData,
+  opts: { replace?: boolean } = {},
+): Promise<void> {
+  if (opts.replace && process.env.NODE_ENV === "production") {
+    throw new Error("loadStoreData refuses to replace data in production.");
+  }
+  const shopIdOf = new Map(data.shops.map((s) => [s.slug, s.id]));
+
   await client.$transaction(async (tx) => {
+    if (opts.replace) {
+      const tables = await tx.$queryRaw<{ name: string }[]>`
+        SELECT tablename AS name FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
+      await tx.$executeRawUnsafe(`TRUNCATE ${tables.map((t) => `"${t.name}"`).join(", ")} RESTART IDENTITY`);
+    } else if ((await tx.user.count()) > 0) {
+      throw new Error("The database already has data: pass { replace: true } to load the seed again.");
+    }
+
+    // Parents before children, so every foreign key finds its row.
+    await tx.category.createMany({ data: categories.map(toCategoryColumns) });
     await tx.user.createMany({
-      data: data.users.map((u) => ({
-        ...u,
-        mutedUntil: date(u.mutedUntil),
-        createdAt: new Date(u.createdAt),
-        deletedAt: date(u.deletedAt),
-      })),
+      data: rows<typeof tx.user>(data.users.map((u) => withDates(u, ["mutedUntil", "createdAt", "deletedAt"]))),
     });
     await tx.sellerApplication.createMany({
-      data: data.applications.map((a) => applicationColumns(a) as Prisma.SellerApplicationCreateManyInput),
+      data: rows<typeof tx.sellerApplication>(data.applications.map(applicationColumns)),
     });
     await tx.address.createMany({ data: data.addresses });
     await tx.notification.createMany({
-      data: data.notifications.map((n) => ({ ...n, readAt: date(n.readAt), createdAt: new Date(n.createdAt) })),
+      data: rows<typeof tx.notification>(data.notifications.map((n) => withDates(n, ["readAt", "createdAt"]))),
     });
     await tx.auditLogEntry.createMany({
       data: data.auditLog.map((e) => ({
@@ -37,5 +71,37 @@ export async function loadStoreData(client: PrismaClient, data: StoreData): Prom
       })),
     });
     await tx.rateEvent.createMany({ data: data.rateEvents.map((e) => ({ ...e, at: new Date(e.at) })) });
+
+    await tx.shop.createMany({ data: rows<typeof tx.shop>(data.shops.map(shopColumns)) });
+    await tx.product.createMany({
+      data: rows<typeof tx.product>(
+        data.products.map((p) => ({ ...productColumns(p), shopId: shopIdOf.get(p.shopSlug) })),
+      ),
+    });
+    await tx.productImage.createMany({ data: data.products.flatMap((p) => imageRows(p.id, p.images)) });
+    await tx.productVariant.createMany({ data: data.products.flatMap((p) => variantRows(p.id, p.variants)) });
+    await tx.customizationField.createMany({
+      data: data.products.flatMap((p) => customizationRows(p.id, p.customization ?? [])),
+    });
+
+    await tx.order.createMany({ data: rows<typeof tx.order>(data.orders.map(orderColumns)) });
+    await tx.payout.createMany({ data: rows<typeof tx.payout>(data.payouts.map(payoutColumns)) });
+    await tx.sellerOrder.createMany({ data: rows<typeof tx.sellerOrder>(data.sellerOrders.map(sellerOrderColumns)) });
+    await tx.orderItem.createMany({ data: data.orderItems });
+    await tx.customRequest.createMany({
+      data: rows<typeof tx.customRequest>(data.customRequests.map(customRequestColumns)),
+    });
+
+    await tx.review.createMany({ data: rows<typeof tx.review>(data.reviews.map(reviewColumns)) });
+    await tx.productQuestion.createMany({
+      data: rows<typeof tx.productQuestion>(data.questions.map((q) => withDates(q, ["createdAt"]))),
+    });
+    await tx.productAnswer.createMany({
+      data: rows<typeof tx.productAnswer>(data.answers.map((a) => withDates(a, ["createdAt"]))),
+    });
+    await tx.report.createMany({ data: rows<typeof tx.report>(data.reports.map((r) => withDates(r, ["createdAt"]))) });
+    await tx.helpfulVote.createMany({
+      data: rows<typeof tx.helpfulVote>(data.helpfulVotes.map((v) => withDates(v, ["createdAt"]))),
+    });
   });
 }
