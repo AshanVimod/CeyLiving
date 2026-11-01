@@ -6,12 +6,12 @@ import type { TestProject } from "vitest/node";
 
 // Starts one throwaway PostgreSQL (the image of infra/docker-compose.dev.yml), creates the two database users of
 // DB-10 and applies the real migrations to the `ceyliving` database, which each test file then copies (test/db.ts).
-// Without Docker the PostgreSQL tests are skipped with a warning locally; in CI (CI=true) the run fails instead.
+// Docker is required: without it the run stops with a clear message instead of quietly skipping database tests.
 
 declare module "vitest" {
   export interface ProvidedContext {
-    /** Connection details of the migrated template database, or null when Docker isn't available. */
-    postgres: { migratorUrl: string; appPassword: string } | null;
+    /** Connection details of the migrated template database. */
+    postgres: { migratorUrl: string; appPassword: string };
   }
 }
 
@@ -26,10 +26,10 @@ export default async function setup(project: TestProject) {
       .withDatabase("ceyliving")
       .start();
   } catch (error) {
-    if (process.env.CI) throw error;
-    console.warn(`PostgreSQL tests skipped: Docker is not available (${(error as Error).message.split("\n")[0]})`);
-    project.provide("postgres", null);
-    return;
+    const reason = (error as Error).message.split("\n")[0];
+    throw new Error(
+      `The tests need Docker, to run a throwaway PostgreSQL. Start Docker Desktop and run the tests again.\n(${reason})`,
+    );
   }
 
   const migratorUrl = container.getConnectionUri();

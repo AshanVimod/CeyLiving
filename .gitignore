@@ -40,7 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# dev store (feature spec 7.4)
+# Left over from the dev JSON store (removed in B04a); old local copies must never be committed
 /.data/
 !.env.example
 

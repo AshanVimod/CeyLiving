@@ -28,7 +28,7 @@ import type * as Row from "./generated/client";
 import type { Prisma } from "./generated/client";
 
 // BE-01: PostgreSQL rows become the domain types in lib/types.ts here, so nothing above the repositories sees Prisma.
-// Times become ISO strings and NULL becomes an absent field, exactly as the dev store holds them.
+// Times become ISO strings and NULL becomes an absent field.
 
 const iso = (date: Date) => date.toISOString();
 const optIso = (date: Date | null) => (date ? date.toISOString() : undefined);
@@ -52,7 +52,7 @@ function without(columns: Record<string, unknown>, keys: readonly string[]): Rec
 }
 
 /**
- * For updates: Prisma skips `undefined`, but a patch key set to `undefined` means "clear it" in the dev store.
+ * For updates: Prisma skips `undefined`, but in a repository patch a key set to `undefined` means "clear it".
  * Returns the patch with those keys set to null.
  */
 export function clearing<P extends object>(patch: P): { [K in keyof P]: Exclude<P[K], undefined> | null } {

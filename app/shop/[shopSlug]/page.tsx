@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { db } from "@/lib/server/db/tx";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -10,8 +9,13 @@ import { Container } from "@/components/ui/section-heading";
 import { ReviewList } from "@/components/reviews/review-list";
 import { SHIPPING_FEE_PER_SHOP_CENTS } from "@/lib/config";
 import { formatLkr, photoUrl } from "@/lib/format";
-import { getPublicShop, publicProductsOfShop, publicShops, shopRating } from "@/lib/server/catalogue";
-import { reviewsOfShop } from "@/lib/server/repositories/content";
+import {
+  getPublicShop,
+  publicProductsOfShop,
+  publicReviewsOfShop,
+  publicShopRating,
+  publicShops,
+} from "@/lib/server/catalogue";
 
 export async function generateStaticParams() {
   return (await publicShops()).map((s) => ({ shopSlug: s.slug }));
@@ -37,10 +41,10 @@ async function ShopContent({ params }: { params: PageProps<"/shop/[shopSlug]">["
   const shop = await getPublicShop(shopSlug);
   if (!shop) notFound();
   const items = await publicProductsOfShop(shop.slug);
-  const rating = await shopRating(shop.slug);
+  const rating = await publicShopRating(shop.slug);
   const productTitles = new Map(items.map((p) => [p.id, p.title]));
   // Reviews of items still on sale, newest first (D-07: keyed by review ID).
-  const reviews = (await reviewsOfShop(db, shop.id))
+  const reviews = (await publicReviewsOfShop(shop.id))
     .filter((r) => r.status === "VISIBLE" && productTitles.has(r.productId))
     .slice(0, 6);
 

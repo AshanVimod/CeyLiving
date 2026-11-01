@@ -1,67 +1,86 @@
 import "server-only";
 import type { Address, AuditLogEntry, Notification, RateEvent, SellerApplication, User } from "@/lib/types";
-import { out, rowsOf, writableRowsOf, type Tx } from "../db/tx";
+import { Prisma } from "../db/generated/client";
+import {
+  applicationColumns,
+  clearing,
+  toAddress,
+  toApplication,
+  toAuditEntry,
+  toDate,
+  toNotification,
+  toUser,
+} from "../db/mappers";
+import { clientOf, writableClientOf, type Tx } from "../db/tx";
 
 // Users, applications, addresses, notifications, the audit log and rate events.
 // Repositories are the only code that touches stored rows (BE-01); every function takes a handle (`db` or a `tx`).
-
-const newestFirst = <T extends { createdAt: string }>(a: T, b: T) => b.createdAt.localeCompare(a.createdAt);
 
 export function newId(prefix: string): string {
   return `${prefix}_${crypto.randomUUID()}`;
 }
 
+const newestFirst = [{ createdAt: "desc" }, { id: "desc" }] as const;
+
+/** Prisma's "record not found" on update. */
+const isMissing = (error: unknown) => error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025";
+
+const json = (value: unknown) =>
+  value === undefined ? undefined : value === null ? Prisma.JsonNull : (value as Prisma.InputJsonValue);
+
 // ---------- Users ----------
 
 export async function findUserById(tx: Tx, id: string): Promise<User | undefined> {
-  return out(
-    tx,
-    rowsOf(tx).users.find((u) => u.id === id),
-  );
+  const row = await clientOf(tx).user.findUnique({ where: { id } });
+  return row ? toUser(row) : undefined;
 }
 
 export async function listUsers(tx: Tx): Promise<User[]> {
-  return out(tx, rowsOf(tx).users);
+  const rows = await clientOf(tx).user.findMany({ orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  return rows.map(toUser);
 }
 
 export async function listAdminIds(tx: Tx): Promise<string[]> {
-  return rowsOf(tx)
-    .users.filter((u) => u.role === "ADMIN")
-    .map((u) => u.id);
+  const rows = await clientOf(tx).user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
+  return rows.map((row) => row.id);
 }
 
 export async function updateUser(tx: Tx, id: string, patch: Partial<User>): Promise<User> {
-  const user = writableRowsOf(tx).users.find((u) => u.id === id);
-  if (!user) throw new Error(`User ${id} missing`);
-  Object.assign(user, patch);
-  return out(tx, user);
+  const { mutedUntil, createdAt, deletedAt, ...rest } = patch;
+  const data = clearing({
+    ...rest,
+    ...("mutedUntil" in patch && { mutedUntil: toDate(mutedUntil) }),
+    ...("createdAt" in patch && { createdAt: toDate(createdAt) }),
+    ...("deletedAt" in patch && { deletedAt: toDate(deletedAt) }),
+  }) as Prisma.UserUncheckedUpdateInput;
+  try {
+    return toUser(await writableClientOf(tx).user.update({ where: { id }, data }));
+  } catch (error) {
+    if (isMissing(error)) throw new Error(`User ${id} missing`);
+    throw error;
+  }
 }
 
 // ---------- Seller applications ----------
 
 export async function applicationsOf(tx: Tx, userId: string): Promise<SellerApplication[]> {
-  return out(
-    tx,
-    rowsOf(tx)
-      .applications.filter((a) => a.userId === userId)
-      .sort(newestFirst),
-  );
+  const rows = await clientOf(tx).sellerApplication.findMany({ where: { userId }, orderBy: [...newestFirst] });
+  return rows.map(toApplication);
 }
 
 export async function findApplicationById(tx: Tx, id: string): Promise<SellerApplication | undefined> {
-  return out(
-    tx,
-    rowsOf(tx).applications.find((a) => a.id === id),
-  );
+  const row = await clientOf(tx).sellerApplication.findUnique({ where: { id } });
+  return row ? toApplication(row) : undefined;
 }
 
 export async function listApplications(tx: Tx): Promise<SellerApplication[]> {
-  return out(tx, [...rowsOf(tx).applications].sort(newestFirst));
+  const rows = await clientOf(tx).sellerApplication.findMany({ orderBy: [...newestFirst] });
+  return rows.map(toApplication);
 }
 
 export async function insertApplication(tx: Tx, application: SellerApplication): Promise<SellerApplication> {
-  writableRowsOf(tx).applications.push(structuredClone(application));
-  return out(tx, application);
+  const data = applicationColumns(application) as Prisma.SellerApplicationUncheckedCreateInput;
+  return toApplication(await writableClientOf(tx).sellerApplication.create({ data }));
 }
 
 /** DB-06: with `from`, the update only applies while the status is still `from`; returns undefined otherwise. */
@@ -71,49 +90,42 @@ export async function updateApplication(
   patch: Partial<SellerApplication>,
   guard: { from?: SellerApplication["status"] } = {},
 ): Promise<SellerApplication | undefined> {
-  const application = writableRowsOf(tx).applications.find((a) => a.id === id);
-  if (!application || (guard.from && application.status !== guard.from)) return undefined;
-  Object.assign(application, patch);
-  return out(tx, application);
+  const client = writableClientOf(tx);
+  const data = clearing(applicationColumns(patch)) as Prisma.SellerApplicationUncheckedUpdateManyInput;
+  const { count } = await client.sellerApplication.updateMany({
+    where: { id, ...(guard.from && { status: guard.from }) },
+    data,
+  });
+  if (count === 0) return undefined;
+  return findApplicationById(tx, id);
 }
 
 // ---------- Addresses ----------
 
 export async function addressesOf(tx: Tx, userId: string): Promise<Address[]> {
-  return out(
-    tx,
-    rowsOf(tx).addresses.filter((a) => a.userId === userId),
-  );
+  const rows = await clientOf(tx).address.findMany({ where: { userId }, orderBy: { id: "asc" } });
+  return rows.map(toAddress);
 }
 
 export async function insertAddress(tx: Tx, address: Address): Promise<Address> {
-  writableRowsOf(tx).addresses.push(structuredClone(address));
-  return out(tx, address);
+  return toAddress(await writableClientOf(tx).address.create({ data: address }));
 }
 
 /** Deletes one of the user's own addresses; false when it isn't theirs or doesn't exist. */
 export async function deleteAddress(tx: Tx, id: string, userId: string): Promise<boolean> {
-  const rows = writableRowsOf(tx);
-  const index = rows.addresses.findIndex((a) => a.id === id && a.userId === userId);
-  if (index === -1) return false;
-  rows.addresses.splice(index, 1);
-  return true;
+  const { count } = await writableClientOf(tx).address.deleteMany({ where: { id, userId } });
+  return count > 0;
 }
 
 export async function deleteAddressesOf(tx: Tx, userId: string): Promise<void> {
-  const rows = writableRowsOf(tx);
-  rows.addresses = rows.addresses.filter((a) => a.userId !== userId);
+  await writableClientOf(tx).address.deleteMany({ where: { userId } });
 }
 
 // ---------- Notifications ----------
 
 export async function notificationsOf(tx: Tx, userId: string): Promise<Notification[]> {
-  return out(
-    tx,
-    rowsOf(tx)
-      .notifications.filter((n) => n.userId === userId)
-      .sort(newestFirst),
-  );
+  const rows = await clientOf(tx).notification.findMany({ where: { userId }, orderBy: [...newestFirst] });
+  return rows.map(toNotification);
 }
 
 export async function addNotification(
@@ -123,61 +135,64 @@ export async function addNotification(
   title: string,
   href: string,
 ): Promise<void> {
-  writableRowsOf(tx).notifications.push({
-    id: newId("notif"),
-    userId,
-    type,
-    title,
-    href,
-    createdAt: new Date().toISOString(),
+  await writableClientOf(tx).notification.create({
+    data: { id: newId("notif"), userId, type, title, href, createdAt: new Date() },
   });
 }
 
 /** RULE-N1: marks only the user's own unread notifications (all of them, or just `ids`). */
 export async function markNotificationsRead(tx: Tx, userId: string, at: string, ids?: string[]): Promise<void> {
-  writableRowsOf(tx)
-    .notifications.filter((n) => n.userId === userId && !n.readAt && (!ids || ids.includes(n.id)))
-    .forEach((n) => (n.readAt = at));
+  await writableClientOf(tx).notification.updateMany({
+    where: { userId, readAt: null, ...(ids && { id: { in: ids } }) },
+    data: { readAt: new Date(at) },
+  });
 }
 
 export async function deleteNotificationsOf(tx: Tx, userId: string): Promise<void> {
-  const rows = writableRowsOf(tx);
-  rows.notifications = rows.notifications.filter((n) => n.userId !== userId);
+  await writableClientOf(tx).notification.deleteMany({ where: { userId } });
 }
 
 // ---------- Audit log ----------
 
-/** Append-only (SEC-A9): there is no update or delete for audit rows. */
+/** Append-only (SEC-A9, DB-09): there is no update or delete for audit rows, and the app role may not run one. */
 export async function addAuditEntry(tx: Tx, entry: Omit<AuditLogEntry, "id" | "createdAt">): Promise<void> {
-  writableRowsOf(tx).auditLog.push({
-    ...structuredClone(entry),
-    id: newId("audit"),
-    createdAt: new Date().toISOString(),
+  await writableClientOf(tx).auditLogEntry.create({
+    data: {
+      id: newId("audit"),
+      actorId: entry.actorId,
+      action: entry.action,
+      targetType: entry.targetType,
+      targetId: entry.targetId,
+      reason: entry.reason,
+      before: json(entry.before),
+      after: json(entry.after),
+      createdAt: new Date(),
+    },
   });
 }
 
 export async function listAuditLog(tx: Tx): Promise<AuditLogEntry[]> {
-  return out(tx, [...rowsOf(tx).auditLog].sort(newestFirst));
+  const rows = await clientOf(tx).auditLogEntry.findMany({ orderBy: [...newestFirst] });
+  return rows.map(toAuditEntry);
 }
 
 // ---------- Rate events (SEC-A6) ----------
 
 export async function countRateEvents(tx: Tx, userId: string, kind: string, sinceMs: number): Promise<number> {
-  return rowsOf(tx).rateEvents.filter((e) => e.userId === userId && e.kind === kind && Date.parse(e.at) >= sinceMs)
-    .length;
+  return clientOf(tx).rateEvent.count({ where: { userId, kind, at: { gte: new Date(sinceMs) } } });
 }
 
 export async function insertRateEvent(tx: Tx, event: RateEvent): Promise<void> {
-  writableRowsOf(tx).rateEvents.push({ ...event });
+  await writableClientOf(tx).rateEvent.create({
+    data: { userId: event.userId, kind: event.kind, at: new Date(event.at) },
+  });
 }
 
 /** Drops events older than `beforeMs`; they can no longer count towards any limit. */
 export async function pruneRateEvents(tx: Tx, beforeMs: number): Promise<void> {
-  const rows = writableRowsOf(tx);
-  rows.rateEvents = rows.rateEvents.filter((e) => Date.parse(e.at) >= beforeMs);
+  await writableClientOf(tx).rateEvent.deleteMany({ where: { at: { lt: new Date(beforeMs) } } });
 }
 
 export async function deleteRateEventsOf(tx: Tx, userId: string): Promise<void> {
-  const rows = writableRowsOf(tx);
-  rows.rateEvents = rows.rateEvents.filter((e) => e.userId !== userId);
+  await writableClientOf(tx).rateEvent.deleteMany({ where: { userId } });
 }

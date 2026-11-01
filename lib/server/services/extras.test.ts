@@ -1,9 +1,8 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 import { customRequestSchema, deleteAccountSchema } from "@/lib/validation/more";
-import { withTestStore, user } from "@/test/store-helpers";
+import { changeData, readAll, freshUser, user, withTestDatabase } from "@/test/db";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
-import { readStore, transaction } from "../store/dev-store";
 import { byHelpfulness, changeRole, helpfulCounts, toggleHelpful } from "./community-extras";
 import {
   createCustomRequest,
@@ -20,7 +19,7 @@ vi.mock("next/server", () => ({ connection: async () => undefined }));
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: cookieUser }) }) }));
 const { getSession } = await import("@/lib/session");
 
-withTestStore();
+withTestDatabase();
 
 const RATA = "shop_rata-studio";
 
@@ -31,11 +30,11 @@ describe("FR-13 payouts (BR-10, BR-11)", () => {
   });
 
   it("BR-11 pays orders only after the hold, once each, and skips shops without payout details", async () => {
-    await transaction((db) => {
+    await changeData((db) => {
       db.shops.find((s) => s.id === RATA)!.payoutAccountMasked = undefined;
     });
     const created = await generatePayouts(user("user_admin"));
-    const db = readStore();
+    const db = await readAll();
     expect(created.length).toBeGreaterThan(0);
     expect(created.some((p) => p.shopId === RATA)).toBe(false);
     const macrame = db.sellerOrders.find((so) => so.id === "so_000112")!; // delivered 5 days ago: still on hold
@@ -52,7 +51,7 @@ describe("FR-13 payouts (BR-10, BR-11)", () => {
     const [payout] = await generatePayouts(user("user_admin"));
     await markPayoutPaid(user("user_admin"), payout!.id, "BOC-2026-1001");
     await expect(markPayoutPaid(user("user_admin"), payout!.id, "BOC-2026-1002")).rejects.toBeInstanceOf(ConflictError);
-    expect(readStore().auditLog.some((a) => a.action === "payout.paid" && a.targetId === payout!.id)).toBe(true);
+    expect((await readAll()).auditLog.some((a) => a.action === "payout.paid" && a.targetId === payout!.id)).toBe(true);
   });
 
   it("a seller's summary shows only their own shop", async () => {
@@ -76,7 +75,7 @@ describe("FR-14 custom requests", () => {
   it("routes a request to the chosen maker, who quotes; the customer accepts", async () => {
     const request = await ask();
     expect(request.budgetCents).toBe(1_500_000);
-    expect(readStore().notifications.some((n) => n.type === "request.created")).toBe(true);
+    expect((await readAll()).notifications.some((n) => n.type === "request.created")).toBe(true);
     await quoteCustomRequest(user("user_owner_rata-studio"), { requestId: request.id, price: 1_800_000, days: 14 });
     const accepted = await respondToQuote(user("user_customer"), request.id, "accept");
     expect(accepted.status).toBe("ACCEPTED");
@@ -122,10 +121,10 @@ describe("FR-16 role changes", () => {
       role: "ADMIN",
       reason: "Joining the support team.",
     });
-    expect(user("user_applicant").role).toBe("ADMIN");
-    expect(readStore().auditLog.some((a) => a.action === "user.role_changed" && a.targetId === "user_applicant")).toBe(
-      true,
-    );
+    expect((await freshUser("user_applicant")).role).toBe("ADMIN");
+    expect(
+      (await readAll()).auditLog.some((a) => a.action === "user.role_changed" && a.targetId === "user_applicant"),
+    ).toBe(true);
   });
 
   it("RULE-M5 never another admin or themselves; sellers only via closing the shop", async () => {
@@ -146,7 +145,7 @@ describe("FR-17 data export and account deletion", () => {
     const data = await exportMyData(user("user_customer"));
     expect(data.profile.email).toBe("anushka@example.lk");
     expect(data.orders.length).toBeGreaterThan(0);
-    const db = readStore();
+    const db = await readAll();
     const mine = new Set(db.orders.filter((o) => o.customerId === "user_customer").map((o) => o.orderNumber));
     expect(data.orders.every((o) => mine.has(o.orderNumber))).toBe(true);
     expect(JSON.stringify(data)).not.toContain("tom@");
@@ -166,7 +165,7 @@ describe("FR-17 data export and account deletion", () => {
     cookieUser = reviewer.id;
     expect((await getSession())?.user.id).toBe(reviewer.id);
     await deleteMyAccount(reviewer);
-    const db = readStore();
+    const db = await readAll();
     const after = db.users.find((u) => u.id === reviewer.id)!;
     expect(after.name).toBe("Former customer");
     expect(after.phone).toBeUndefined();
@@ -182,7 +181,7 @@ describe("FR-17 data export and account deletion", () => {
 
 describe("FR-19 helpful votes", () => {
   it("toggles one vote per person, never on your own post, and sorts the most helpful first", async () => {
-    const reviews = readStore().reviews.filter((r) => r.productId === "prod_custom-pencil-portrait");
+    const reviews = (await readAll()).reviews.filter((r) => r.productId === "prod_custom-pencil-portrait");
     const [first, second] = reviews;
     expect(await toggleHelpful(user("user_customer"), { targetType: "REVIEW", targetId: second!.id })).toEqual({
       voted: true,

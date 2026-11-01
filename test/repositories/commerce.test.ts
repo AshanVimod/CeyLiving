@@ -1,19 +1,18 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it } from "vitest";
-import * as devCommerce from "@/lib/server/repositories/commerce";
-import * as pgCommerce from "@/lib/server/repositories/pg/commerce";
+import * as commerceRepo from "@/lib/server/repositories/commerce";
 import { ConflictError } from "@/lib/server/errors";
-import type { StoreData } from "@/lib/server/store/dev-store";
-import { buildSeed } from "@/lib/server/store/seed";
+import { buildSeed, type SeedData } from "@/prisma/seed-data";
 import type { CustomRequest, Payout, SellerOrder } from "@/lib/types";
-import { byId, contractBackends } from "./backends";
+import { byId, repositoryBackend } from "./backends";
 
 // Orders, seller orders, order items, payouts and custom requests: the same suite on both backends, then what only
 // PostgreSQL guarantees.
 
-const { backends, pg } = await contractBackends(devCommerce, pgCommerce);
+const { backends, pg } = await repositoryBackend(commerceRepo);
 
 /** Seller orders and items in a fixed order, so lists whose order isn't specified compare equal. */
-const sorted = (order: devCommerce.OrderWithParts) => ({
+const sorted = (order: commerceRepo.OrderWithParts) => ({
   order: order.order,
   sellerOrders: byId(order.sellerOrders.map((p) => ({ ...p, id: p.sellerOrder.id }))).map(({ sellerOrder, items }) => ({
     sellerOrder,
@@ -56,10 +55,9 @@ function request(id: string, shopId: string, updatedAt: string): CustomRequest {
 }
 
 for (const [name, backend] of backends) {
-  describe.skipIf(!backend)(`commerce repository contract: ${name}`, () => {
-    if (!backend) return; // describe bodies still run when skipped
-    const { repo, db, withTx, reset } = backend;
-    let seed: StoreData;
+  describe(`commerce repository contract: ${name}`, () => {
+    const { repo, db, withTx, reset } = backend!;
+    let seed: SeedData;
     let completed: SellerOrder;
     beforeEach(async () => {
       seed = await reset();
@@ -256,10 +254,9 @@ for (const [name, backend] of backends) {
   });
 }
 
-describe.skipIf(!pg)("commerce (PostgreSQL only)", () => {
-  if (!pg) return;
+describe("commerce (PostgreSQL only)", () => {
   const { handles, appUrl } = pg;
-  let seed: StoreData;
+  let seed: SeedData;
   let completed: SellerOrder;
   beforeEach(async () => {
     seed = buildSeed(new Date());
@@ -270,18 +267,18 @@ describe.skipIf(!pg)("commerce (PostgreSQL only)", () => {
   /** One payout run as the payout service does it: read unpaid orders, store a payout, link the orders. */
   const payoutRun = (id: string, handlesToUse = handles) =>
     handlesToUse.withTx(async (tx) => {
-      const orders = await pgCommerce.unpaidCompletedSellerOrders(tx, completed.shopId);
+      const orders = await commerceRepo.unpaidCompletedSellerOrders(tx, completed.shopId);
       if (!orders.length) return undefined;
       const payout = payoutFor(completed.shopId, orders, id);
-      await pgCommerce.insertPayout(tx, payout);
+      await commerceRepo.insertPayout(tx, payout);
       await new Promise((resolve) => setTimeout(resolve, 200)); // both runs read before either links
-      await pgCommerce.setPayoutOnSellerOrders(tx, payout.sellerOrderIds, payout.id);
+      await commerceRepo.setPayoutOnSellerOrders(tx, payout.sellerOrderIds, payout.id);
       return payout;
     });
 
   it("BR-11 / DB-06 two payout runs at the same moment pay each order once; the loser rolls back", async () => {
     // A second connection pool, so the two runs really run side by side.
-    const { createPrismaClient, handlesFor } = await import("@/lib/server/db/pg");
+    const { createPrismaClient, handlesFor } = await import("@/lib/server/db/tx");
     const other = createPrismaClient(appUrl);
     try {
       const results = await Promise.allSettled([
@@ -297,7 +294,7 @@ describe.skipIf(!pg)("commerce (PostgreSQL only)", () => {
       expect(lost).toHaveLength(1);
       expect(lost[0].reason).toBeInstanceOf(ConflictError);
 
-      const payouts = await pgCommerce.payoutsOfShop(handles.db, completed.shopId);
+      const payouts = await commerceRepo.payoutsOfShop(handles.db, completed.shopId);
       expect(payouts).toHaveLength(1);
       expect(payouts[0].sellerOrderIds).toContain(completed.id);
     } finally {
@@ -307,8 +304,8 @@ describe.skipIf(!pg)("commerce (PostgreSQL only)", () => {
 
   it("BR-11 linking orders to the payout they already belong to is harmless", async () => {
     const payout = (await payoutRun("payout_once"))!;
-    await handles.withTx((tx) => pgCommerce.setPayoutOnSellerOrders(tx, payout.sellerOrderIds, payout.id));
-    expect((await pgCommerce.findPayout(handles.db, payout.id))?.sellerOrderIds.sort()).toEqual(
+    await handles.withTx((tx) => commerceRepo.setPayoutOnSellerOrders(tx, payout.sellerOrderIds, payout.id));
+    expect((await commerceRepo.findPayout(handles.db, payout.id))?.sellerOrderIds.sort()).toEqual(
       [...payout.sellerOrderIds].sort(),
     );
   });
@@ -316,13 +313,13 @@ describe.skipIf(!pg)("commerce (PostgreSQL only)", () => {
   it("DB-07 the database refuses a total that doesn't add up, a quantity of 21 and a period that ends first", async () => {
     const order = seed.orders[0];
     await expect(
-      handles.withTx((tx) => pgCommerce.updateOrder(tx, order.id, { totalCents: order.totalCents + 1 })),
+      handles.withTx((tx) => commerceRepo.updateOrder(tx, order.id, { totalCents: order.totalCents + 1 })),
     ).rejects.toThrow();
     const item = seed.orderItems[0];
     await expect(pg.app.$executeRaw`UPDATE order_items SET quantity = 21 WHERE id = ${item.id}`).rejects.toThrow(
       /check constraint/,
     );
     const backwards = { ...payoutFor(completed.shopId, []), periodEnd: "2026-09-01T00:00:00.000Z" };
-    await expect(handles.withTx((tx) => pgCommerce.insertPayout(tx, backwards))).rejects.toThrow();
+    await expect(handles.withTx((tx) => commerceRepo.insertPayout(tx, backwards))).rejects.toThrow();
   });
 });

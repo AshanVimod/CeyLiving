@@ -5,7 +5,7 @@ export type ShopSeed = Omit<
   "id" | "ownerId" | "status" | "statusReason" | "payoutAccountMasked" | "createdAt" | "updatedAt"
 >;
 
-// Demo shops, used only to seed the dev store. Names and stories are illustrative.
+// Demo shops, used only by the demo data (prisma/seed-data.ts). Names and stories are illustrative.
 export const shopSeeds: ShopSeed[] = [
   {
     slug: "ambalangoda-mask-house",

@@ -15,9 +15,11 @@ function problems(run: () => unknown): string[] {
   throw new Error("expected an EnvError");
 }
 
+const DB = "postgresql://ceyliving_app:x@db.internal:5432/ceyliving";
+
 describe("lib/env", () => {
   it("AU-09 refuses ENABLE_DEMO_LOGIN=true when NODE_ENV=production", () => {
-    expect(problems(() => parseEnv({ NODE_ENV: "production", ENABLE_DEMO_LOGIN: "true" }))).toEqual([
+    expect(problems(() => parseEnv({ NODE_ENV: "production", ENABLE_DEMO_LOGIN: "true", DATABASE_URL: DB }))).toEqual([
       "ENABLE_DEMO_LOGIN: must not be true when NODE_ENV=production (AU-09)",
     ]);
   });
@@ -27,11 +29,22 @@ describe("lib/env", () => {
   });
 
   it("SEC-A8 production without ENABLE_DEMO_LOGIN parses with demo login off", () => {
-    expect(parseEnv({ NODE_ENV: "production" })).toEqual({
+    expect(parseEnv({ NODE_ENV: "production", DATABASE_URL: DB })).toEqual({
       NODE_ENV: "production",
       ENABLE_DEMO_LOGIN: false,
+      DATABASE_URL: DB,
       SITE_URL: "http://localhost:3000",
     });
+  });
+
+  it("DB-10 production needs DATABASE_URL, and only a postgresql:// address", () => {
+    expect(problems(() => parseEnv({ NODE_ENV: "production" }))).toEqual([
+      "DATABASE_URL: is required in production (DB-10)",
+    ]);
+    expect(problems(() => parseEnv({ DATABASE_URL: "mysql://db/ceyliving" }))).toEqual([
+      "DATABASE_URL: must be a postgresql:// address",
+    ]);
+    expect(parseEnv({ NODE_ENV: "development" }).DATABASE_URL).toBeUndefined();
   });
 
   it("OPS-01 accepts a known LOG_LEVEL and rejects anything else", () => {
@@ -51,7 +64,7 @@ describe("lib/env", () => {
   });
 
   it("12.3 an empty value counts as not set", () => {
-    expect(parseEnv({ NODE_ENV: "development", ENABLE_DEMO_LOGIN: "", CEYLIVING_STORE_PATH: "" })).toEqual({
+    expect(parseEnv({ NODE_ENV: "development", ENABLE_DEMO_LOGIN: "", DATABASE_URL: "" })).toEqual({
       NODE_ENV: "development",
       ENABLE_DEMO_LOGIN: false,
       SITE_URL: "http://localhost:3000",
@@ -67,14 +80,14 @@ describe("lib/env", () => {
   });
 
   it("FR-2c SITE_URL must be https:// in production, except on localhost", () => {
-    expect(parseEnv({ NODE_ENV: "production", SITE_URL: "https://ceyliving.lk/" }).SITE_URL).toBe(
+    expect(parseEnv({ NODE_ENV: "production", SITE_URL: "https://ceyliving.lk/", DATABASE_URL: DB }).SITE_URL).toBe(
       "https://ceyliving.lk",
     );
-    expect(parseEnv({ NODE_ENV: "production", SITE_URL: "http://localhost:3002" }).SITE_URL).toBe(
+    expect(parseEnv({ NODE_ENV: "production", SITE_URL: "http://localhost:3002", DATABASE_URL: DB }).SITE_URL).toBe(
       "http://localhost:3002",
     );
-    expect(problems(() => parseEnv({ NODE_ENV: "production", SITE_URL: "http://ceyliving.lk" }))).toEqual([
-      "SITE_URL: must be an https:// address in production",
-    ]);
+    expect(
+      problems(() => parseEnv({ NODE_ENV: "production", SITE_URL: "http://ceyliving.lk", DATABASE_URL: DB })),
+    ).toEqual(["SITE_URL: must be an https:// address in production"]);
   });
 });

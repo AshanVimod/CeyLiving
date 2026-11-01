@@ -9,7 +9,7 @@ import { findUserById } from "../repositories/people";
 import { db } from "../db/tx";
 import { isProductionRuntime } from "../runtime";
 import { z } from "zod";
-import { DEMO_ACCOUNTS } from "../store/seed";
+import { DEMO_ACCOUNTS } from "../demo-accounts";
 
 /** SEC-A3: the demo form carries only an account from the demo list and an optional return path. */
 const demoSignInSchema = z.object({

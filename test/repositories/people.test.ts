@@ -1,17 +1,16 @@
+// @vitest-environment node
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Client } from "pg";
-import * as devPeople from "@/lib/server/repositories/people";
-import * as pgPeople from "@/lib/server/repositories/pg/people";
-import { clientOf, MAX_TX_ATTEMPTS } from "@/lib/server/db/pg";
-import type { StoreData } from "@/lib/server/store/dev-store";
-import { buildSeed } from "@/lib/server/store/seed";
+import * as peopleRepo from "@/lib/server/repositories/people";
+import { clientOf, MAX_TX_ATTEMPTS } from "@/lib/server/db/tx";
+import { buildSeed, type SeedData } from "@/prisma/seed-data";
 import type { SellerApplication } from "@/lib/types";
-import { byId, contractBackends, isNewestFirst } from "./backends";
+import { byId, repositoryBackend, isNewestFirst } from "./backends";
 
 // Users, applications, addresses, notifications, the audit log and rate events: the same suite on both backends,
 // then what only PostgreSQL guarantees (constraints, database rights, retries).
 
-const { backends, pg } = await contractBackends(devPeople, pgPeople);
+const { backends, pg } = await repositoryBackend(peopleRepo);
 
 function application(id: string, userId: string, createdAt: string): SellerApplication {
   return {
@@ -34,10 +33,9 @@ function application(id: string, userId: string, createdAt: string): SellerAppli
 }
 
 for (const [name, backend] of backends) {
-  describe.skipIf(!backend)(`people repository contract: ${name}`, () => {
-    if (!backend) return; // describe bodies still run when skipped
-    const { repo, db, withTx, reset } = backend;
-    let seed: StoreData;
+  describe(`people repository contract: ${name}`, () => {
+    const { repo, db, withTx, reset } = backend!;
+    let seed: SeedData;
     beforeEach(async () => {
       seed = await reset();
     });
@@ -192,8 +190,7 @@ for (const [name, backend] of backends) {
   });
 }
 
-describe.skipIf(!pg)("people (PostgreSQL only)", () => {
-  if (!pg) return;
+describe("people (PostgreSQL only)", () => {
   const { handles, appUrl } = pg;
   beforeAll(() => pg.reset(buildSeed(new Date())));
 
@@ -209,7 +206,7 @@ describe.skipIf(!pg)("people (PostgreSQL only)", () => {
 
   it("DB-09 the app's database user can add audit entries but never change or delete them", async () => {
     await handles.withTx((tx) =>
-      pgPeople.addAuditEntry(tx, { actorId: "user_admin", action: "a", targetType: "USER", targetId: "user_admin" }),
+      peopleRepo.addAuditEntry(tx, { actorId: "user_admin", action: "a", targetType: "USER", targetId: "user_admin" }),
     );
     await expect(asApp(`UPDATE audit_log SET reason = 'changed'`)).rejects.toThrow(/permission denied/);
     await expect(asApp(`DELETE FROM audit_log`)).rejects.toThrow(/permission denied/);
@@ -224,12 +221,12 @@ describe.skipIf(!pg)("people (PostgreSQL only)", () => {
 
   it("RULE-A1 the database allows only one open application per person", async () => {
     const created = "2026-10-01T10:00:00.000Z";
-    await handles.withTx((tx) => pgPeople.insertApplication(tx, application("app_a", "user_seller", created)));
+    await handles.withTx((tx) => peopleRepo.insertApplication(tx, application("app_a", "user_seller", created)));
     await expect(
-      handles.withTx((tx) => pgPeople.insertApplication(tx, application("app_b", "user_seller", created))),
+      handles.withTx((tx) => peopleRepo.insertApplication(tx, application("app_b", "user_seller", created))),
     ).rejects.toThrow();
-    await handles.withTx((tx) => pgPeople.updateApplication(tx, "app_a", { status: "REJECTED" }));
-    await handles.withTx((tx) => pgPeople.insertApplication(tx, application("app_b", "user_seller", created)));
+    await handles.withTx((tx) => peopleRepo.updateApplication(tx, "app_a", { status: "REJECTED" }));
+    await handles.withTx((tx) => peopleRepo.insertApplication(tx, application("app_b", "user_seller", created)));
   });
 
   it("DB-07 CHECK constraints refuse an upper-case email and an application without categories", async () => {
@@ -237,7 +234,7 @@ describe.skipIf(!pg)("people (PostgreSQL only)", () => {
       /check constraint/,
     );
     const empty = { ...application("app_empty", "user_admin", "2026-10-01T10:00:00.000Z"), categorySlugs: [] };
-    await expect(handles.withTx((tx) => pgPeople.insertApplication(tx, empty))).rejects.toThrow();
+    await expect(handles.withTx((tx) => peopleRepo.insertApplication(tx, empty))).rejects.toThrow();
   });
 
   it("DB-05 withTx retries a transaction PostgreSQL aborted over a conflict, at most three times", async () => {
@@ -245,13 +242,13 @@ describe.skipIf(!pg)("people (PostgreSQL only)", () => {
     let attempts = 0;
     const result = await handles.withTx(async (tx) => {
       attempts++;
-      await pgPeople.addNotification(tx, "user_admin", "test", "Retried", "/");
+      await peopleRepo.addNotification(tx, "user_admin", "test", "Retried", "/");
       if (attempts < 2) await clientOf(tx).$executeRawUnsafe(conflict);
       return "done";
     });
     expect(result).toBe("done");
     expect(attempts).toBe(2);
-    const titles = (await pgPeople.notificationsOf(handles.db, "user_admin")).map((n) => n.title);
+    const titles = (await peopleRepo.notificationsOf(handles.db, "user_admin")).map((n) => n.title);
     expect(titles.filter((t) => t === "Retried")).toHaveLength(1);
 
     attempts = 0;

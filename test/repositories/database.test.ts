@@ -1,18 +1,18 @@
+// @vitest-environment node
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { loadStoreData } from "@/lib/server/db/load-seed";
 import { ConflictError } from "@/lib/server/errors";
-import * as pgCatalogue from "@/lib/server/repositories/pg/catalogue";
-import { buildSeed } from "@/lib/server/store/seed";
+import * as catalogueRepo from "@/lib/server/repositories/catalogue";
+import { buildSeed } from "@/prisma/seed-data";
 import { openTestDatabase } from "@/test/db";
 
 // The seed loader and error translation, which exist only on the PostgreSQL side.
 
 const pg = await openTestDatabase();
-afterAll(() => pg?.stop());
+afterAll(() => pg.stop());
 afterEach(() => vi.unstubAllEnvs());
 
-describe.skipIf(!pg)("seed loader and database errors (PostgreSQL only)", () => {
-  if (!pg) return;
+describe("seed loader and database errors (PostgreSQL only)", () => {
   const { migrator, handles } = pg;
 
   const counts = async () => {
@@ -31,11 +31,11 @@ describe.skipIf(!pg)("seed loader and database errors (PostgreSQL only)", () => 
     const seed = buildSeed(new Date());
     await loadStoreData(migrator, seed, { replace: true });
     const first = await counts();
-    const shopsFirst = await pgCatalogue.listShops(handles.db);
+    const shopsFirst = await catalogueRepo.listShops(handles.db);
 
     await loadStoreData(migrator, seed, { replace: true });
     expect(await counts()).toEqual(first);
-    expect(await pgCatalogue.listShops(handles.db)).toEqual(shopsFirst);
+    expect(await catalogueRepo.listShops(handles.db)).toEqual(shopsFirst);
     expect(first.categories).toBe(12);
     expect(first.shops).toBe(seed.shops.length);
     expect(first.products).toBe(seed.products.length);
@@ -56,10 +56,10 @@ describe.skipIf(!pg)("seed loader and database errors (PostgreSQL only)", () => 
 
   it("OPS-03 a CHECK refusal stays an unexpected error, never a ConflictError with database text", async () => {
     await loadStoreData(migrator, buildSeed(new Date()), { replace: true });
-    const product = (await pgCatalogue.listProducts(handles.db))[0];
+    const product = (await catalogueRepo.listProducts(handles.db))[0];
     const error = await handles
       .withTx((tx) =>
-        pgCatalogue.updateProduct(tx, product.id, { variants: [{ sku: "A", label: "A", priceCents: 1, stock: 1 }] }),
+        catalogueRepo.updateProduct(tx, product.id, { variants: [{ sku: "A", label: "A", priceCents: 1, stock: 1 }] }),
       )
       .catch((e: unknown) => e);
     expect(error).toBeInstanceOf(Error);

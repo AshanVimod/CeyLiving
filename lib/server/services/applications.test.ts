@@ -3,14 +3,13 @@ import { describe, expect, it } from "vitest";
 import { db as readDb } from "@/lib/server/db/tx";
 import { applicationSchema, decisionSchema } from "@/lib/validation/application";
 import { validApplication } from "@/test/fixtures";
-import { withTestStore, user } from "@/test/store-helpers";
+import { changeData, readAll, user, withTestDatabase } from "@/test/db";
 import { ConflictError, ForbiddenError } from "../errors";
 import { findShopByOwner } from "../repositories/catalogue";
-import { readStore, transaction } from "../store/dev-store";
 import { decideApplication, submitApplication } from "./applications";
 import { deleteMyAccount } from "./privacy";
 
-withTestStore();
+withTestDatabase();
 
 describe("seller applications", () => {
   it("FR-2a validates the form: story length, 3–6 photos, terms", () => {
@@ -44,7 +43,9 @@ describe("seller applications", () => {
   it("lets a customer apply and notifies admins", async () => {
     const app = await submitApplication(user("user_customer"), validApplication());
     expect(app.status).toBe("PENDING");
-    expect(readStore().notifications.some((n) => n.userId === "user_admin" && n.href.endsWith(app.id))).toBe(true);
+    expect((await readAll()).notifications.some((n) => n.userId === "user_admin" && n.href.endsWith(app.id))).toBe(
+      true,
+    );
   });
 
   it("only customers can apply", async () => {
@@ -62,7 +63,7 @@ describe("seller applications", () => {
 
   it("RULE-A3 approval makes the applicant a seller with a DRAFT shop, with an audit row", async () => {
     await decideApplication(user("user_admin"), { decision: "approve", applicationId: "app_tharindu" });
-    const db = readStore();
+    const db = await readAll();
     expect(db.users.find((u) => u.id === "user_applicant")!.role).toBe("SELLER");
     const shop = (await findShopByOwner(readDb, "user_applicant"))!;
     expect(shop.status).toBe("DRAFT");
@@ -71,14 +72,14 @@ describe("seller applications", () => {
   });
 
   it("RULE-A3 changes nothing when approval fails part-way", async () => {
-    await transaction((db) => {
+    await changeData((db) => {
       db.users.find((u) => u.id === "user_applicant")!.role = "ADMIN"; // can't become a seller
     });
-    const shopsBefore = readStore().shops.length;
+    const shopsBefore = (await readAll()).shops.length;
     await expect(
       decideApplication(user("user_admin"), { decision: "approve", applicationId: "app_tharindu" }),
     ).rejects.toBeInstanceOf(ConflictError);
-    const db = readStore();
+    const db = await readAll();
     expect(db.applications.find((a) => a.id === "app_tharindu")!.status).toBe("PENDING");
     expect(db.shops.length).toBe(shopsBefore);
     expect(db.auditLog.length).toBe(0);
@@ -146,7 +147,7 @@ describe("seller applications", () => {
 
   it("FR-17 deleting the account removes the applicant's details from their applications", async () => {
     await deleteMyAccount(user("user_applicant"));
-    const app = readStore().applications.find((a) => a.id === "app_tharindu")!;
+    const app = (await readAll()).applications.find((a) => a.id === "app_tharindu")!;
     expect(app.status).toBe("WITHDRAWN");
     expect(app.applicantName).toBe("Former customer");
     expect(app.phone).toBe("");

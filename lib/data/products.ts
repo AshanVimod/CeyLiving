@@ -1,6 +1,6 @@
 import type { Product } from "../types";
 
-/** Seed-only review text; lib/server/store/seed.ts turns each one into a Review linked to a demo order. */
+/** Seed-only review text; prisma/seed-data.ts turns each one into a Review linked to a demo order. */
 export interface SeedReview {
   customerName: string;
   rating: number;
@@ -27,7 +27,7 @@ function product(d: Draft): ProductSeed {
   };
 }
 
-// Demo catalogue, used only to seed the dev store. Prices are integer cents (LKR 18,500.00 = 1850000).
+// Demo catalogue, used only by the demo data (prisma/seed-data.ts). Prices are integer cents (LKR 18,500.00 = 1850000).
 export const productSeeds: ProductSeed[] = [
   // ---------- Wood carvings ----------
   product({

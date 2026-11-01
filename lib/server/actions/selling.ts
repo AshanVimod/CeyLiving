@@ -10,6 +10,7 @@ import { productSchema } from "@/lib/validation/product";
 import { payoutSchema, shopSchema } from "@/lib/validation/shop";
 import { replySchema } from "@/lib/validation/content";
 import { requireActor } from "../auth";
+import { refreshEverything } from "./refresh";
 import { ValidationError } from "../errors";
 import { formToObject, parseInput, runAction } from "../run-action";
 import { submitApplication, withdrawApplication } from "../services/applications";
@@ -19,9 +20,7 @@ import { replyToReview } from "../services/reviews";
 import { savePayoutDetails, updateShop } from "../services/shops";
 
 /** Catalogue-wide changes (shop or item visibility) refresh every page. */
-function refreshCatalogue() {
-  revalidatePath("/", "layout");
-}
+const refreshCatalogue = refreshEverything;
 
 export async function submitApplicationAction(_: ActionState, form: FormData): Promise<ActionResult> {
   const result = await runAction(async () => {

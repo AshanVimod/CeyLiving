@@ -8,172 +8,144 @@ import type {
   ReportTargetType,
   Review,
 } from "@/lib/types";
-import { out, rowsOf, writableRowsOf, type Tx } from "../db/tx";
-import type { StoreData } from "../store/dev-store";
+import type { Prisma } from "../db/generated/client";
+import { clearing, reviewColumns, toAnswer, toQuestion, toReport, toReview, toVote, withDates } from "../db/mappers";
+import { clientOf, writableClientOf, type Tx } from "../db/tx";
 
 // Reviews, questions, answers, reports and helpful votes. The only code that touches these rows (BE-01).
 
 export type Content = Review | ProductQuestion | ProductAnswer;
 export type ContentType = "REVIEW" | "QUESTION" | "ANSWER";
 
-const newestFirst = <T extends { createdAt: string }>(a: T, b: T) => b.createdAt.localeCompare(a.createdAt);
+const newestFirst = [{ createdAt: "desc" }, { id: "desc" }] as const;
+const oldestFirst = [{ createdAt: "asc" }, { id: "asc" }] as const;
 
 // ---------- Reviews ----------
 
 export async function reviewsOfProduct(tx: Tx, productId: string): Promise<Review[]> {
-  return out(
-    tx,
-    rowsOf(tx)
-      .reviews.filter((r) => r.productId === productId)
-      .sort(newestFirst),
-  );
+  const rows = await clientOf(tx).review.findMany({ where: { productId }, orderBy: [...newestFirst] });
+  return rows.map(toReview);
 }
 
 export async function visibleReviewsOfProduct(tx: Tx, productId: string): Promise<Review[]> {
-  return (await reviewsOfProduct(tx, productId)).filter((r) => r.status === "VISIBLE");
+  const rows = await clientOf(tx).review.findMany({
+    where: { productId, status: "VISIBLE" },
+    orderBy: [...newestFirst],
+  });
+  return rows.map(toReview);
 }
 
 export async function reviewsOfShop(tx: Tx, shopId: string): Promise<Review[]> {
-  return out(
-    tx,
-    rowsOf(tx)
-      .reviews.filter((r) => r.shopId === shopId)
-      .sort(newestFirst),
-  );
+  const rows = await clientOf(tx).review.findMany({ where: { shopId }, orderBy: [...newestFirst] });
+  return rows.map(toReview);
 }
 
 export async function reviewsByAuthor(tx: Tx, authorId: string): Promise<Review[]> {
-  return out(
-    tx,
-    rowsOf(tx)
-      .reviews.filter((r) => r.authorId === authorId)
-      .sort(newestFirst),
-  );
+  const rows = await clientOf(tx).review.findMany({ where: { authorId }, orderBy: [...newestFirst] });
+  return rows.map(toReview);
 }
 
 export async function listReviews(tx: Tx): Promise<Review[]> {
-  return out(tx, rowsOf(tx).reviews);
+  const rows = await clientOf(tx).review.findMany({ orderBy: [...oldestFirst] });
+  return rows.map(toReview);
 }
 
 export async function findReview(tx: Tx, id: string): Promise<Review | undefined> {
-  return out(
-    tx,
-    rowsOf(tx).reviews.find((r) => r.id === id),
-  );
+  const row = await clientOf(tx).review.findUnique({ where: { id } });
+  return row ? toReview(row) : undefined;
 }
 
 export async function reviewForOrderItem(tx: Tx, orderItemId: string): Promise<Review | undefined> {
-  return out(
-    tx,
-    rowsOf(tx).reviews.find((r) => r.orderItemId === orderItemId),
-  );
+  const row = await clientOf(tx).review.findUnique({ where: { orderItemId } });
+  return row ? toReview(row) : undefined;
 }
 
-/** Order items that already have a review (RULE-R1: one review per order item). */
+/** Order items that already have a review (RULE-R1: one review per order item, also a unique index). */
 export async function reviewedOrderItemIds(tx: Tx): Promise<Set<string>> {
-  return new Set(
-    rowsOf(tx)
-      .reviews.map((r) => r.orderItemId)
-      .filter((id): id is string => Boolean(id)),
-  );
+  const rows = await clientOf(tx).review.findMany({
+    where: { orderItemId: { not: null } },
+    select: { orderItemId: true },
+  });
+  return new Set(rows.map((row) => row.orderItemId!));
 }
 
 export async function insertReview(tx: Tx, review: Review): Promise<Review> {
-  writableRowsOf(tx).reviews.push(structuredClone(review));
-  return out(tx, review);
+  const data = reviewColumns(review) as Prisma.ReviewUncheckedCreateInput;
+  return toReview(await writableClientOf(tx).review.create({ data }));
 }
 
 export async function updateReview(tx: Tx, id: string, patch: Partial<Review>): Promise<Review | undefined> {
-  const review = writableRowsOf(tx).reviews.find((r) => r.id === id);
-  if (!review) return undefined;
-  Object.assign(review, patch);
-  return out(tx, review);
+  const data = clearing(reviewColumns(patch)) as Prisma.ReviewUncheckedUpdateManyInput;
+  const { count } = await writableClientOf(tx).review.updateMany({ where: { id }, data });
+  return count === 0 ? undefined : findReview(tx, id);
 }
 
 // ---------- Questions and answers ----------
 
 export async function questionsOfProduct(tx: Tx, productId: string): Promise<ProductQuestion[]> {
-  return out(
-    tx,
-    rowsOf(tx)
-      .questions.filter((q) => q.productId === productId)
-      .sort(newestFirst),
-  );
+  const rows = await clientOf(tx).productQuestion.findMany({ where: { productId }, orderBy: [...newestFirst] });
+  return rows.map(toQuestion);
 }
 
 export async function questionsOfShop(tx: Tx, shopId: string): Promise<ProductQuestion[]> {
-  return out(
-    tx,
-    rowsOf(tx)
-      .questions.filter((q) => q.shopId === shopId)
-      .sort(newestFirst),
-  );
+  const rows = await clientOf(tx).productQuestion.findMany({ where: { shopId }, orderBy: [...newestFirst] });
+  return rows.map(toQuestion);
 }
 
 export async function questionsByAuthor(tx: Tx, authorId: string): Promise<ProductQuestion[]> {
-  return out(
-    tx,
-    rowsOf(tx)
-      .questions.filter((q) => q.authorId === authorId)
-      .sort(newestFirst),
-  );
+  const rows = await clientOf(tx).productQuestion.findMany({ where: { authorId }, orderBy: [...newestFirst] });
+  return rows.map(toQuestion);
 }
 
 export async function listQuestions(tx: Tx): Promise<ProductQuestion[]> {
-  return out(tx, rowsOf(tx).questions);
+  const rows = await clientOf(tx).productQuestion.findMany({ orderBy: [...oldestFirst] });
+  return rows.map(toQuestion);
 }
 
 export async function findQuestion(tx: Tx, id: string): Promise<ProductQuestion | undefined> {
-  return out(
-    tx,
-    rowsOf(tx).questions.find((q) => q.id === id),
-  );
+  const row = await clientOf(tx).productQuestion.findUnique({ where: { id } });
+  return row ? toQuestion(row) : undefined;
 }
 
 export async function insertQuestion(tx: Tx, question: ProductQuestion): Promise<ProductQuestion> {
-  writableRowsOf(tx).questions.push(structuredClone(question));
-  return out(tx, question);
+  const data = withDates(question, ["createdAt"]) as Prisma.ProductQuestionUncheckedCreateInput;
+  return toQuestion(await writableClientOf(tx).productQuestion.create({ data }));
 }
 
 export async function answersOf(tx: Tx, questionId: string): Promise<ProductAnswer[]> {
-  return out(
-    tx,
-    rowsOf(tx)
-      .answers.filter((a) => a.questionId === questionId)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
-  );
+  const rows = await clientOf(tx).productAnswer.findMany({ where: { questionId }, orderBy: [...oldestFirst] });
+  return rows.map(toAnswer);
 }
 
 export async function listAnswers(tx: Tx): Promise<ProductAnswer[]> {
-  return out(tx, rowsOf(tx).answers);
+  const rows = await clientOf(tx).productAnswer.findMany({ orderBy: [...oldestFirst] });
+  return rows.map(toAnswer);
 }
 
 export async function findAnswer(tx: Tx, id: string): Promise<ProductAnswer | undefined> {
-  return out(
-    tx,
-    rowsOf(tx).answers.find((a) => a.id === id),
-  );
+  const row = await clientOf(tx).productAnswer.findUnique({ where: { id } });
+  return row ? toAnswer(row) : undefined;
 }
 
 export async function insertAnswer(tx: Tx, answer: ProductAnswer): Promise<ProductAnswer> {
-  writableRowsOf(tx).answers.push(structuredClone(answer));
-  return out(tx, answer);
+  const data = withDates(answer, ["createdAt"]) as Prisma.ProductAnswerUncheckedCreateInput;
+  return toAnswer(await writableClientOf(tx).productAnswer.create({ data }));
 }
 
 // ---------- Any post (moderation) ----------
 
-function contentRows(rows: StoreData, type: ContentType): Content[] {
-  if (type === "REVIEW") return rows.reviews;
-  if (type === "QUESTION") return rows.questions;
-  return rows.answers;
+export async function findContent(tx: Tx, type: ContentType, id: string): Promise<Content | undefined> {
+  if (type === "REVIEW") return findReview(tx, id);
+  if (type === "QUESTION") return findQuestion(tx, id);
+  return findAnswer(tx, id);
 }
 
-export async function findContent(tx: Tx, type: ContentType, id: string): Promise<Content | undefined> {
-  return out(
-    tx,
-    contentRows(rowsOf(tx), type).find((c) => c.id === id),
-  );
-}
+/** The only fields moderation may set on each kind of post: status, reason, and the text it erases on delete. */
+const MODERATED_FIELDS: Record<ContentType, readonly string[]> = {
+  REVIEW: ["status", "statusReason", "comment", "sellerReply", "ceylivingReply"],
+  QUESTION: ["status", "statusReason", "body"],
+  ANSWER: ["status", "statusReason", "body"],
+};
 
 /** Sets status, reason and (for erasure) body fields on a review, question or answer. */
 export async function updateContent(
@@ -182,55 +154,58 @@ export async function updateContent(
   id: string,
   patch: { status?: ContentStatus; statusReason?: string; [field: string]: unknown },
 ): Promise<void> {
-  const content = contentRows(writableRowsOf(tx), type).find((c) => c.id === id);
-  if (content) Object.assign(content, patch);
+  const unknown = Object.keys(patch).filter((key) => !MODERATED_FIELDS[type].includes(key));
+  if (unknown.length) throw new Error(`updateContent cannot set ${unknown.join(", ")} on a ${type.toLowerCase()}`);
+  // Every allowed field has the same column type on all three tables.
+  const data = clearing(patch) as Prisma.ProductAnswerUncheckedUpdateManyInput & { comment?: string | null };
+  const client = writableClientOf(tx);
+  if (type === "REVIEW") await client.review.updateMany({ where: { id }, data });
+  else if (type === "QUESTION") await client.productQuestion.updateMany({ where: { id }, data });
+  else await client.productAnswer.updateMany({ where: { id }, data });
 }
 
-/** FR-17: an anonymised author's name on every review and question they wrote. */
+/** FR-17: an anonymised author's name on every review and question they wrote. The author id stays the same. */
 export async function renameAuthorOnPosts(tx: Tx, authorId: string, authorName: string): Promise<void> {
-  const rows = writableRowsOf(tx);
-  rows.reviews.filter((r) => r.authorId === authorId).forEach((r) => (r.authorName = authorName));
-  rows.questions.filter((q) => q.authorId === authorId).forEach((q) => (q.authorName = authorName));
+  const client = writableClientOf(tx);
+  await client.review.updateMany({ where: { authorId }, data: { authorName } });
+  await client.productQuestion.updateMany({ where: { authorId }, data: { authorName } });
 }
 
 // ---------- Reports ----------
 
 export async function listReports(tx: Tx): Promise<Report[]> {
-  return out(tx, [...rowsOf(tx).reports].sort(newestFirst));
+  const rows = await clientOf(tx).report.findMany({ orderBy: [...newestFirst] });
+  return rows.map(toReport);
 }
 
 export async function openReportsFor(tx: Tx, targetType: ReportTargetType, targetId: string): Promise<Report[]> {
-  return out(
-    tx,
-    rowsOf(tx).reports.filter((r) => r.targetType === targetType && r.targetId === targetId && r.status === "OPEN"),
-  );
+  const rows = await clientOf(tx).report.findMany({
+    where: { targetType, targetId, status: "OPEN" },
+    orderBy: [...oldestFirst],
+  });
+  return rows.map(toReport);
 }
 
 export async function reportsByReporter(tx: Tx, reporterId: string): Promise<Report[]> {
-  return out(
-    tx,
-    rowsOf(tx).reports.filter((r) => r.reporterId === reporterId),
-  );
+  const rows = await clientOf(tx).report.findMany({ where: { reporterId }, orderBy: [...oldestFirst] });
+  return rows.map(toReport);
 }
 
 export async function findReport(tx: Tx, id: string): Promise<Report | undefined> {
-  return out(
-    tx,
-    rowsOf(tx).reports.find((r) => r.id === id),
-  );
+  const row = await clientOf(tx).report.findUnique({ where: { id } });
+  return row ? toReport(row) : undefined;
 }
 
 export async function insertReport(tx: Tx, report: Report): Promise<Report> {
-  writableRowsOf(tx).reports.push(structuredClone(report));
-  return out(tx, report);
+  const data = withDates(report, ["createdAt"]) as Prisma.ReportUncheckedCreateInput;
+  return toReport(await writableClientOf(tx).report.create({ data }));
 }
 
 /** DB-06: only an OPEN report is updated; returns undefined when it is missing or already closed. */
 export async function updateOpenReport(tx: Tx, id: string, patch: Partial<Report>): Promise<Report | undefined> {
-  const report = writableRowsOf(tx).reports.find((r) => r.id === id && r.status === "OPEN");
-  if (!report) return undefined;
-  Object.assign(report, patch);
-  return out(tx, report);
+  const data = clearing(withDates(patch, ["createdAt"])) as Prisma.ReportUncheckedUpdateManyInput;
+  const { count } = await writableClientOf(tx).report.updateMany({ where: { id, status: "OPEN" }, data });
+  return count === 0 ? undefined : findReport(tx, id);
 }
 
 /** Closes every open report on one target (after a moderator acted on it). */
@@ -240,9 +215,10 @@ export async function resolveOpenReportsFor(
   targetId: string,
   patch: Pick<Report, "status" | "resolvedById" | "resolution">,
 ): Promise<void> {
-  writableRowsOf(tx)
-    .reports.filter((r) => r.targetType === targetType && r.targetId === targetId && r.status === "OPEN")
-    .forEach((r) => Object.assign(r, patch));
+  await writableClientOf(tx).report.updateMany({
+    where: { targetType, targetId, status: "OPEN" },
+    data: clearing(patch) as Prisma.ReportUncheckedUpdateManyInput,
+  });
 }
 
 // ---------- Helpful votes (FR-19) ----------
@@ -250,33 +226,29 @@ export async function resolveOpenReportsFor(
 type VoteTarget = HelpfulVote["targetType"];
 
 export async function votesFor(tx: Tx, targetType: VoteTarget, targetIds: string[]): Promise<HelpfulVote[]> {
-  const wanted = new Set(targetIds);
-  return out(
-    tx,
-    rowsOf(tx).helpfulVotes.filter((v) => v.targetType === targetType && wanted.has(v.targetId)),
-  );
+  const rows = await clientOf(tx).helpfulVote.findMany({
+    where: { targetType, targetId: { in: targetIds } },
+    orderBy: [{ createdAt: "asc" }, { userId: "asc" }],
+  });
+  return rows.map(toVote);
 }
 
 export async function countVotes(tx: Tx, targetType: VoteTarget, targetId: string): Promise<number> {
-  return rowsOf(tx).helpfulVotes.filter((v) => v.targetType === targetType && v.targetId === targetId).length;
+  return clientOf(tx).helpfulVote.count({ where: { targetType, targetId } });
 }
 
+/** One vote per person per target: the primary key refuses a second one. */
 export async function insertVote(tx: Tx, vote: HelpfulVote): Promise<void> {
-  writableRowsOf(tx).helpfulVotes.push({ ...vote });
+  const data = withDates(vote, ["createdAt"]) as Prisma.HelpfulVoteUncheckedCreateInput;
+  await writableClientOf(tx).helpfulVote.create({ data });
 }
 
 /** Removes the user's vote on a target; false when there was none. */
 export async function deleteVote(tx: Tx, userId: string, targetType: VoteTarget, targetId: string): Promise<boolean> {
-  const rows = writableRowsOf(tx);
-  const index = rows.helpfulVotes.findIndex(
-    (v) => v.userId === userId && v.targetType === targetType && v.targetId === targetId,
-  );
-  if (index === -1) return false;
-  rows.helpfulVotes.splice(index, 1);
-  return true;
+  const { count } = await writableClientOf(tx).helpfulVote.deleteMany({ where: { userId, targetType, targetId } });
+  return count > 0;
 }
 
 export async function deleteVotesOf(tx: Tx, userId: string): Promise<void> {
-  const rows = writableRowsOf(tx);
-  rows.helpfulVotes = rows.helpfulVotes.filter((v) => v.userId !== userId);
+  await writableClientOf(tx).helpfulVote.deleteMany({ where: { userId } });
 }

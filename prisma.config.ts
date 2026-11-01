@@ -8,6 +8,7 @@ if (fs.existsSync(".env.local")) process.loadEnvFile(".env.local");
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
-  migrations: { path: "prisma/migrations" },
+  // `prisma migrate reset` (npm run db:reset) loads the demo data again afterwards.
+  migrations: { path: "prisma/migrations", seed: "npm run db:seed" },
   datasource: { url: process.env.DATABASE_MIGRATION_URL ?? "" },
 });

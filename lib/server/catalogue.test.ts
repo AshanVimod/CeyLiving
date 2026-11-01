@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { withTestStore } from "@/test/store-helpers";
+import { changeData, withTestDatabase } from "@/test/db";
 import {
   getPublicProduct,
   getPublicShop,
@@ -12,9 +12,8 @@ import {
   relatedProducts,
   searchSuggestions,
 } from "./catalogue";
-import { transaction } from "./store/dev-store";
 
-withTestStore();
+withTestDatabase();
 
 const MASK_SHOP = "ambalangoda-mask-house";
 
@@ -29,7 +28,7 @@ describe("public catalogue", () => {
     expect(await getPublicProduct("naga-raksha-mask")).toBeDefined();
     const woodCount = await productCountByCategory("wood-carvings");
 
-    await transaction((db) => {
+    await changeData((db) => {
       db.shops.find((s) => s.slug === MASK_SHOP)!.status = "SUSPENDED";
     });
 
@@ -47,7 +46,7 @@ describe("public catalogue", () => {
   });
 
   it("RULE-P4 shows only ACTIVE products", async () => {
-    await transaction((db) => {
+    await changeData((db) => {
       db.products.find((p) => p.slug === "naga-raksha-mask")!.status = "PENDING_REVIEW";
     });
     expect(await getPublicProduct("naga-raksha-mask")).toBeUndefined();
@@ -56,7 +55,7 @@ describe("public catalogue", () => {
 
   it("RULE-R4 counts only visible reviews in ratings", async () => {
     const before = (await getPublicProduct("naga-raksha-mask"))!.rating!;
-    await transaction((db) => {
+    await changeData((db) => {
       const review = db.reviews.find((r) => r.productId === "prod_naga-raksha-mask")!;
       review.status = "HIDDEN";
     });

@@ -1,15 +1,14 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it } from "vitest";
-import * as devCatalogue from "@/lib/server/repositories/catalogue";
-import * as pgCatalogue from "@/lib/server/repositories/pg/catalogue";
+import * as catalogueRepo from "@/lib/server/repositories/catalogue";
 import { ConflictError } from "@/lib/server/errors";
-import type { StoreData } from "@/lib/server/store/dev-store";
-import { buildSeed } from "@/lib/server/store/seed";
+import { buildSeed, type SeedData } from "@/prisma/seed-data";
 import type { Product, Shop } from "@/lib/types";
-import { byId, contractBackends } from "./backends";
+import { byId, repositoryBackend } from "./backends";
 
 // Shops and products: the same suite on both backends, then what only PostgreSQL guarantees.
 
-const { backends, pg } = await contractBackends(devCatalogue, pgCatalogue);
+const { backends, pg } = await repositoryBackend(catalogueRepo);
 
 const MASKS = "ambalangoda-mask-house";
 const SUSPENDED = "pol-katu-lanka";
@@ -35,10 +34,9 @@ const sameProduct = (product: Product) => ({
 });
 
 for (const [name, backend] of backends) {
-  describe.skipIf(!backend)(`catalogue repository contract: ${name}`, () => {
-    if (!backend) return; // describe bodies still run when skipped
-    const { repo, db, withTx, reset } = backend;
-    let seed: StoreData;
+  describe(`catalogue repository contract: ${name}`, () => {
+    const { repo, db, withTx, reset } = backend!;
+    let seed: SeedData;
     beforeEach(async () => {
       seed = await reset();
     });
@@ -187,10 +185,9 @@ for (const [name, backend] of backends) {
   });
 }
 
-describe.skipIf(!pg)("catalogue (PostgreSQL only)", () => {
-  if (!pg) return;
+describe("catalogue (PostgreSQL only)", () => {
   const { handles } = pg;
-  let seed: StoreData;
+  let seed: SeedData;
   beforeEach(async () => {
     seed = buildSeed(new Date());
     await pg.reset(seed);
@@ -198,22 +195,22 @@ describe.skipIf(!pg)("catalogue (PostgreSQL only)", () => {
   const product = () => seed.products.find((p) => p.customization?.length)!;
 
   it("DB-04 a failed edit leaves the item, its images, variants and fields exactly as they were", async () => {
-    const before = await pgCatalogue.findProductById(handles.db, product().id);
+    const before = await catalogueRepo.findProductById(handles.db, product().id);
     await expect(
       handles.withTx((tx) =>
-        pgCatalogue.updateProduct(tx, product().id, {
+        catalogueRepo.updateProduct(tx, product().id, {
           title: "Half-saved",
           images: [{ id: "photo-z", alt: "New" }],
           variants: [{ sku: "BAD", label: "Bad", priceCents: 250_000, stock: -1 }],
         }),
       ),
     ).rejects.toThrow();
-    expect(await pgCatalogue.findProductById(handles.db, product().id)).toEqual(before);
+    expect(await catalogueRepo.findProductById(handles.db, product().id)).toEqual(before);
   });
 
   it("DB-07 the database refuses a price below 100 cents, negative stock and an unknown material", async () => {
     const edit = (patch: Partial<Product>) =>
-      handles.withTx((tx) => pgCatalogue.updateProduct(tx, product().id, patch));
+      handles.withTx((tx) => catalogueRepo.updateProduct(tx, product().id, patch));
     await expect(edit({ variants: [{ sku: "A", label: "A", priceCents: 99, stock: 1 }] })).rejects.toThrow();
     await expect(edit({ variants: [{ sku: "A", label: "A", priceCents: 500, stock: -1 }] })).rejects.toThrow();
     await expect(edit({ materials: ["plastic" as never] })).rejects.toThrow();
@@ -222,14 +219,14 @@ describe.skipIf(!pg)("catalogue (PostgreSQL only)", () => {
   it("RULE-S1 the database allows one open shop per owner, and a clash reads as a plain conflict", async () => {
     const existing = seed.shops.find((s) => s.slug === MASKS)!;
     const second: Shop = { ...structuredClone(existing), id: "shop_second", slug: "second-shop", status: "DRAFT" };
-    const attempt = handles.withTx((tx) => pgCatalogue.insertShop(tx, second));
+    const attempt = handles.withTx((tx) => catalogueRepo.insertShop(tx, second));
     await expect(attempt).rejects.toBeInstanceOf(ConflictError);
     await expect(attempt).rejects.toThrow("You already have a shop.");
   });
 
   it("DB-06 a web address taken at the same moment reads as a plain conflict, not a database error", async () => {
     const copy = { ...newProduct(product(), "prod_copy", MASKS), slug: product().slug };
-    const attempt = handles.withTx((tx) => pgCatalogue.insertProduct(tx, copy));
+    const attempt = handles.withTx((tx) => catalogueRepo.insertProduct(tx, copy));
     await expect(attempt).rejects.toBeInstanceOf(ConflictError);
     await expect(attempt).rejects.toThrow("That item web address was just taken. Try again.");
   });

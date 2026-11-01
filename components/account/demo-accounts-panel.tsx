@@ -1,5 +1,5 @@
 import { signInAsDemo } from "@/lib/server/actions/session";
-import { DEMO_ACCOUNTS } from "@/lib/server/store/seed";
+import { DEMO_ACCOUNTS } from "@/lib/server/demo-accounts";
 
 /** Development only (D-05): sign in as a seeded account without the browser console. */
 export function DemoAccountsPanel({ next, currentUserId }: { next: string; currentUserId?: string }) {

@@ -1,24 +1,53 @@
-import "server-only";
 import { SHIPPING_FEE_PER_SHOP_CENTS } from "@/lib/config";
 import { productSeeds, type ProductSeed } from "@/lib/data/products";
 import { shopSeeds } from "@/lib/data/shops";
-import type { Order, OrderItem, Product, Review, SellerOrder, SellerOrderStatus, Shop, User } from "@/lib/types";
-import type { StoreData } from "./dev-store";
+import type {
+  Address,
+  AuditLogEntry,
+  CustomRequest,
+  HelpfulVote,
+  Notification,
+  Order,
+  OrderItem,
+  Payout,
+  Product,
+  ProductAnswer,
+  ProductQuestion,
+  RateEvent,
+  Report,
+  Review,
+  SellerApplication,
+  SellerOrder,
+  SellerOrderStatus,
+  Shop,
+  User,
+} from "@/lib/types";
 
-/** Fixed time for the read-only production seed, so builds are reproducible. */
-export const SEED_TIME = "2026-10-22T06:00:00.000Z";
+// The demo data (feature spec 7.5): five sign-in accounts, ten shops, their items, orders, reviews and questions.
+// prisma/seed.ts loads it into PostgreSQL; the tests load it before every test (test/db.ts). Times are relative to
+// `now`, so "delivered 3 days ago" stays true whenever it is loaded.
 
-/**
- * The five accounts offered on /signin in development and on the demo (feature spec 7.5). The muted customer
- * (user_muted) stays in the seed for tests and admin moderation, but isn't offered for sign-in.
- */
-export const DEMO_ACCOUNTS = [
-  { id: "user_customer", label: "Customer", note: "Has orders, one ready to review" },
-  { id: "user_applicant", label: "Applicant", note: "Shop application pending" },
-  { id: "user_seller", label: "Seller", note: "Ambalangoda Mask House, active" },
-  { id: "user_seller_suspended", label: "Seller (suspended)", note: "Pol Katu Lanka, suspended" },
-  { id: "user_admin", label: "Admin", note: "Reviews applications and content" },
-] as const;
+/** Every row of the demo data, table by table. */
+export interface SeedData {
+  users: User[];
+  applications: SellerApplication[];
+  shops: Shop[];
+  products: Product[];
+  orders: Order[];
+  sellerOrders: SellerOrder[];
+  orderItems: OrderItem[];
+  reviews: Review[];
+  questions: ProductQuestion[];
+  answers: ProductAnswer[];
+  reports: Report[];
+  auditLog: AuditLogEntry[];
+  notifications: Notification[];
+  addresses: Address[];
+  rateEvents: RateEvent[];
+  payouts: Payout[];
+  customRequests: CustomRequest[];
+  helpfulVotes: HelpfulVote[];
+}
 
 const SHOP_OWNERS: Record<string, string> = {
   "ambalangoda-mask-house": "user_seller",
@@ -173,12 +202,11 @@ function buildOrder(spec: OrderSpec) {
   return { order, sellerOrder, item };
 }
 
-export function buildSeed(now: Date): StoreData {
+export function buildSeed(now: Date): SeedData {
   const users = seedUsers(now);
   const { shops, owners } = seedShops(now);
   const products = productSeeds.map((p) => toProduct(p, now));
-  const data: StoreData = {
-    version: 3,
+  const data: SeedData = {
     users: [...users, ...owners],
     applications: [],
     shops,
@@ -219,7 +247,7 @@ type AddOrder = (spec: Omit<OrderSpec, "number">) => OrderItem;
 
 /** Each existing review becomes a verified review on a completed demo order (fixes D-06). */
 function seedReviews(
-  data: StoreData,
+  data: SeedData,
   now: Date,
   productBySlug: (s: string) => Product,
   shopBySlug: (s: string) => Shop,
@@ -301,7 +329,7 @@ function seedCustomerOrders(
   });
 }
 
-function seedApplicationAndContent(data: StoreData, now: Date, productBySlug: (s: string) => Product) {
+function seedApplicationAndContent(data: SeedData, now: Date, productBySlug: (s: string) => Product) {
   data.applications.push({
     id: "app_tharindu",
     userId: "user_applicant",

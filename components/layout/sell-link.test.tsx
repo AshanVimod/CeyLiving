@@ -1,17 +1,16 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "@/lib/session";
-import { withTestStore } from "@/test/store-helpers";
+import { user, withTestDatabase } from "@/test/db";
 
 let session: Session | null = null;
 vi.mock("@/lib/session", () => ({ getSession: async () => session }));
 const { sellLinkTarget } = await import("./sell-link");
-const { readStore } = await import("@/lib/server/store/dev-store");
 
-withTestStore();
+withTestDatabase();
 afterEach(() => (session = null));
 
-const as = (id: string) => (session = { user: readStore().users.find((u) => u.id === id)! });
+const as = (id: string) => (session = { user: user(id) });
 
 describe("FR-2a selling link in the header", () => {
   it("FR-2a visitors and customers are invited to open a shop, not to sell directly", async () => {

@@ -4,21 +4,20 @@ import { db as readDb } from "@/lib/server/db/tx";
 import { productSchema } from "@/lib/validation/product";
 import { shopSchema } from "@/lib/validation/shop";
 import { productInput, validShop } from "@/test/fixtures";
-import { withTestStore, user } from "@/test/store-helpers";
+import { readAll, freshUser, user, withTestDatabase } from "@/test/db";
 import { getPublicProduct, getPublicShop, queryCatalogue } from "../catalogue";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../errors";
 import { assertShopOwner } from "../permissions";
 import { findShopByOwner } from "../repositories/catalogue";
-import { readStore } from "../store/dev-store";
 import { decideApplication } from "./applications";
 import { archiveProduct, decideProduct, saveProduct } from "./products";
 import { decideShop, savePayoutDetails, updateShop } from "./shops";
 
-withTestStore();
+withTestDatabase();
 
 async function approvedApplicant() {
   await decideApplication(user("user_admin"), { decision: "approve", applicationId: "app_tharindu" });
-  return user("user_applicant");
+  return freshUser("user_applicant");
 }
 
 describe("shops", () => {
@@ -69,7 +68,7 @@ describe("shops", () => {
     expect(await getPublicProduct("naga-raksha-mask")).toBeUndefined();
     await decideShop(admin, { decision: "reinstate", shopId: "shop_ambalangoda-mask-house" });
     expect(await getPublicProduct("naga-raksha-mask")).toBeDefined();
-    const actions = readStore().auditLog.map((a) => a.action);
+    const actions = (await readAll()).auditLog.map((a) => a.action);
     expect(actions).toEqual(expect.arrayContaining(["shop.suspend", "shop.reinstate"]));
   });
 
@@ -158,7 +157,7 @@ describe("items", () => {
   });
 
   it("a seller can't touch another shop's item", async () => {
-    const beeralu = readStore().products.find((p) => p.shopSlug === "galle-beeralu-studio")!;
+    const beeralu = (await readAll()).products.find((p) => p.shopSlug === "galle-beeralu-studio")!;
     await expect(archiveProduct(user("user_seller"), beeralu.id)).rejects.toBeInstanceOf(NotFoundError);
     await expect(saveProduct(user("user_seller"), productInput(), "submit", beeralu.id)).rejects.toBeInstanceOf(
       NotFoundError,
@@ -174,6 +173,8 @@ describe("items", () => {
       reason: "Prohibited item under BR-20.",
     });
     await expect(saveProduct(seller, productInput(), "submit", p.id)).rejects.toBeInstanceOf(ConflictError);
-    expect(readStore().notifications.some((n) => n.userId === seller.id && n.type === "product.removed")).toBe(true);
+    expect((await readAll()).notifications.some((n) => n.userId === seller.id && n.type === "product.removed")).toBe(
+      true,
+    );
   });
 });

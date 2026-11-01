@@ -1,4 +1,4 @@
-// Mirrors Section 7 of the build spec and Section 6 of the feature spec, so the API can replace the dev store later.
+// Mirrors Section 7 of the build spec and Section 6 of the feature spec, shared by every layer.
 // IDs are strings, times are ISO 8601 UTC strings, money is integer cents.
 
 export type CategoryGroup = "MODERN" | "TRADITIONAL";

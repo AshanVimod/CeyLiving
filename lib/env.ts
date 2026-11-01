@@ -14,9 +14,7 @@ export const envSchema = z
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
     // AU-09: development-only demo sign-in. Validated here; the session code uses it from B05.
     ENABLE_DEMO_LOGIN: flag,
-    // Dev store file (feature spec 7.4); tests point it at a temp file.
-    CEYLIVING_STORE_PATH: z.string().min(1).optional(),
-    // DB-10: the app connects as ceyliving_app (data rights only). Not read until B04 switches the app to PostgreSQL.
+    // DB-10: the app connects as ceyliving_app (data rights only). Required in production; `npm run setup` sets it.
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/, error: "must be a postgresql:// address" }).optional(),
     // DB-10: migrations run as the schema owner, ceyliving_migrator. Read by the Prisma CLI (prisma.config.ts).
     DATABASE_MIGRATION_URL: z.url({ protocol: /^postgres(ql)?$/, error: "must be a postgresql:// address" }).optional(),
@@ -35,6 +33,9 @@ export const envSchema = z
         path: ["ENABLE_DEMO_LOGIN"],
         message: "must not be true when NODE_ENV=production (AU-09)",
       });
+    }
+    if (env.NODE_ENV === "production" && !env.DATABASE_URL) {
+      ctx.addIssue({ code: "custom", path: ["DATABASE_URL"], message: "is required in production (DB-10)" });
     }
     const local = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(env.SITE_URL);
     if (env.NODE_ENV === "production" && !env.SITE_URL.startsWith("https://") && !local) {

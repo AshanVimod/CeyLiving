@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { BadgeCheckIcon, PinIcon } from "@/components/ui/icons";
 import { Container } from "@/components/ui/section-heading";
-import { publicProductsOfShop, publicShops, shopRating } from "@/lib/server/catalogue";
+import { publicProductsOfShop, publicShops, publicShopRating } from "@/lib/server/catalogue";
 import { photoUrl } from "@/lib/format";
 
 export const metadata: Metadata = {
@@ -18,7 +18,10 @@ export default async function MakersPage() {
     await Promise.all(
       rest.map(
         async (s) =>
-          [s.slug, { count: (await publicProductsOfShop(s.slug)).length, rating: await shopRating(s.slug) }] as const,
+          [
+            s.slug,
+            { count: (await publicProductsOfShop(s.slug)).length, rating: await publicShopRating(s.slug) },
+          ] as const,
       ),
     ),
   );

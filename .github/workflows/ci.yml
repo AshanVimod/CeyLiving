@@ -23,6 +23,22 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # The build reads the catalogue from PostgreSQL (the item, shop and category pages are prerendered), so a
+    # throwaway database is migrated and seeded first. Its passwords exist only inside this job.
+    services:
+      postgres:
+        image: postgres:17.11-alpine
+        env:
+          POSTGRES_USER: ceyliving_migrator
+          POSTGRES_PASSWORD: ci_migrator
+          POSTGRES_DB: ceyliving
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ceyliving_migrator -d ceyliving"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_MIGRATION_URL: postgresql://ceyliving_migrator:ci_migrator@localhost:5432/ceyliving
+      DATABASE_URL: postgresql://ceyliving_app:ci_app@localhost:5432/ceyliving
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -36,9 +52,15 @@ jobs:
 
       - run: npm ci
 
-      # Includes the repository contract tests: Testcontainers starts PostgreSQL in the runner's Docker, and CI=true
-      # makes a missing Docker fail the run instead of skipping those tests.
+      # The tests start their own PostgreSQL with Testcontainers in the runner's Docker (each test file gets a copy).
       - run: npm run check
+
+      # DB-10: the app user exists before the migration grants it data rights, as in every environment.
+      - name: Prepare the build database
+        run: |
+          psql "$DATABASE_MIGRATION_URL" -c "CREATE ROLE ceyliving_app LOGIN PASSWORD 'ci_app'"
+          npx prisma migrate deploy
+          npm run db:seed
 
       - run: npm run build
 

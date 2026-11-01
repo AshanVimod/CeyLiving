@@ -2,16 +2,15 @@
 import { describe, expect, it } from "vitest";
 import { questionSchema } from "@/lib/validation/content";
 import { findContactDetails } from "@/lib/validation/contact";
-import { withTestStore, user } from "@/test/store-helpers";
+import { readAll, freshUser, user, withTestDatabase } from "@/test/db";
 import { getPublicProduct } from "../catalogue";
 import { ConflictError, ForbiddenError, NotFoundError, RateLimitError } from "../errors";
 import { canPost } from "../permissions";
-import { readStore } from "../store/dev-store";
 import { moderateContent, officialReply, reportContent, resolveReport, restrictUser } from "./moderation";
 import { markNotificationsRead, myNotifications } from "./notifications";
 import { answerQuestion, askQuestion } from "./questions";
 
-withTestStore();
+withTestDatabase();
 
 const naga = async () => (await getPublicProduct("naga-raksha-mask"))!;
 const vase = async () => (await getPublicProduct("terracotta-vase-trio"))!;
@@ -23,9 +22,9 @@ describe("FR-3b questions", () => {
       body: "Does it come with a hanging hook?",
     });
     expect(q.status).toBe("VISIBLE");
-    expect(readStore().notifications.some((n) => n.userId === "user_seller" && n.type === "question.created")).toBe(
-      true,
-    );
+    expect(
+      (await readAll()).notifications.some((n) => n.userId === "user_seller" && n.type === "question.created"),
+    ).toBe(true);
   });
 
   it("RULE-Q1 a seller can't ask about their own item", async () => {
@@ -46,7 +45,7 @@ describe("FR-3b questions", () => {
   });
 
   it("RULE-Q2 customers and other sellers can't answer; the shop's seller and admins can", async () => {
-    const q = readStore().questions.find((x) => x.id === "q_gurulu_colour")!;
+    const q = (await readAll()).questions.find((x) => x.id === "q_gurulu_colour")!;
     await expect(
       answerQuestion(user("user_customer"), { questionId: q.id, body: "I think they are painted." }),
     ).rejects.toBeInstanceOf(NotFoundError);
@@ -63,8 +62,10 @@ describe("FR-3b questions", () => {
       targetId: q.id,
       body: "CeyLiving checked: the wings are painted.",
     });
-    expect(readStore().answers.some((a) => a.questionId === q.id && a.authorRole === "ADMIN")).toBe(true);
-    expect(readStore().notifications.some((n) => n.userId === q.authorId && n.type === "question.answered")).toBe(true);
+    expect((await readAll()).answers.some((a) => a.questionId === q.id && a.authorRole === "ADMIN")).toBe(true);
+    expect((await readAll()).notifications.some((n) => n.userId === q.authorId && n.type === "question.answered")).toBe(
+      true,
+    );
   });
 
   it("RULE-Q4 questions with phone numbers, emails or links are refused with a clear message", () => {
@@ -98,7 +99,7 @@ describe("FR-5 / FR-8 reports and moderation", () => {
   it("RULE-M4 content is hidden automatically at 3 open reports", async () => {
     const input = { targetType: "QUESTION" as const, targetId: "q_naga_size", reason: "Offensive or abusive" as const };
     for (const id of ["user_muted", "user_applicant", "user_seller"]) await reportContent(user(id), input);
-    expect(readStore().questions.find((q) => q.id === "q_naga_size")!.status).toBe("HIDDEN");
+    expect((await readAll()).questions.find((q) => q.id === "q_naga_size")!.status).toBe("HIDDEN");
   });
 
   it("RULE-M1 only admins hide content; each action needs a reason and leaves an audit row", async () => {
@@ -109,7 +110,7 @@ describe("FR-5 / FR-8 reports and moderation", () => {
     await moderateContent(user("user_admin"), { ...target, action: "hide", reason: "Off-topic question." });
     await moderateContent(user("user_admin"), { ...target, action: "restore", reason: "" });
     await moderateContent(user("user_admin"), { ...target, action: "delete", reason: "Contains personal data." });
-    const db = readStore();
+    const db = await readAll();
     expect(db.questions.find((q) => q.id === "q_naga_size")).toMatchObject({ status: "DELETED", body: "" });
     expect(db.auditLog.map((a) => a.action)).toEqual(
       expect.arrayContaining(["content.hide", "content.restore", "content.delete"]),
@@ -128,7 +129,7 @@ describe("FR-5 / FR-8 reports and moderation", () => {
       action: "hide",
       reason: "Off-topic question.",
     });
-    expect(readStore().reports.every((r) => r.status === "RESOLVED")).toBe(true);
+    expect((await readAll()).reports.every((r) => r.status === "RESOLVED")).toBe(true);
   });
 
   it("RULE-M5 an admin can't mute or ban another admin or themselves", async () => {
@@ -144,15 +145,15 @@ describe("FR-5 / FR-8 reports and moderation", () => {
       days: 7,
       reason: "Repeated spam questions.",
     });
-    expect(canPost(user("user_customer"))).toBe(false);
-    expect(readStore().orders.some((o) => o.customerId === "user_customer")).toBe(true);
+    expect(canPost(await freshUser("user_customer"))).toBe(false);
+    expect((await readAll()).orders.some((o) => o.customerId === "user_customer")).toBe(true);
     await restrictUser(user("user_admin"), {
       userId: "user_customer",
       action: "lift",
       reason: "Agreed to the guidelines.",
     });
-    expect(canPost(user("user_customer"))).toBe(true);
-    expect(readStore().auditLog.filter((a) => a.targetId === "user_customer").length).toBe(2);
+    expect(canPost(await freshUser("user_customer"))).toBe(true);
+    expect((await readAll()).auditLog.filter((a) => a.targetId === "user_customer").length).toBe(2);
   });
 
   it("reports can be dismissed with a reason", async () => {
@@ -166,7 +167,7 @@ describe("FR-5 / FR-8 reports and moderation", () => {
       status: "DISMISSED",
       resolution: "Original work, confirmed with the maker.",
     });
-    expect(readStore().reports.find((r) => r.id === report.id)!.status).toBe("DISMISSED");
+    expect((await readAll()).reports.find((r) => r.id === report.id)!.status).toBe("DISMISSED");
   });
 });
 

@@ -5,6 +5,7 @@ import type { ActionResult, ActionState } from "@/lib/action-result";
 import { id } from "@/lib/validation/common";
 import { answerSchema, editReviewSchema, questionSchema, reportSchema, reviewSchema } from "@/lib/validation/content";
 import { requireActor } from "../auth";
+import { refreshEverything } from "./refresh";
 import { formToObject, parseInput, runAction } from "../run-action";
 import { reportContent } from "../services/moderation";
 import { markNotificationsRead } from "../services/notifications";
@@ -12,9 +13,7 @@ import { confirmDelivery } from "../services/orders";
 import { answerQuestion, askQuestion } from "../services/questions";
 import { createReview, editReview } from "../services/reviews";
 
-function refreshAll() {
-  revalidatePath("/", "layout");
-}
+const refreshAll = refreshEverything;
 
 export async function askQuestionAction(_: ActionState, form: FormData): Promise<ActionResult> {
   return runAction(async () => {

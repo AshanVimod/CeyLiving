@@ -1,7 +1,21 @@
 import "server-only";
 import type { CustomRequest, Order, OrderItem, Payout, SellerOrder, SellerOrderStatus } from "@/lib/types";
-import { out, rowsOf, writableRowsOf, type Tx } from "../db/tx";
-import type { StoreData } from "../store/dev-store";
+import type { Prisma } from "../db/generated/client";
+import {
+  clearing,
+  customRequestColumns,
+  orderColumns,
+  payoutColumns,
+  payoutInclude,
+  sellerOrderColumns,
+  toCustomRequest,
+  toOrder,
+  toOrderItem,
+  toPayout,
+  toSellerOrder,
+} from "../db/mappers";
+import { clientOf, writableClientOf, type Tx } from "../db/tx";
+import { ConflictError } from "../errors";
 
 // Orders, seller orders, order items, payouts and custom requests. The only code that touches these rows (BE-01).
 
@@ -10,63 +24,57 @@ export interface OrderWithParts {
   sellerOrders: { sellerOrder: SellerOrder; items: OrderItem[] }[];
 }
 
-function assemble(order: Order, rows: StoreData): OrderWithParts {
-  return {
-    order,
-    sellerOrders: rows.sellerOrders
-      .filter((so) => so.orderId === order.id)
-      .map((sellerOrder) => ({
-        sellerOrder,
-        items: rows.orderItems.filter((i) => i.sellerOrderId === sellerOrder.id),
-      })),
-  };
-}
+/** An order with its seller orders and their items, loaded in one query (no query per seller order). */
+const orderParts = {
+  sellerOrders: { orderBy: { id: "asc" }, include: { items: { orderBy: { id: "asc" } } } },
+} as const satisfies Prisma.OrderInclude;
+
+type OrderRow = Prisma.OrderGetPayload<{ include: typeof orderParts }>;
+
+const assemble = (row: OrderRow): OrderWithParts => ({
+  order: toOrder(row),
+  sellerOrders: row.sellerOrders.map((so) => ({ sellerOrder: toSellerOrder(so), items: so.items.map(toOrderItem) })),
+});
 
 // ---------- Orders ----------
 
 export async function ordersOfCustomer(tx: Tx, customerId: string): Promise<OrderWithParts[]> {
-  const rows = rowsOf(tx);
-  return out(
-    tx,
-    rows.orders
-      .filter((o) => o.customerId === customerId)
-      .sort((a, b) => b.placedAt.localeCompare(a.placedAt))
-      .map((o) => assemble(o, rows)),
-  );
+  const rows = await clientOf(tx).order.findMany({
+    where: { customerId },
+    include: orderParts,
+    orderBy: [{ placedAt: "desc" }, { id: "desc" }],
+  });
+  return rows.map(assemble);
 }
 
 export async function listOrdersOfCustomer(tx: Tx, customerId: string): Promise<Order[]> {
-  return out(
-    tx,
-    rowsOf(tx).orders.filter((o) => o.customerId === customerId),
-  );
+  const rows = await clientOf(tx).order.findMany({
+    where: { customerId },
+    orderBy: [{ placedAt: "asc" }, { id: "asc" }],
+  });
+  return rows.map(toOrder);
 }
 
 export async function findOrderByNumber(tx: Tx, orderNumber: string): Promise<OrderWithParts | undefined> {
-  const rows = rowsOf(tx);
-  const order = rows.orders.find((o) => o.orderNumber === orderNumber);
-  return order ? out(tx, assemble(order, rows)) : undefined;
+  const row = await clientOf(tx).order.findUnique({ where: { orderNumber }, include: orderParts });
+  return row ? assemble(row) : undefined;
 }
 
 export async function findOrderById(tx: Tx, id: string): Promise<Order | undefined> {
-  return out(
-    tx,
-    rowsOf(tx).orders.find((o) => o.id === id),
-  );
+  const row = await clientOf(tx).order.findUnique({ where: { id } });
+  return row ? toOrder(row) : undefined;
 }
 
 export async function updateOrder(tx: Tx, id: string, patch: Partial<Order>): Promise<void> {
-  const order = writableRowsOf(tx).orders.find((o) => o.id === id);
-  if (order) Object.assign(order, structuredClone(patch));
+  const data = clearing(orderColumns(patch)) as Prisma.OrderUncheckedUpdateManyInput;
+  await writableClientOf(tx).order.updateMany({ where: { id }, data });
 }
 
 // ---------- Seller orders ----------
 
 export async function findSellerOrder(tx: Tx, id: string): Promise<SellerOrder | undefined> {
-  return out(
-    tx,
-    rowsOf(tx).sellerOrders.find((so) => so.id === id),
-  );
+  const row = await clientOf(tx).sellerOrder.findUnique({ where: { id } });
+  return row ? toSellerOrder(row) : undefined;
 }
 
 /** SEC-A5: a seller order of this shop only; other shops' orders look missing. */
@@ -75,39 +83,34 @@ export async function findSellerOrderForShop(
   sellerOrderId: string,
   shopId: string,
 ): Promise<SellerOrder | undefined> {
-  return out(
-    tx,
-    rowsOf(tx).sellerOrders.find((so) => so.id === sellerOrderId && so.shopId === shopId),
-  );
+  const row = await clientOf(tx).sellerOrder.findFirst({ where: { id: sellerOrderId, shopId } });
+  return row ? toSellerOrder(row) : undefined;
 }
 
 export async function sellerOrdersOfShop(tx: Tx, shopId: string): Promise<SellerOrder[]> {
-  return out(
-    tx,
-    rowsOf(tx)
-      .sellerOrders.filter((so) => so.shopId === shopId)
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-  );
+  const rows = await clientOf(tx).sellerOrder.findMany({
+    where: { shopId },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+  });
+  return rows.map(toSellerOrder);
 }
 
 /** Every seller order belonging to one customer's orders. */
 export async function sellerOrdersOfCustomer(tx: Tx, customerId: string): Promise<SellerOrder[]> {
-  const rows = rowsOf(tx);
-  const orderIds = new Set(rows.orders.filter((o) => o.customerId === customerId).map((o) => o.id));
-  return out(
-    tx,
-    rows.sellerOrders.filter((so) => orderIds.has(so.orderId)),
-  );
+  const rows = await clientOf(tx).sellerOrder.findMany({
+    where: { order: { customerId } },
+    orderBy: { id: "asc" },
+  });
+  return rows.map(toSellerOrder);
 }
 
 /** BR-11: delivered seller orders that aren't in any payout yet. */
 export async function unpaidCompletedSellerOrders(tx: Tx, shopId?: string): Promise<SellerOrder[]> {
-  return out(
-    tx,
-    rowsOf(tx).sellerOrders.filter(
-      (so) => so.status === "COMPLETED" && !so.payoutId && (!shopId || so.shopId === shopId),
-    ),
-  );
+  const rows = await clientOf(tx).sellerOrder.findMany({
+    where: { status: "COMPLETED", payoutId: null, ...(shopId && { shopId }) },
+    orderBy: [{ completedAt: "asc" }, { id: "asc" }],
+  });
+  return rows.map(toSellerOrder);
 }
 
 export async function orderOfSellerOrder(tx: Tx, sellerOrder: SellerOrder): Promise<Order | undefined> {
@@ -124,71 +127,80 @@ export async function updateSellerOrder(
   patch: Partial<SellerOrder>,
   guard: { from?: SellerOrderStatus } = {},
 ): Promise<SellerOrder | undefined> {
-  const sellerOrder = writableRowsOf(tx).sellerOrders.find((so) => so.id === id);
-  if (!sellerOrder || (guard.from && sellerOrder.status !== guard.from)) return undefined;
-  Object.assign(sellerOrder, structuredClone(patch));
-  return out(tx, sellerOrder);
+  const data = clearing(sellerOrderColumns(patch)) as Prisma.SellerOrderUncheckedUpdateManyInput;
+  const { count } = await writableClientOf(tx).sellerOrder.updateMany({
+    where: { id, ...(guard.from && { status: guard.from }) },
+    data,
+  });
+  return count === 0 ? undefined : findSellerOrder(tx, id);
 }
 
+/**
+ * BR-11 / DB-06: each seller order is paid out once. Only orders with no payout yet are linked; if another payout
+ * run linked any of them first, this throws and the whole run rolls back, so no order is ever paid twice.
+ */
 export async function setPayoutOnSellerOrders(tx: Tx, sellerOrderIds: string[], payoutId: string): Promise<void> {
-  const ids = new Set(sellerOrderIds);
-  writableRowsOf(tx)
-    .sellerOrders.filter((so) => ids.has(so.id))
-    .forEach((so) => (so.payoutId = payoutId));
+  const client = writableClientOf(tx);
+  const { count } = await client.sellerOrder.updateMany({
+    where: { id: { in: sellerOrderIds }, payoutId: null },
+    data: { payoutId },
+  });
+  if (count === new Set(sellerOrderIds).size) return;
+  const taken = await client.sellerOrder.count({
+    where: { id: { in: sellerOrderIds }, payoutId: { not: null }, NOT: { payoutId } },
+  });
+  if (taken > 0) throw new ConflictError("These orders were just paid out by another run. Refresh and check.");
 }
 
 // ---------- Order items ----------
 
 export async function itemsOfSellerOrder(tx: Tx, sellerOrderId: string): Promise<OrderItem[]> {
-  return out(
-    tx,
-    rowsOf(tx).orderItems.filter((i) => i.sellerOrderId === sellerOrderId),
-  );
+  const rows = await clientOf(tx).orderItem.findMany({ where: { sellerOrderId }, orderBy: { id: "asc" } });
+  return rows.map(toOrderItem);
 }
 
 export async function itemsOfSellerOrders(tx: Tx, sellerOrderIds: string[]): Promise<OrderItem[]> {
-  const ids = new Set(sellerOrderIds);
-  return out(
-    tx,
-    rowsOf(tx).orderItems.filter((i) => ids.has(i.sellerOrderId)),
-  );
+  const rows = await clientOf(tx).orderItem.findMany({
+    where: { sellerOrderId: { in: sellerOrderIds } },
+    orderBy: { id: "asc" },
+  });
+  return rows.map(toOrderItem);
 }
 
 export async function findOrderItem(tx: Tx, id: string): Promise<OrderItem | undefined> {
-  return out(
-    tx,
-    rowsOf(tx).orderItems.find((i) => i.id === id),
-  );
+  const row = await clientOf(tx).orderItem.findUnique({ where: { id } });
+  return row ? toOrderItem(row) : undefined;
 }
 
 // ---------- Payouts ----------
 
 export async function payoutsOfShop(tx: Tx, shopId: string): Promise<Payout[]> {
-  return out(
-    tx,
-    rowsOf(tx)
-      .payouts.filter((p) => p.shopId === shopId)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-  );
+  const rows = await clientOf(tx).payout.findMany({
+    where: { shopId },
+    include: payoutInclude,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  });
+  return rows.map(toPayout);
 }
 
 export async function listPayouts(tx: Tx): Promise<Payout[]> {
-  return out(
-    tx,
-    [...rowsOf(tx).payouts].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-  );
+  const rows = await clientOf(tx).payout.findMany({
+    include: payoutInclude,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+  });
+  return rows.map(toPayout);
 }
 
 export async function findPayout(tx: Tx, id: string): Promise<Payout | undefined> {
-  return out(
-    tx,
-    rowsOf(tx).payouts.find((p) => p.id === id),
-  );
+  const row = await clientOf(tx).payout.findUnique({ where: { id }, include: payoutInclude });
+  return row ? toPayout(row) : undefined;
 }
 
+/** Stores the payout; its seller orders are linked by setPayoutOnSellerOrders in the same transaction. */
 export async function insertPayout(tx: Tx, payout: Payout): Promise<Payout> {
-  writableRowsOf(tx).payouts.push(structuredClone(payout));
-  return out(tx, payout);
+  const data = payoutColumns(payout) as Prisma.PayoutUncheckedCreateInput;
+  await writableClientOf(tx).payout.create({ data });
+  return payout;
 }
 
 /** DB-06: with `from`, the update only applies while the status is still `from`; returns undefined otherwise. */
@@ -198,24 +210,24 @@ export async function updatePayout(
   patch: Partial<Payout>,
   guard: { from?: Payout["status"] } = {},
 ): Promise<Payout | undefined> {
-  const payout = writableRowsOf(tx).payouts.find((p) => p.id === id);
-  if (!payout || (guard.from && payout.status !== guard.from)) return undefined;
-  Object.assign(payout, patch);
-  return out(tx, payout);
+  const data = clearing(payoutColumns(patch)) as Prisma.PayoutUncheckedUpdateManyInput;
+  const { count } = await writableClientOf(tx).payout.updateMany({
+    where: { id, ...(guard.from && { status: guard.from }) },
+    data,
+  });
+  return count === 0 ? undefined : findPayout(tx, id);
 }
 
 // ---------- Custom requests (FR-14) ----------
 
 export async function findCustomRequest(tx: Tx, id: string): Promise<CustomRequest | undefined> {
-  return out(
-    tx,
-    rowsOf(tx).customRequests.find((r) => r.id === id),
-  );
+  const row = await clientOf(tx).customRequest.findUnique({ where: { id } });
+  return row ? toCustomRequest(row) : undefined;
 }
 
 export async function insertCustomRequest(tx: Tx, request: CustomRequest): Promise<CustomRequest> {
-  writableRowsOf(tx).customRequests.push(structuredClone(request));
-  return out(tx, request);
+  const data = customRequestColumns(request) as Prisma.CustomRequestUncheckedCreateInput;
+  return toCustomRequest(await writableClientOf(tx).customRequest.create({ data }));
 }
 
 export async function updateCustomRequest(
@@ -223,32 +235,27 @@ export async function updateCustomRequest(
   id: string,
   patch: Partial<CustomRequest>,
 ): Promise<CustomRequest | undefined> {
-  const request = writableRowsOf(tx).customRequests.find((r) => r.id === id);
-  if (!request) return undefined;
-  Object.assign(request, structuredClone(patch));
-  return out(tx, request);
+  const data = clearing(customRequestColumns(patch)) as Prisma.CustomRequestUncheckedUpdateManyInput;
+  const { count } = await writableClientOf(tx).customRequest.updateMany({ where: { id }, data });
+  return count === 0 ? undefined : findCustomRequest(tx, id);
 }
 
 export async function customRequestsOfCustomer(tx: Tx, customerId: string): Promise<CustomRequest[]> {
-  return out(
-    tx,
-    rowsOf(tx)
-      .customRequests.filter((r) => r.customerId === customerId)
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-  );
+  const rows = await clientOf(tx).customRequest.findMany({
+    where: { customerId },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+  });
+  return rows.map(toCustomRequest);
 }
 
 export async function customRequestsOfShop(tx: Tx, shopId: string): Promise<CustomRequest[]> {
-  return out(
-    tx,
-    rowsOf(tx)
-      .customRequests.filter((r) => r.shopId === shopId)
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-  );
+  const rows = await clientOf(tx).customRequest.findMany({
+    where: { shopId },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+  });
+  return rows.map(toCustomRequest);
 }
 
 export async function renameCustomerOnRequests(tx: Tx, customerId: string, customerName: string): Promise<void> {
-  writableRowsOf(tx)
-    .customRequests.filter((r) => r.customerId === customerId)
-    .forEach((r) => (r.customerName = customerName));
+  await writableClientOf(tx).customRequest.updateMany({ where: { customerId }, data: { customerName } });
 }

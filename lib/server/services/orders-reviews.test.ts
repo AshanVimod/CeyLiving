@@ -3,21 +3,20 @@ import { describe, expect, it } from "vitest";
 import { getPublicProduct } from "../catalogue";
 import { orderTransitionSchema } from "@/lib/validation/order";
 import { reviewSchema } from "@/lib/validation/content";
-import { withTestStore, user } from "@/test/store-helpers";
+import { changeData, readAll, user, withTestDatabase } from "@/test/db";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
-import { readStore, transaction } from "../store/dev-store";
 import { buyerContactFor, confirmDelivery, customerOrder, transitionSellerOrder } from "./orders";
 import { createReview, editReview, replyToReview, reviewEligibility } from "./reviews";
 import type { SellerOrderStatus } from "@/lib/types";
 
-withTestStore();
+withTestDatabase();
 
 const NEW_ORDER = "so_000114"; // elephant set, Ambalangoda, NEW
 const DISPATCHED = "so_000113"; // Mayura mask, Ambalangoda, DISPATCHED
 const DELIVERED_ITEM = "item_000112"; // macramé hanger, delivered, not reviewed
 
 async function setStatus(id: string, status: SellerOrderStatus) {
-  await transaction((db) => {
+  await changeData((db) => {
     db.sellerOrders.find((s) => s.id === id)!.status = status;
   });
 }
@@ -54,19 +53,19 @@ describe("FR-7 seller orders (BR-07)", () => {
   });
 
   it("a seller sees and moves only their own shop's orders", async () => {
-    const other = readStore().sellerOrders.find((s) => s.shopId === "shop_nool-and-knot")!;
+    const other = (await readAll()).sellerOrders.find((s) => s.shopId === "shop_nool-and-knot")!;
     await expect(
       transitionSellerOrder(user("user_seller"), { sellerOrderId: other.id, to: "ACCEPTED" }),
     ).rejects.toBeInstanceOf(NotFoundError);
   });
 
   it("SEC-A5 a customer can't open someone else's order", async () => {
-    const theirs = readStore().orders.find((o) => o.customerId !== "user_customer")!;
+    const theirs = (await readAll()).orders.find((o) => o.customerId !== "user_customer")!;
     await expect(customerOrder(user("user_customer"), theirs.orderNumber)).rejects.toThrow(NotFoundError);
   });
 
-  it("SEC-A10 buyer details disappear 30 days after delivery", () => {
-    const db = readStore();
+  it("SEC-A10 buyer details disappear 30 days after delivery", async () => {
+    const db = await readAll();
     const so = {
       ...db.sellerOrders.find((s) => s.id === DISPATCHED)!,
       status: "COMPLETED" as const,
@@ -85,7 +84,7 @@ describe("FR-3a reviews", () => {
     await expect(
       createReview(user("user_applicant"), { orderItemId: DELIVERED_ITEM, rating: 5 }),
     ).rejects.toBeInstanceOf(NotFoundError);
-    const dispatchedItem = readStore().orderItems.find((i) => i.sellerOrderId === DISPATCHED)!;
+    const dispatchedItem = (await readAll()).orderItems.find((i) => i.sellerOrderId === DISPATCHED)!;
     await expect(
       createReview(user("user_customer"), { orderItemId: dispatchedItem.id, rating: 5 }),
     ).rejects.toBeInstanceOf(ConflictError);
@@ -115,11 +114,11 @@ describe("FR-3a reviews", () => {
       canReview: false,
       reason: expect.stringMatching(/own shop/),
     });
-    const review = readStore().reviews.find((r) => r.productId === naga.id)!;
+    const review = (await readAll()).reviews.find((r) => r.productId === naga.id)!;
     await replyToReview(user("user_seller"), review.id, "Thank you for the kind words!");
     await replyToReview(user("user_seller"), review.id, "Thank you, Anushka!");
-    expect(readStore().reviews.find((r) => r.id === review.id)!.sellerReply).toBe("Thank you, Anushka!");
-    const other = readStore().reviews.find((r) => r.shopId !== "shop_ambalangoda-mask-house")!;
+    expect((await readAll()).reviews.find((r) => r.id === review.id)!.sellerReply).toBe("Thank you, Anushka!");
+    const other = (await readAll()).reviews.find((r) => r.shopId !== "shop_ambalangoda-mask-house")!;
     await expect(replyToReview(user("user_seller"), other.id, "Not my review")).rejects.toBeInstanceOf(NotFoundError);
   });
 
@@ -145,7 +144,7 @@ describe("FR-3a reviews", () => {
   });
 
   it("RULE-M3 a muted customer can't post a review", async () => {
-    await transaction((db) => {
+    await changeData((db) => {
       const muted = db.users.find((u) => u.id === "user_customer")!;
       Object.assign(muted, {
         postingRestriction: "MUTED",

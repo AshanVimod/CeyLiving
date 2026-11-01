@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { db } from "@/lib/server/db/tx";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -21,8 +20,13 @@ import { lowestPriceCents } from "@/lib/catalogue";
 import { FREE_SHIPPING_THRESHOLD_CENTS, SHIPPING_FEE_PER_SHOP_CENTS } from "@/lib/config";
 import { getCategory } from "@/lib/data/categories";
 import { formatLkr, photoUrl } from "@/lib/format";
-import { getPublicProduct, getPublicShop, publicCatalogue, relatedProducts } from "@/lib/server/catalogue";
-import { visibleReviewsOfProduct } from "@/lib/server/repositories/content";
+import {
+  getPublicProduct,
+  getPublicShop,
+  publicCatalogue,
+  publicReviewsOfProduct,
+  relatedProducts,
+} from "@/lib/server/catalogue";
 
 export async function generateStaticParams() {
   return (await publicCatalogue()).map((p) => ({ productSlug: p.slug }));
@@ -89,7 +93,7 @@ async function ProductContent({ params }: { params: PageProps<"/p/[productSlug]"
   if (!product || !shop) notFound();
   const category = getCategory(product.categorySlug)!;
   const rating = product.rating;
-  const reviews = await visibleReviewsOfProduct(db, product.id);
+  const reviews = await publicReviewsOfProduct(product.id);
   const related = await relatedProducts(product);
 
   return (

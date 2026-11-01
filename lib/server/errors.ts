@@ -51,9 +51,3 @@ export class RateLimitError extends DomainError {
     super("RATE_LIMITED", message);
   }
 }
-
-export class StoreUnavailableError extends DomainError {
-  constructor() {
-    super("UNAVAILABLE", "This feature isn’t available yet.");
-  }
-}

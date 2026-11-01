@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { db as readDb } from "@/lib/server/db/tx";
 import { productInput, validApplication, validShop } from "@/test/fixtures";
-import { withTestStore, user } from "@/test/store-helpers";
+import { changeData, freshUser, readAll, user, withTestDatabase } from "@/test/db";
 import { getPublicProduct, getPublicShop } from "./catalogue";
 import { findShopByOwner } from "./repositories/catalogue";
 import { decideApplication, submitApplication } from "./services/applications";
@@ -12,14 +12,13 @@ import { decideProduct, saveProduct } from "./services/products";
 import { answerQuestion, askQuestion } from "./services/questions";
 import { createReview, reviewEligibility } from "./services/reviews";
 import { savePayoutDetails, updateShop } from "./services/shops";
-import { readStore, transaction } from "./store/dev-store";
 import { SHIPPING_FEE_PER_SHOP_CENTS } from "@/lib/config";
 
-withTestStore();
+withTestDatabase();
 
 /** Stands in for checkout until real payments exist (spec T10): one paid order for one item. */
 async function demoPurchase(customerId: string, productId: string) {
-  return transaction((db) => {
+  return changeData((db) => {
     const product = db.products.find((p) => p.id === productId)!;
     const shop = db.shops.find((s) => s.slug === product.shopSlug)!;
     const variant = product.variants[0]!;
@@ -69,9 +68,9 @@ describe("C13 full journey", () => {
 
     // A customer applies and an admin approves: role SELLER, shop DRAFT.
     await submitApplication(user("user_customer"), validApplication());
-    const application = readStore().applications.find((a) => a.userId === "user_customer")!;
+    const application = (await readAll()).applications.find((a) => a.userId === "user_customer")!;
     await decideApplication(admin, { decision: "approve", applicationId: application.id });
-    const seller = user("user_customer");
+    const seller = await freshUser("user_customer");
     expect(seller.role).toBe("SELLER");
 
     // The new seller sets up the shop and posts an item; it waits for approval (RULE-P2).
@@ -102,7 +101,7 @@ describe("C13 full journey", () => {
     expect(await reviewEligibility(buyer, item.id)).toMatchObject({ canReview: true });
 
     // The buyer is muted, so the admin lifts it first; then the review goes through.
-    await transaction((db) =>
+    await changeData((db) =>
       Object.assign(
         db.users.find((u) => u.id === buyer.id)!,
         { postingRestriction: "NONE", mutedUntil: undefined },
@@ -131,7 +130,7 @@ describe("C13 full journey", () => {
       reason: "Testing the moderation flow.",
     });
 
-    const db = readStore();
+    const db = await readAll();
     expect(db.answers.find((a) => a.id === answer.id)!.status).toBe("HIDDEN");
     expect(db.reviews.some((r) => r.orderItemId === orderItemId && r.status === "VISIBLE")).toBe(true);
     expect(db.auditLog.map((a) => a.action)).toEqual(

@@ -1,19 +1,18 @@
+// @vitest-environment node
 import { beforeEach, describe, expect, it } from "vitest";
-import * as devContent from "@/lib/server/repositories/content";
-import * as pgContent from "@/lib/server/repositories/pg/content";
+import * as contentRepo from "@/lib/server/repositories/content";
 import { ConflictError } from "@/lib/server/errors";
-import type { StoreData } from "@/lib/server/store/dev-store";
-import { buildSeed } from "@/lib/server/store/seed";
+import { buildSeed, type SeedData } from "@/prisma/seed-data";
 import type { ProductAnswer, ProductQuestion, Report, Review } from "@/lib/types";
-import { byId, contractBackends, isNewestFirst } from "./backends";
+import { byId, repositoryBackend, isNewestFirst } from "./backends";
 
 // Reviews, questions, answers, reports and helpful votes: the same suite on both backends, then what only
 // PostgreSQL guarantees.
 
-const { backends, pg } = await contractBackends(devContent, pgContent);
+const { backends, pg } = await repositoryBackend(contentRepo);
 
 /** Test posts on a real seed product, written by real seed users. */
-function fixtures(seed: StoreData) {
+function fixtures(seed: SeedData) {
   const product = seed.products.find((p) => p.shopSlug === "ambalangoda-mask-house")!;
   const shopId = seed.shops.find((s) => s.slug === product.shopSlug)!.id;
   const review = (id: string, authorId: string, createdAt: string): Review => ({
@@ -59,10 +58,9 @@ function fixtures(seed: StoreData) {
 }
 
 for (const [name, backend] of backends) {
-  describe.skipIf(!backend)(`content repository contract: ${name}`, () => {
-    if (!backend) return; // describe bodies still run when skipped
-    const { repo, db, withTx, reset } = backend;
-    let seed: StoreData;
+  describe(`content repository contract: ${name}`, () => {
+    const { repo, db, withTx, reset } = backend!;
+    let seed: SeedData;
     let f: ReturnType<typeof fixtures>;
     beforeEach(async () => {
       seed = await reset();
@@ -260,8 +258,7 @@ for (const [name, backend] of backends) {
   });
 }
 
-describe.skipIf(!pg)("content (PostgreSQL only)", () => {
-  if (!pg) return;
+describe("content (PostgreSQL only)", () => {
   const { handles } = pg;
   let f: ReturnType<typeof fixtures>;
   beforeEach(async () => {
@@ -269,13 +266,13 @@ describe.skipIf(!pg)("content (PostgreSQL only)", () => {
     await pg.reset(seed);
     f = fixtures(seed);
     await handles.withTx((tx) =>
-      pgContent.insertReview(tx, f.review("rev_p", "user_customer", "2026-10-01T10:00:00.000Z")),
+      contentRepo.insertReview(tx, f.review("rev_p", "user_customer", "2026-10-01T10:00:00.000Z")),
     );
   });
 
   it("FR-8 a second open report on the same post by the same person reads as a plain conflict", async () => {
-    await handles.withTx((tx) => pgContent.insertReport(tx, f.report("rep_a", "user_muted", "rev_p")));
-    const again = handles.withTx((tx) => pgContent.insertReport(tx, f.report("rep_b", "user_muted", "rev_p")));
+    await handles.withTx((tx) => contentRepo.insertReport(tx, f.report("rep_a", "user_muted", "rev_p")));
+    const again = handles.withTx((tx) => contentRepo.insertReport(tx, f.report("rep_b", "user_muted", "rev_p")));
     await expect(again).rejects.toBeInstanceOf(ConflictError);
     await expect(again).rejects.toThrow("You’ve already reported this.");
   });
@@ -287,8 +284,8 @@ describe.skipIf(!pg)("content (PostgreSQL only)", () => {
       targetId: "rev_p",
       createdAt: "2026-10-02T10:00:00.000Z",
     };
-    await handles.withTx((tx) => pgContent.insertVote(tx, vote));
-    await expect(handles.withTx((tx) => pgContent.insertVote(tx, vote))).rejects.toThrow(
+    await handles.withTx((tx) => contentRepo.insertVote(tx, vote));
+    await expect(handles.withTx((tx) => contentRepo.insertVote(tx, vote))).rejects.toThrow(
       "You’ve already marked this as helpful.",
     );
   });
@@ -297,23 +294,23 @@ describe.skipIf(!pg)("content (PostgreSQL only)", () => {
     const seed = buildSeed(new Date());
     const item = seed.orderItems.find((i) => !seed.reviews.some((r) => r.orderItemId === i.id))!;
     const first = { ...f.review("rev_i1", "user_customer", "2026-10-01T10:00:00.000Z"), orderItemId: item.id };
-    await handles.withTx((tx) => pgContent.insertReview(tx, first));
-    const again = handles.withTx((tx) => pgContent.insertReview(tx, { ...first, id: "rev_i2" }));
+    await handles.withTx((tx) => contentRepo.insertReview(tx, first));
+    const again = handles.withTx((tx) => contentRepo.insertReview(tx, { ...first, id: "rev_i2" }));
     await expect(again).rejects.toThrow("You’ve already reviewed this item.");
   });
 
   it("DB-07 the database refuses a rating outside 1 to 5", async () => {
     await expect(
       handles.withTx((tx) =>
-        pgContent.insertReview(tx, { ...f.review("rev_6", "user_muted", "2026-10-01T10:00:00.000Z"), rating: 6 }),
+        contentRepo.insertReview(tx, { ...f.review("rev_6", "user_muted", "2026-10-01T10:00:00.000Z"), rating: 6 }),
       ),
     ).rejects.toThrow();
   });
 
   it("RULE-M1 moderation can only set status, reason and erased text; any other field is refused", async () => {
     await expect(
-      handles.withTx((tx) => pgContent.updateContent(tx, "REVIEW", "rev_p", { status: "HIDDEN", rating: 1 })),
+      handles.withTx((tx) => contentRepo.updateContent(tx, "REVIEW", "rev_p", { status: "HIDDEN", rating: 1 })),
     ).rejects.toThrow("cannot set rating");
-    expect((await pgContent.findReview(handles.db, "rev_p"))?.status).toBe("VISIBLE");
+    expect((await contentRepo.findReview(handles.db, "rev_p"))?.status).toBe("VISIBLE");
   });
 });

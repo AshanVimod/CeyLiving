@@ -1,11 +1,10 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { withTestStore } from "@/test/store-helpers";
-import { transaction } from "@/lib/server/store/dev-store";
+import { changeData, withTestDatabase } from "@/test/db";
 import robots from "./robots";
 import sitemap from "./sitemap";
 
-withTestStore();
+withTestDatabase();
 afterEach(() => vi.unstubAllEnvs());
 
 const urls = async () => (await sitemap()).map((e) => e.url);
@@ -23,7 +22,7 @@ describe("sitemap.xml and robots.txt", () => {
 
   it("RULE-S4 leaves out a suspended shop and all its items", async () => {
     expect(await urls()).not.toContain("http://localhost:3000/shop/pol-katu-lanka"); // seeded as suspended
-    await transaction((db) => {
+    await changeData((db) => {
       db.shops.find((s) => s.slug === "ambalangoda-mask-house")!.status = "SUSPENDED";
     });
     const list = await urls();
@@ -32,7 +31,7 @@ describe("sitemap.xml and robots.txt", () => {
   });
 
   it("RULE-P4 leaves out items that aren't ACTIVE", async () => {
-    await transaction((db) => {
+    await changeData((db) => {
       db.products.find((p) => p.slug === "naga-raksha-mask")!.status = "PENDING_REVIEW";
     });
     expect((await urls()).some((u) => u.endsWith("/p/naga-raksha-mask"))).toBe(false);

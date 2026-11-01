@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import type { ActionResult, ActionState } from "@/lib/action-result";
 import { decisionSchema } from "@/lib/validation/application";
 import {
@@ -12,6 +11,7 @@ import {
 import { productDecisionSchema } from "@/lib/validation/product";
 import { shopDecisionSchema } from "@/lib/validation/shop";
 import { requireActor } from "../auth";
+import { refreshEverything } from "./refresh";
 import { formToObject, parseInput, runAction } from "../run-action";
 import { decideApplication } from "../services/applications";
 import { moderateContent, officialReply, resolveReport, restrictUser } from "../services/moderation";
@@ -21,9 +21,7 @@ import { decideShop } from "../services/shops";
 // Every admin action: signed in (SEC-A1), validated (SEC-A3), admin role checked in the service,
 // reason required where the rules say so, audit row written in the same transaction (SEC-A9).
 
-function refreshAll() {
-  revalidatePath("/", "layout");
-}
+const refreshAll = refreshEverything;
 
 export async function decideApplicationAction(_: ActionState, form: FormData): Promise<ActionResult> {
   return runAction(async () => {

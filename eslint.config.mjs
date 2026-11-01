@@ -15,15 +15,20 @@ const eslintConfig = defineConfig([
   // BE-01: only repositories (and the transaction handle) touch stored rows; everything else goes through them.
   {
     files: ["app/**", "lib/**", "components/**", "proxy.ts"],
-    ignores: ["lib/server/db/**", "lib/server/repositories/**", "lib/server/store/**", "**/*.test.{ts,tsx}"],
+    ignores: ["lib/server/db/**", "lib/server/repositories/**", "**/*.test.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              group: ["**/store/dev-store"],
+              group: ["**/db/generated", "**/db/generated/**", "@prisma/*", "pg"],
               message: "Read and write data through lib/server/repositories with a db or withTx handle (BE-01).",
+            },
+            {
+              group: ["**/db/tx"],
+              importNames: ["clientOf", "writableClientOf", "createPrismaClient", "handlesFor"],
+              message: "Only repositories look inside a handle (BE-01). Pass `db` or a `tx` to a repository instead.",
             },
           ],
         },

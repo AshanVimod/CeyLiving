@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { withTestStore } from "@/test/store-helpers";
+import { withTestDatabase } from "@/test/db";
 
 const jar = new Map<string, string>();
 vi.mock("next/headers", () => ({
@@ -16,7 +16,7 @@ vi.mock("next/navigation", () => ({
 }));
 const { signInAsDemo } = await import("./session");
 
-withTestStore();
+withTestDatabase();
 afterEach(() => {
   jar.clear();
   vi.unstubAllEnvs();

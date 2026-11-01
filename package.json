@@ -19,7 +19,8 @@
     "db:down": "docker compose -f infra/docker-compose.dev.yml down",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "test:db": "vitest run test/contract"
+    "db:seed": "tsx --conditions=react-server --env-file-if-exists=.env.local prisma/seed.ts",
+    "db:reset": "prisma migrate reset --force"
   },
   "engines": {
     "node": ">=22.12 <23",
@@ -53,7 +54,9 @@
     "lint-staged": "17.6.0",
     "prettier": "3.9.10",
     "prisma": "7.10.1",
+    "server-only": "0.0.1",
     "tailwindcss": "^4",
+    "tsx": "4.23.15",
     "typescript": "^5",
     "vitest": "^5.0.5"
   },
