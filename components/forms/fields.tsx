@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { EyeIcon } from "../ui/icons";
+import { useHydrated } from "@/lib/use-hydrated";
 
 interface FieldProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -128,6 +129,7 @@ export function DemoForm({
   successText: string;
 }) {
   const [state, setState] = useState<"idle" | "sending" | "sent" | "invalid">("idle");
+  const hydrated = useHydrated();
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -157,7 +159,12 @@ export function DemoForm({
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-5">
+    <form
+      method="post" // POST, so nothing typed reaches the address bar if it is sent before the page is ready
+      onSubmit={onSubmit}
+      noValidate
+      className="space-y-5"
+    >
       {state === "invalid" ? (
         <p role="alert" className="rounded-md bg-lacquer/10 px-4 py-3 text-sm text-lacquer">
           Some required fields are empty or invalid. They are marked below.
@@ -166,7 +173,7 @@ export function DemoForm({
       {children}
       <button
         type="submit"
-        disabled={state === "sending"}
+        disabled={state === "sending" || !hydrated}
         className="inline-flex h-12 items-center gap-2 rounded-full bg-forest px-7 font-semibold text-paper transition-[background-color,transform] hover:bg-forest-deep active:scale-[0.98] disabled:opacity-60"
       >
         {state === "sending" ? (

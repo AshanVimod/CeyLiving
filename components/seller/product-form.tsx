@@ -42,6 +42,7 @@ export function ProductForm({ product }: { product?: Product }) {
       pendingLabel="Saving…"
       submitName="intent"
       submitValue="submit"
+      needsScript // the payload below is built from what the seller types, which needs the page to be ready
       extraButtons={
         <button
           type="submit"

@@ -123,7 +123,7 @@ function PriceInputs() {
           );
         })}
       </div>
-      <form onSubmit={apply} className="flex items-end gap-2" noValidate>
+      <form method="get" onSubmit={apply} className="flex items-end gap-2" noValidate>
         <label className="flex-1 text-sm">
           <span className="mb-1 block text-ink-soft">Min (LKR)</span>
           <input

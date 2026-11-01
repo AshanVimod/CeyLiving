@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
 import { summarizeCart } from "@/lib/cart-summary";
 import { FREE_SHIPPING_THRESHOLD_CENTS, MAX_CART_QUANTITY } from "@/lib/config";
 import { formatLkr, photoUrl } from "@/lib/format";
@@ -10,17 +9,7 @@ import { removeLine, selectCart, setQuantity, useStore } from "@/lib/store";
 import { useCatalogueLookup } from "@/lib/use-catalogue-lookup";
 import { MinusIcon, PlusIcon } from "../ui/icons";
 import { toast } from "../ui/toaster";
-
-const noop = () => () => {};
-
-/** True after hydration, so the server-rendered skeleton isn't replaced by an "empty cart" flash. */
-export function useHydrated() {
-  return useSyncExternalStore(
-    noop,
-    () => true,
-    () => false,
-  );
-}
+import { useHydrated } from "@/lib/use-hydrated";
 
 function fieldLabel(key: string) {
   return key.charAt(0).toUpperCase() + key.slice(1);

@@ -35,6 +35,22 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // A <form> with neither `action` nor `method` falls back to GET before JavaScript loads, and puts everything typed
+  // (passwords, phone numbers, bank details) in the address bar. Every form says how it sends.
+  {
+    files: ["app/**/*.tsx", "components/**/*.tsx"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "JSXOpeningElement[name.name='form']:not(:has(JSXAttribute[name.name='action'])):not(:has(JSXAttribute[name.name='method']))",
+          message:
+            'Give every <form> an `action` (a server action) or a `method` ("post", or "get" only for search forms).',
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

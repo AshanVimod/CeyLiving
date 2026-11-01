@@ -9,7 +9,7 @@ import { selectCart, useStore } from "@/lib/store";
 import { useCatalogueLookup } from "@/lib/use-catalogue-lookup";
 import { Field } from "../forms/fields";
 import { ShieldIcon } from "../ui/icons";
-import { useHydrated } from "./cart-view";
+import { useHydrated } from "@/lib/use-hydrated";
 
 export function CheckoutView() {
   const cart = useStore(selectCart);
@@ -49,7 +49,7 @@ export function CheckoutView() {
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate className="grid gap-10 lg:grid-cols-[1fr_380px] lg:items-start">
+    <form method="post" onSubmit={onSubmit} noValidate className="grid gap-10 lg:grid-cols-[1fr_380px] lg:items-start">
       <div className="space-y-10">
         {status === "invalid" ? (
           <p role="alert" className="rounded-md bg-lacquer/10 px-4 py-3 text-sm text-lacquer">
@@ -143,6 +143,7 @@ export function CheckoutView() {
         </dl>
         <button
           type="submit"
+          disabled={!hydrated}
           className="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-forest font-semibold text-paper transition-[background-color,transform] hover:bg-forest-deep active:scale-[0.98]"
         >
           Continue to payment

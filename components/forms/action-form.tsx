@@ -2,6 +2,7 @@
 
 import { createContext, startTransition, useActionState, useContext, useEffect, useId, useRef } from "react";
 import type { ActionResult, ActionState } from "@/lib/action-result";
+import { useHydrated } from "@/lib/use-hydrated";
 import { Field, TextArea } from "./fields";
 
 type ServerAction = (state: ActionState, formData: FormData) => Promise<ActionResult>;
@@ -33,6 +34,11 @@ interface ActionFormProps {
   submitVariant?: "primary" | "secondary" | "danger";
   submitName?: string;
   submitValue?: string;
+  /**
+   * The form builds what it sends in the browser (for example a JSON payload), so it can't be sent before the page
+   * is ready: its buttons stay disabled until then.
+   */
+  needsScript?: boolean;
 }
 
 const variants = {
@@ -44,6 +50,9 @@ const variants = {
 /**
  * A form wired to a server action. It keeps what the person typed when there are errors
  * (no automatic reset), disables the button while sending, and moves focus to the result.
+ *
+ * Before JavaScript has loaded, the form still posts straight to the server action (React's `action` on the form),
+ * so what people type never ends up in the address bar the way a plain GET form would put it.
  */
 export function ActionForm(props: ActionFormProps) {
   const {
@@ -54,8 +63,11 @@ export function ActionForm(props: ActionFormProps) {
     className = "",
     resetOnSuccess,
     extraButtons,
+    needsScript,
   } = props;
   const [state, dispatch, pending] = useActionState(action, null);
+  const hydrated = useHydrated();
+  const waiting = needsScript && !hydrated;
   const formRef = useRef<HTMLFormElement>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
   const statusId = useId();
@@ -70,6 +82,8 @@ export function ActionForm(props: ActionFormProps) {
     (target ?? statusRef.current)?.focus();
   }, [state, resetOnSuccess]);
 
+  // Once the page is ready, this handles the submit instead of the form action, so React doesn't clear the fields
+  // afterwards (it resets a form after its action runs) and errors keep what the person typed.
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
@@ -81,6 +95,7 @@ export function ActionForm(props: ActionFormProps) {
     <ErrorsContext.Provider value={state && !state.ok ? (state.fieldErrors ?? {}) : {}}>
       <form
         ref={formRef}
+        action={dispatch}
         onSubmit={onSubmit}
         noValidate
         className={`space-y-5 ${className}`}
@@ -98,13 +113,13 @@ export function ActionForm(props: ActionFormProps) {
           </p>
         ) : null}
         {children}
-        <div className="flex flex-wrap gap-3">
+        <fieldset disabled={waiting} className="flex flex-wrap gap-3">
           <button
             type="submit"
             name={props.submitName}
             value={props.submitValue}
-            disabled={pending}
-            aria-disabled={pending}
+            disabled={pending || waiting}
+            aria-disabled={pending || waiting}
             className={`inline-flex h-12 items-center gap-2 rounded-full px-7 font-semibold transition-[background-color,transform] active:scale-[0.98] disabled:opacity-60 ${variants[props.submitVariant ?? "primary"]}`}
           >
             {pending ? (
@@ -113,10 +128,10 @@ export function ActionForm(props: ActionFormProps) {
                 aria-hidden="true"
               />
             ) : null}
-            {pending ? pendingLabel : submitLabel}
+            {waiting ? "Loading…" : pending ? pendingLabel : submitLabel}
           </button>
           {extraButtons}
-        </div>
+        </fieldset>
       </form>
     </ErrorsContext.Provider>
   );

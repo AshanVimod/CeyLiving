@@ -7,7 +7,7 @@ import { formatLkr, photoUrl } from "@/lib/format";
 import { addToCart, selectWishlist, toggleWishlist, useStore } from "@/lib/store";
 import { useCatalogueLookup } from "@/lib/use-catalogue-lookup";
 import { toast } from "../ui/toaster";
-import { useHydrated } from "./cart-view";
+import { useHydrated } from "@/lib/use-hydrated";
 
 export function WishlistView() {
   const slugs = useStore(selectWishlist);

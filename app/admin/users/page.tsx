@@ -22,7 +22,7 @@ async function Users({ searchParams }: { searchParams: PageProps<"/admin/users">
     .filter((u) => !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q));
   return (
     <>
-      <form role="search" className="mb-5 flex max-w-md gap-2" action="/admin/users">
+      <form role="search" method="get" className="mb-5 flex max-w-md gap-2" action="/admin/users">
         <label htmlFor="user-q" className="sr-only">
           Find a user by name or email
         </label>

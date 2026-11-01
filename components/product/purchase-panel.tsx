@@ -8,6 +8,7 @@ import type { CustomizationField, Product } from "@/lib/types";
 import { CheckIcon, MinusIcon, PlusIcon } from "../ui/icons";
 import { toast } from "../ui/toaster";
 import { WishlistButton } from "./wishlist-button";
+import { useHydrated } from "@/lib/use-hydrated";
 
 /** Mirrors BR-16: required fields, max length and allowed options. The API re-checks all of it. */
 function validate(fields: CustomizationField[], values: Record<string, string>) {
@@ -29,6 +30,7 @@ export function PurchasePanel({ product }: { product: Product }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [added, setAdded] = useState(false);
+  const hydrated = useHydrated();
   const formId = useId();
 
   const variant = product.variants.find((v) => v.sku === sku) ?? firstAvailable;
@@ -58,7 +60,7 @@ export function PurchasePanel({ product }: { product: Product }) {
   }
 
   return (
-    <form onSubmit={onSubmit} noValidate className="space-y-6">
+    <form method="post" onSubmit={onSubmit} noValidate className="space-y-6">
       <div>
         <p className="flex items-baseline gap-3">
           <span className="text-[1.75rem] font-semibold tabular-nums">{formatLkr(variant.priceCents)}</span>
@@ -218,7 +220,7 @@ export function PurchasePanel({ product }: { product: Product }) {
         </div>
         <button
           type="submit"
-          disabled={!inStock}
+          disabled={!inStock || !hydrated}
           className="relative h-12 flex-1 overflow-hidden rounded-full bg-forest px-6 font-semibold text-paper transition-[background-color,transform] duration-200 hover:bg-forest-deep active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-ink-soft/50"
         >
           <span

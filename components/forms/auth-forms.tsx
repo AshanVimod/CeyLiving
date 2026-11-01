@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Field } from "./fields";
+import { useHydrated } from "@/lib/use-hydrated";
 
 function AuthShell({ title, children, footer }: { title: string; children: React.ReactNode; footer: React.ReactNode }) {
   return (
@@ -50,6 +51,7 @@ function PreviewNotice({ state }: { state: string }) {
 
 export function SignInForm({ next, signedInAs }: { next: string; signedInAs?: string }) {
   const { state, onSubmit } = usePreviewSubmit();
+  const hydrated = useHydrated();
   return (
     <AuthShell
       title="Sign in"
@@ -73,7 +75,8 @@ export function SignInForm({ next, signedInAs }: { next: string; signedInAs?: st
           </Link>
         </p>
       ) : null}
-      <form onSubmit={onSubmit} noValidate className="space-y-5">
+      {/* POST, so nothing typed reaches the address bar if it is sent before the page is ready. */}
+      <form method="post" onSubmit={onSubmit} noValidate className="space-y-5">
         <PreviewNotice state={state} />
         <Field label="Email" name="email" type="email" autoComplete="email webauthn" required />
         <Field label="Password" name="password" type="password" autoComplete="current-password" required />
@@ -84,7 +87,8 @@ export function SignInForm({ next, signedInAs }: { next: string; signedInAs?: st
         </div>
         <button
           type="submit"
-          className="h-12 w-full rounded-full bg-forest font-semibold text-paper hover:bg-forest-deep active:scale-[0.98]"
+          disabled={!hydrated}
+          className="h-12 w-full rounded-full bg-forest font-semibold text-paper hover:bg-forest-deep active:scale-[0.98] disabled:opacity-60"
         >
           Sign in
         </button>
@@ -98,6 +102,7 @@ export function SignInForm({ next, signedInAs }: { next: string; signedInAs?: st
 
 export function RegisterForm({ seller, next }: { seller: boolean; next: string }) {
   const { state, onSubmit } = usePreviewSubmit();
+  const hydrated = useHydrated();
   const signInHref = `/signin?next=${encodeURIComponent(next)}`;
   return (
     <AuthShell
@@ -117,7 +122,8 @@ export function RegisterForm({ seller, next }: { seller: boolean; next: string }
           shop, usually within five working days.
         </p>
       ) : null}
-      <form onSubmit={onSubmit} noValidate className="space-y-5">
+      {/* POST, so nothing typed reaches the address bar if it is sent before the page is ready. */}
+      <form method="post" onSubmit={onSubmit} noValidate className="space-y-5">
         <PreviewNotice state={state} />
         <Field label="Full name" name="name" autoComplete="name" required />
         <Field label="Email" name="email" type="email" autoComplete="email" required />
@@ -132,7 +138,8 @@ export function RegisterForm({ seller, next }: { seller: boolean; next: string }
         />
         <button
           type="submit"
-          className="h-12 w-full rounded-full bg-forest font-semibold text-paper hover:bg-forest-deep active:scale-[0.98]"
+          disabled={!hydrated}
+          className="h-12 w-full rounded-full bg-forest font-semibold text-paper hover:bg-forest-deep active:scale-[0.98] disabled:opacity-60"
         >
           {seller ? "Continue to shop details" : "Create account"}
         </button>

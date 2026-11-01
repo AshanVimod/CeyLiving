@@ -73,6 +73,7 @@ export function SearchBox({ defaultValue = "", size = "default", autoFocus }: Se
   return (
     <form
       role="search"
+      method="get" // search words in the URL on purpose: results pages can be shared and bookmarked
       action="/search"
       className="relative w-full"
       onSubmit={(e) => {
