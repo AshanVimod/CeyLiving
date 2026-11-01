@@ -24,6 +24,10 @@ Open http://localhost:3000. On first run the dev store seeds `.data/dev-store.js
 | `npm run format`                                                        | Formats every file with Prettier (`.prettierrc.json`, 120 columns).                                                                                      |
 | `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test` | The parts of `check` on their own.                                                                                                                       |
 | `npm run build` / `npm start`                                           | Production build and start.                                                                                                                              |
+| `npm run db:up` / `npm run db:down`                                     | Starts / stops the local PostgreSQL and Mailpit in Docker (`infra/docker-compose.dev.yml`). See **Database** below.                                      |
+| `npm run db:migrate`                                                    | Applies new migrations to the local database (`prisma migrate dev`, as `ceyliving_migrator`).                                                            |
+| `npm run db:generate`                                                   | Regenerates the Prisma client in `lib/server/db/generated/` (git-ignored). `npm install` runs it too.                                                    |
+| `npm run test:db`                                                       | Only the repository contract tests (dev store and PostgreSQL).                                                                                           |
 
 A pre-commit hook (Husky + lint-staged) runs Prettier and `eslint --fix` on staged files. `.editorconfig` and `.gitattributes` keep indentation and LF line endings the same on every OS.
 
@@ -38,6 +42,19 @@ A pre-commit hook (Husky + lint-staged) runs Prettier and `eslint --fix` on stag
 | `CEYLIVING_STORE_PATH` | file path                                             | Dev store file. Default `.data/dev-store.json`; tests use a temp file.                                                                                                                     |
 | `LOG_LEVEL`            | `fatal` … `trace`, `silent`                           | Log level (OPS-01). Default `info`, or `silent` under tests.                                                                                                                               |
 | `SITE_URL`             | `https://…` address (default `http://localhost:3000`) | The site's public address for `sitemap.xml` and `robots.txt`. Must be `https://` in production, except on localhost.                                                                       |
+
+## Database (B03, in progress)
+
+PostgreSQL 17 with Prisma 7 (`prisma/schema.prisma`, migrations in `prisma/migrations/`). The app still runs on the dev store; B04 switches it over. Decision record: `docs/adr/0001-schema-grows-per-task.md`.
+
+1. Start Docker Desktop, then `npm run db:up`. PostgreSQL listens on `localhost:15432` (so it never clashes with an installed one) and Mailpit's inbox on http://localhost:8025. Both bind to 127.0.0.1 only.
+2. Put the two local URLs from `.env.example` in `.env.local`, then `npm run db:migrate`.
+
+- **Two database users (DB-10):** `ceyliving_migrator` owns the schema and runs migrations; `ceyliving_app` (created by `infra/postgres-init/`) can only read and write rows. The first migration grants those rights.
+- **Append-only audit log (DB-09):** `ceyliving_app` may not update, delete or truncate `audit_log`.
+- **In the schema, not just the code (DB-07):** CHECK constraints for limits and totals, and partial unique indexes for one open application per person (RULE-A1), one open shop per owner and one open report per reporter.
+- **Code:** `lib/server/db/pg.ts` holds the PostgreSQL handle (`db` and `withTx`, READ COMMITTED, retried up to 3 times on serialization or deadlock errors: DB-05). `lib/server/db/mappers.ts` turns rows into `lib/types.ts` objects (BE-01). `lib/server/repositories/pg/` holds the PostgreSQL repositories; `conformance.ts` makes `npm run typecheck` fail if one stops matching the dev-store version.
+- **Done so far:** B03a (people: users, applications, addresses, notifications, audit log, rate events). B03b adds catalogue and content, B03c commerce.
 
 ## Logging and request IDs
 
@@ -89,7 +106,7 @@ Requests follow the feature spec (section 7.2): **form → server action → ser
 - `lib/server/store/dev-store.ts` — one JSON file, atomic writes (temp file + rename), serialised in-process. In production it serves the seed read-only and refuses every write. An ESLint rule allows importing it only from `lib/server/db/` and `lib/server/repositories/`.
 - `lib/server/permissions.ts` / `auth.ts` — `requireUser`, `requireRole`, `assertShopOwner`, `canPost`.
 
-**Replacing the dev store (backend plan 6.2):** B02 (done) moved all data access behind async repositories and `withTx`. B03 adds a PostgreSQL version of the same repositories and `tx.ts` (Prisma), and B04 switches over and deletes the dev store. Services, actions and pages stay as they are.
+**Replacing the dev store (backend plan 6.2):** B02 (done) moved all data access behind async repositories and `withTx`. B03 adds a PostgreSQL version of the same repositories and handle (`repositories/pg/`, `db/pg.ts`), and B04 switches over and deletes the dev store. Services, actions and pages stay as they are.
 
 ## Security
 
@@ -115,11 +132,12 @@ Requests follow the feature spec (section 7.2): **form → server action → ser
 
 ## Tests
 
-`npm test` runs 163 tests:
+`npm test` runs every test, including the repository contract tests:
 
 - **Unit tests:** every business rule, named with its ID (for example `RULE-R1 blocks a review without a delivered order`).
 - **Permission tests:** every server action is called as a guest, plus wrong-role and other-owner cases.
 - **Production guards:** the demo session and dev store are refused in production.
+- **Repository contract (`test/contract/`):** one suite runs against the dev store and against a throwaway PostgreSQL started by Testcontainers (`test/db.ts`) with the real migrations. The PostgreSQL part also proves DB-05 retries, DB-07 constraints, DB-09 and DB-10 rights. Without Docker it is skipped with a warning; in CI (`CI=true`) a missing Docker fails the run.
 - **Transactions:** a failed step writes nothing (DB-04), a status that changed first gives a clear conflict (DB-06), and the shared read handle refuses writes (BE-03).
 - **Environment:** `lib/env.ts` refuses demo login in production (AU-09) and names bad keys without echoing values.
 - **Logging (OPS-01 to OPS-03):** redaction of secrets and personal data, request-ID rules, the proxy's header and redirects, and the `runAction` and `withRoute` references.

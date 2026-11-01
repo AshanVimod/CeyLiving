@@ -1,0 +1,655 @@
+// CeyLiving database schema (backend plan section 7, ADR 0001).
+// Models match lib/types.ts; repositories map rows to those types (BE-01). Tables and columns are snake_case (DB-01).
+// Money is integer cents (DB-03); times are timestamptz (DB-03). CHECK constraints and table rights that Prisma
+// can't express live in the migrations' SQL (DB-07, DB-09, DB-10).
+
+generator client {
+  provider        = "prisma-client"
+  output          = "../lib/server/db/generated"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Enums (DB-03: database enums matching lib/types.ts) ----------
+
+enum Role {
+  CUSTOMER
+  SELLER
+  ADMIN
+}
+
+enum PostingRestriction {
+  NONE
+  MUTED
+  BANNED
+}
+
+enum CategoryGroup {
+  MODERN
+  TRADITIONAL
+}
+
+enum ApplicationStatus {
+  PENDING
+  NEEDS_CHANGES
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum BusinessType {
+  INDIVIDUAL
+  REGISTERED_BUSINESS
+}
+
+enum ShopStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum ProductStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  REJECTED
+  ARCHIVED
+  REMOVED
+}
+
+enum ProductType {
+  READY_TO_SHIP
+  MADE_TO_ORDER
+}
+
+enum Style {
+  MODERN
+  TRADITIONAL
+  MINIMAL
+  COLOURFUL
+  RUSTIC
+  CULTURAL
+}
+
+enum CustomizationKind {
+  TEXT
+  SELECT
+}
+
+enum SellerOrderStatus {
+  NEW
+  ACCEPTED
+  IN_PROGRESS
+  DISPATCHED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum ContentStatus {
+  VISIBLE
+  HIDDEN
+  DELETED
+}
+
+enum AnswerAuthorRole {
+  SELLER
+  ADMIN
+}
+
+enum ReportTargetType {
+  PRODUCT
+  SHOP
+  REVIEW
+  QUESTION
+  ANSWER
+}
+
+enum ReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+enum VoteTargetType {
+  REVIEW
+  QUESTION
+}
+
+enum PayoutStatus {
+  PENDING
+  SCHEDULED
+  PAID
+  FAILED
+}
+
+enum CustomRequestStatus {
+  OPEN
+  QUOTED
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+// ---------- People ----------
+
+/// Users are never hard-deleted: FR-17 anonymises them and keeps order records (deleted_at marks it).
+model User {
+  id                 String             @id
+  name               String
+  /// Stored lowercase (CHECK in the migration), so this unique index is case-insensitive.
+  email              String             @unique
+  phone              String?
+  role               Role
+  emailVerified      Boolean            @map("email_verified")
+  postingRestriction PostingRestriction @map("posting_restriction")
+  mutedUntil         DateTime?          @map("muted_until") @db.Timestamptz(3)
+  restrictionReason  String?            @map("restriction_reason")
+  createdAt          DateTime           @map("created_at") @db.Timestamptz(3)
+  deletedAt          DateTime?          @map("deleted_at") @db.Timestamptz(3)
+
+  applications        SellerApplication[] @relation("applicant")
+  decidedApplications SellerApplication[] @relation("decider")
+  shops               Shop[]
+  addresses           Address[]
+  orders              Order[]
+  reviews             Review[]
+  questions           ProductQuestion[]
+  answers             ProductAnswer[]
+  reports             Report[]            @relation("reporter")
+  resolvedReports     Report[]            @relation("resolver")
+  auditEntries        AuditLogEntry[]
+  notifications       Notification[]
+  customRequests      CustomRequest[]
+  helpfulVotes        HelpfulVote[]
+  rateEvents          RateEvent[]
+
+  @@index([role])
+  @@map("users")
+}
+
+/// FR-2a: an application to open a shop.
+model SellerApplication {
+  id                String            @id
+  userId            String            @map("user_id")
+  applicantName     String            @map("applicant_name")
+  phone             String
+  businessType      BusinessType      @map("business_type")
+  businessRegNo     String?           @map("business_reg_no")
+  shopName          String            @map("shop_name")
+  craft             String
+  /// 1 to 6 category slugs (CHECK in the migration).
+  categorySlugs     String[]          @map("category_slugs")
+  addressLine1      String            @map("address_line1")
+  addressLine2      String?           @map("address_line2")
+  addressCity       String            @map("address_city")
+  addressDistrict   String            @map("address_district")
+  addressPostalCode String?           @map("address_postal_code")
+  story             String
+  workPhotoUrls     String[]          @map("work_photo_urls")
+  socialUrl         String?           @map("social_url")
+  acceptedTermsAt   DateTime          @map("accepted_terms_at") @db.Timestamptz(3)
+  status            ApplicationStatus
+  adminNote         String?           @map("admin_note")
+  decidedById       String?           @map("decided_by_id")
+  decidedAt         DateTime?         @map("decided_at") @db.Timestamptz(3)
+  createdAt         DateTime          @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime          @map("updated_at") @db.Timestamptz(3)
+
+  user      User  @relation("applicant", fields: [userId], references: [id], onDelete: Restrict)
+  decidedBy User? @relation("decider", fields: [decidedById], references: [id], onDelete: Restrict)
+
+  /// RULE-A1: one open application per person, enforced by the database.
+  @@unique([userId], map: "seller_applications_one_open_per_user", where: raw("status IN ('PENDING', 'NEEDS_CHANGES')"))
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([decidedById])
+  @@map("seller_applications")
+}
+
+model Address {
+  id            String  @id
+  userId        String  @map("user_id")
+  label         String
+  recipientName String  @map("recipient_name")
+  line1         String
+  line2         String?
+  city          String
+  district      String
+  postalCode    String? @map("postal_code")
+  phone         String
+
+  /// FR-17: an account's saved addresses go when the account is deleted.
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+model Notification {
+  id        String    @id
+  userId    String    @map("user_id")
+  type      String
+  title     String
+  href      String
+  readAt    DateTime? @map("read_at") @db.Timestamptz(3)
+  createdAt DateTime  @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+/// SEC-A9 / DB-09: append-only. The app role may INSERT and SELECT only (rights in the migration).
+model AuditLogEntry {
+  id         String   @id
+  actorId    String   @map("actor_id")
+  action     String
+  targetType String   @map("target_type")
+  targetId   String   @map("target_id")
+  reason     String?
+  before     Json?
+  after      Json?
+  createdAt  DateTime @map("created_at") @db.Timestamptz(3)
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@index([actorId])
+  @@map("audit_log")
+}
+
+/// SEC-A6: one posting attempt; old rows are pruned.
+model RateEvent {
+  id     BigInt   @id @default(autoincrement())
+  userId String   @map("user_id")
+  kind   String
+  at     DateTime @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind, at])
+  @@index([at])
+  @@map("rate_events")
+}
+
+// ---------- Catalogue ----------
+
+model Category {
+  slug          String        @id
+  name          String
+  group         CategoryGroup
+  blurb         String
+  subcategories String[]
+  photoId       String        @map("photo_id")
+  photoAlt      String        @map("photo_alt")
+  sinhala       String?
+  sortOrder     Int           @map("sort_order")
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Shop {
+  id                  String     @id
+  ownerId             String     @map("owner_id")
+  slug                String     @unique
+  name                String
+  ownerName           String     @map("owner_name")
+  district            String
+  craft               String
+  story               String
+  quote               String
+  since               Int
+  isVerified          Boolean    @map("is_verified")
+  logoPhotoId         String     @map("logo_photo_id")
+  logoAlt             String     @map("logo_alt")
+  bannerPhotoId       String     @map("banner_photo_id")
+  bannerAlt           String     @map("banner_alt")
+  portraitPhotoId     String?    @map("portrait_photo_id")
+  portraitAlt         String?    @map("portrait_alt")
+  dispatchDays        String     @map("dispatch_days")
+  returnPolicy        String     @map("return_policy")
+  status              ShopStatus
+  statusReason        String?    @map("status_reason")
+  payoutAccountMasked String?    @map("payout_account_masked")
+  createdAt           DateTime   @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime   @map("updated_at") @db.Timestamptz(3)
+
+  owner          User              @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  products       Product[]
+  sellerOrders   SellerOrder[]
+  reviews        Review[]
+  questions      ProductQuestion[]
+  payouts        Payout[]
+  customRequests CustomRequest[]
+
+  /// RULE-S1: one open shop per owner (a closed shop's owner may open another later).
+  @@unique([ownerId], map: "shops_one_open_per_owner", where: raw("status <> 'CLOSED'"))
+  @@index([ownerId])
+  @@index([status])
+  @@map("shops")
+}
+
+model Product {
+  id              String        @id
+  shopId          String        @map("shop_id")
+  categorySlug    String        @map("category_slug")
+  subcategory     String
+  slug            String        @unique
+  title           String
+  description     String
+  /// Material slugs from lib/types.ts (CHECK in the migration).
+  materials       String[]
+  materialNote    String        @map("material_note")
+  styles          Style[]
+  tags            String[]
+  type            ProductType
+  processingDays  Int?          @map("processing_days")
+  isCustomizable  Boolean       @map("is_customizable")
+  isHeritage      Boolean       @map("is_heritage")
+  isEcoFriendly   Boolean       @map("is_eco_friendly")
+  featuredRank    Int?          @map("featured_rank")
+  publishedAt     DateTime      @map("published_at") @db.Date
+  dimensions      String
+  care            String
+  status          ProductStatus
+  rejectionReason String?       @map("rejection_reason")
+  createdAt       DateTime      @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @map("updated_at") @db.Timestamptz(3)
+
+  shop          Shop                 @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  category      Category             @relation(fields: [categorySlug], references: [slug], onDelete: Restrict)
+  images        ProductImage[]
+  variants      ProductVariant[]
+  customization CustomizationField[]
+  orderItems    OrderItem[]
+  reviews       Review[]
+  questions     ProductQuestion[]
+
+  @@index([shopId, status])
+  @@index([status, publishedAt])
+  @@index([categorySlug])
+  @@map("products")
+}
+
+/// RULE-P3: 1 to 8 photos per item, in order.
+model ProductImage {
+  productId String @map("product_id")
+  position  Int
+  photoId   String @map("photo_id")
+  alt       String
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([productId, position])
+  @@map("product_images")
+}
+
+model ProductVariant {
+  productId           String @map("product_id")
+  sku                 String
+  position            Int
+  label               String
+  priceCents          Int    @map("price_cents")
+  compareAtPriceCents Int?   @map("compare_at_price_cents")
+  stock               Int
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([productId, sku])
+  @@unique([productId, position])
+  @@map("product_variants")
+}
+
+model CustomizationField {
+  productId  String            @map("product_id")
+  key        String
+  position   Int
+  label      String
+  kind       CustomizationKind
+  options    String[]
+  maxLength  Int               @map("max_length")
+  isRequired Boolean           @map("is_required")
+  helper     String?
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([productId, key])
+  @@unique([productId, position])
+  @@map("customization_fields")
+}
+
+// ---------- Orders and money ----------
+
+model Order {
+  id              String   @id
+  orderNumber     String   @unique @map("order_number")
+  customerId      String   @map("customer_id")
+  /// Snapshot taken at checkout; never re-read from the address book.
+  shippingAddress Json     @map("shipping_address")
+  subtotalCents   Int      @map("subtotal_cents")
+  shippingCents   Int      @map("shipping_cents")
+  totalCents      Int      @map("total_cents")
+  placedAt        DateTime @map("placed_at") @db.Timestamptz(3)
+
+  customer     User          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  sellerOrders SellerOrder[]
+
+  @@index([customerId, placedAt])
+  @@map("orders")
+}
+
+model SellerOrder {
+  id            String            @id
+  orderId       String            @map("order_id")
+  shopId        String            @map("shop_id")
+  status        SellerOrderStatus
+  subtotalCents Int               @map("subtotal_cents")
+  shippingCents Int               @map("shipping_cents")
+  courierName   String?           @map("courier_name")
+  trackingRef   String?           @map("tracking_ref")
+  cancelReason  String?           @map("cancel_reason")
+  acceptedAt    DateTime?         @map("accepted_at") @db.Timestamptz(3)
+  dispatchedAt  DateTime?         @map("dispatched_at") @db.Timestamptz(3)
+  completedAt   DateTime?         @map("completed_at") @db.Timestamptz(3)
+  updatedAt     DateTime          @map("updated_at") @db.Timestamptz(3)
+  /// BR-11: each seller order is paid out once.
+  payoutId      String?           @map("payout_id")
+
+  order  Order       @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  shop   Shop        @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  payout Payout?     @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  items  OrderItem[]
+
+  @@index([orderId])
+  @@index([shopId, status])
+  @@index([shopId, updatedAt])
+  @@index([payoutId])
+  @@index([status, completedAt])
+  @@map("seller_orders")
+}
+
+model OrderItem {
+  id             String @id
+  sellerOrderId  String @map("seller_order_id")
+  productId      String @map("product_id")
+  variantSku     String @map("variant_sku")
+  productTitle   String @map("product_title")
+  variantLabel   String @map("variant_label")
+  unitPriceCents Int    @map("unit_price_cents")
+  quantity       Int
+
+  sellerOrder SellerOrder @relation(fields: [sellerOrderId], references: [id], onDelete: Restrict)
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  review      Review?
+
+  @@index([sellerOrderId])
+  @@index([productId])
+  @@map("order_items")
+}
+
+/// BR-10 / BR-11: one weekly statement per shop. Its seller orders point to it (seller_orders.payout_id).
+model Payout {
+  id              String       @id
+  shopId          String       @map("shop_id")
+  periodStart     DateTime     @map("period_start") @db.Timestamptz(3)
+  periodEnd       DateTime     @map("period_end") @db.Timestamptz(3)
+  grossCents      Int          @map("gross_cents")
+  commissionCents Int          @map("commission_cents")
+  refundsCents    Int          @map("refunds_cents")
+  netCents        Int          @map("net_cents")
+  status          PayoutStatus
+  paidAt          DateTime?    @map("paid_at") @db.Timestamptz(3)
+  reference       String?
+  createdAt       DateTime     @map("created_at") @db.Timestamptz(3)
+
+  shop         Shop          @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  sellerOrders SellerOrder[]
+
+  @@index([shopId, createdAt])
+  @@index([status])
+  @@map("payouts")
+}
+
+/// FR-14: a customer asks a maker for something made to measure.
+model CustomRequest {
+  id              String              @id
+  customerId      String              @map("customer_id")
+  customerName    String              @map("customer_name")
+  shopId          String              @map("shop_id")
+  message         String
+  budgetCents     Int?                @map("budget_cents")
+  status          CustomRequestStatus
+  quotePriceCents Int?                @map("quote_price_cents")
+  quoteDays       Int?                @map("quote_days")
+  quoteMessage    String?             @map("quote_message")
+  quotedAt        DateTime?           @map("quoted_at") @db.Timestamptz(3)
+  declineReason   String?             @map("decline_reason")
+  createdAt       DateTime            @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime            @map("updated_at") @db.Timestamptz(3)
+
+  customer User @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  shop     Shop @relation(fields: [shopId], references: [id], onDelete: Restrict)
+
+  @@index([customerId, updatedAt])
+  @@index([shopId, updatedAt])
+  @@map("custom_requests")
+}
+
+// ---------- Community ----------
+
+model Review {
+  id              String        @id
+  productId       String        @map("product_id")
+  shopId          String        @map("shop_id")
+  /// RULE-R1: one review per delivered order item.
+  orderItemId     String?       @unique @map("order_item_id")
+  authorId        String        @map("author_id")
+  authorName      String        @map("author_name")
+  rating          Int
+  comment         String?
+  status          ContentStatus
+  statusReason    String?       @map("status_reason")
+  sellerReply     String?       @map("seller_reply")
+  sellerRepliedAt DateTime?     @map("seller_replied_at") @db.Timestamptz(3)
+  ceylivingReply  String?       @map("ceyliving_reply")
+  createdAt       DateTime      @map("created_at") @db.Timestamptz(3)
+  editedAt        DateTime?     @map("edited_at") @db.Timestamptz(3)
+
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Restrict)
+  shop      Shop       @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([productId, status])
+  @@index([shopId, createdAt])
+  @@index([authorId])
+  @@map("reviews")
+}
+
+model ProductQuestion {
+  id           String        @id
+  productId    String        @map("product_id")
+  shopId       String        @map("shop_id")
+  authorId     String        @map("author_id")
+  authorName   String        @map("author_name")
+  body         String
+  status       ContentStatus
+  statusReason String?       @map("status_reason")
+  createdAt    DateTime      @map("created_at") @db.Timestamptz(3)
+
+  product Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  shop    Shop            @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  author  User            @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  answers ProductAnswer[]
+
+  @@index([productId, status])
+  @@index([shopId, createdAt])
+  @@index([authorId])
+  @@map("product_questions")
+}
+
+model ProductAnswer {
+  id           String           @id
+  questionId   String           @map("question_id")
+  authorId     String           @map("author_id")
+  authorRole   AnswerAuthorRole @map("author_role")
+  body         String
+  status       ContentStatus
+  statusReason String?          @map("status_reason")
+  createdAt    DateTime         @map("created_at") @db.Timestamptz(3)
+
+  question ProductQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  author   User            @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([questionId, createdAt])
+  @@index([authorId])
+  @@map("product_answers")
+}
+
+/// FR-8. The target can be any of five kinds, so target_id has no foreign key (checked in the service).
+model Report {
+  id           String           @id
+  reporterId   String           @map("reporter_id")
+  targetType   ReportTargetType @map("target_type")
+  targetId     String           @map("target_id")
+  reason       String
+  details      String?
+  status       ReportStatus
+  resolvedById String?          @map("resolved_by_id")
+  resolution   String?
+  createdAt    DateTime         @map("created_at") @db.Timestamptz(3)
+
+  reporter   User  @relation("reporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  resolvedBy User? @relation("resolver", fields: [resolvedById], references: [id], onDelete: Restrict)
+
+  /// FR-8: one open report per person per target.
+  @@unique([reporterId, targetType, targetId], map: "reports_one_open_per_reporter", where: raw("status = 'OPEN'"))
+  @@index([targetType, targetId, status])
+  @@index([status, createdAt])
+  @@index([reporterId])
+  @@index([resolvedById])
+  @@map("reports")
+}
+
+/// FR-19: one vote per person per review or question. The target has no foreign key (two possible tables).
+model HelpfulVote {
+  userId     String         @map("user_id")
+  targetType VoteTargetType @map("target_type")
+  targetId   String         @map("target_id")
+  createdAt  DateTime       @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, targetType, targetId])
+  @@index([targetType, targetId])
+  @@map("helpful_votes")
+}

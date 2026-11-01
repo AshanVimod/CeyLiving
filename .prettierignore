@@ -6,6 +6,8 @@ public/
 docs/
 package-lock.json
 next-env.d.ts
+lib/server/db/generated/
+prisma/migrations/
 
 # Written and re-added by `next dev`; formatting it would only create churn
 AGENTS.md

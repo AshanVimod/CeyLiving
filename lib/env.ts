@@ -16,6 +16,10 @@ export const envSchema = z
     ENABLE_DEMO_LOGIN: flag,
     // Dev store file (feature spec 7.4); tests point it at a temp file.
     CEYLIVING_STORE_PATH: z.string().min(1).optional(),
+    // DB-10: the app connects as ceyliving_app (data rights only). Not read until B04 switches the app to PostgreSQL.
+    DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/, error: "must be a postgresql:// address" }).optional(),
+    // DB-10: migrations run as the schema owner, ceyliving_migrator. Read by the Prisma CLI (prisma.config.ts).
+    DATABASE_MIGRATION_URL: z.url({ protocol: /^postgres(ql)?$/, error: "must be a postgresql:// address" }).optional(),
     // OPS-01: log level. Default: info, or silent under NODE_ENV=test (see lib/server/observability/logger.ts).
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).optional(),
     // FR-2c: the site's public address, used for absolute links in sitemap.xml and robots.txt. No trailing slash.

@@ -1,0 +1,33 @@
+# Local services for development (backend plan 15.1). Start with `npm run db:up`, stop with `npm run db:down`.
+# Ports are bound to 127.0.0.1 only. PostgreSQL uses 15432 so it never clashes with one already installed on the
+# computer. The passwords below are for this local database only and are never used anywhere else.
+name: ceyliving-dev
+
+services:
+  postgres:
+    image: postgres:17.11-alpine
+    environment:
+      # DB-10: the owner role runs migrations; the app connects as ceyliving_app (created by the init script).
+      POSTGRES_USER: ceyliving_migrator
+      POSTGRES_PASSWORD: ceyliving_dev_migrator
+      POSTGRES_DB: ceyliving
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ceyliving_migrator -d ceyliving"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # A local inbox: every email the app sends lands here (http://localhost:8025). Nothing leaves the computer.
+  mailpit:
+    image: axllent/mailpit:v1.33.0
+    ports:
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
+
+volumes:
+  postgres-data:
