@@ -76,6 +76,11 @@ export interface ProductQuery {
   minRating?: number;
   sort?: SortValue;
   limit?: number;
+  /** Server-side only (never read from the URL): one shop's items, heritage or eco pieces, or given slugs. */
+  shop?: string;
+  heritage?: boolean;
+  ecoFriendly?: boolean;
+  slugs?: string[];
 }
 
 export function lowestPriceCents(p: Pick<Product, "variants">): number {
@@ -129,6 +134,10 @@ function matchesFilters(p: CatalogueProduct, query: ProductQuery): boolean {
   const price = lowestPriceCents(p);
   if (query.q && !matchesKeyword(p, query.q)) return false;
   if (query.category && p.categorySlug !== query.category) return false;
+  if (query.shop && p.shopSlug !== query.shop) return false;
+  if (query.heritage !== undefined && p.isHeritage !== query.heritage) return false;
+  if (query.ecoFriendly !== undefined && p.isEcoFriendly !== query.ecoFriendly) return false;
+  if (query.slugs && !query.slugs.includes(p.slug)) return false;
   if (query.minPrice !== undefined && price < query.minPrice) return false;
   if (query.maxPrice !== undefined && price > query.maxPrice) return false;
   if (query.style?.length && !query.style.some((s) => p.styles.includes(s))) return false;
@@ -140,18 +149,26 @@ function matchesFilters(p: CatalogueProduct, query: ProductQuery): boolean {
   return true;
 }
 
+/** Ties always fall back to the product ID, so every sort gives one fixed order (keyset pages rely on it). */
+const byId = (a: CatalogueProduct, b: CatalogueProduct) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
 const sorters: Record<SortValue, (a: CatalogueProduct, b: CatalogueProduct) => number> = {
-  featured: (a, b) => (a.featuredRank ?? 999) - (b.featuredRank ?? 999) || b.publishedAt.localeCompare(a.publishedAt),
-  newest: (a, b) => b.publishedAt.localeCompare(a.publishedAt),
-  price_asc: (a, b) => lowestPriceCents(a) - lowestPriceCents(b),
-  price_desc: (a, b) => lowestPriceCents(b) - lowestPriceCents(a),
+  featured: (a, b) =>
+    (a.featuredRank ?? 999) - (b.featuredRank ?? 999) || b.publishedAt.localeCompare(a.publishedAt) || byId(a, b),
+  newest: (a, b) => b.publishedAt.localeCompare(a.publishedAt) || byId(a, b),
+  price_asc: (a, b) => lowestPriceCents(a) - lowestPriceCents(b) || byId(a, b),
+  price_desc: (a, b) => lowestPriceCents(b) - lowestPriceCents(a) || byId(a, b),
   rating: (a, b) => {
     const aEnough = (a.rating?.count ?? 0) >= 3 ? 1 : 0;
     const bEnough = (b.rating?.count ?? 0) >= 3 ? 1 : 0;
-    return bEnough - aEnough || bayesianRating(b) - bayesianRating(a);
+    return bEnough - aEnough || bayesianRating(b) - bayesianRating(a) || byId(a, b);
   },
 };
 
+/**
+ * The catalogue rules in plain TypeScript. The app runs them in PostgreSQL (lib/server/repositories/
+ * catalogue-search.ts); this version is the reference the tests compare that query with (catalogue-query.test.ts).
+ */
 export function filterAndSort(list: CatalogueProduct[], query: ProductQuery) {
   const filtered = list.filter((p) => matchesFilters(p, query)).sort(sorters[query.sort ?? "featured"]);
   const limit = query.limit ?? filtered.length;

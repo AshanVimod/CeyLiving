@@ -5,7 +5,7 @@ import { CustomRequestForm } from "@/components/requests/request-forms";
 import { ProductGrid } from "@/components/product/product-card";
 import { Container } from "@/components/ui/section-heading";
 import { currentUser } from "@/lib/server/auth";
-import { publicCatalogue, publicShops } from "@/lib/server/catalogue";
+import { publicShops, queryCatalogue } from "@/lib/server/catalogue";
 
 export const metadata: Metadata = {
   title: "Custom & personalized",
@@ -47,7 +47,7 @@ async function RequestSlot() {
 }
 
 export default async function CustomPage() {
-  const customizable = (await publicCatalogue()).filter((p) => p.isCustomizable);
+  const customizable = (await queryCatalogue({ customizable: true })).items;
   return (
     <>
       <Container className="pt-10">

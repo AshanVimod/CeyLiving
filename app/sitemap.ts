@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { categories } from "@/lib/data/categories";
 import { getEnv } from "@/lib/env";
-import { publicCatalogue, publicShops } from "@/lib/server/catalogue";
+import { publicProductSlugs, publicShops } from "@/lib/server/catalogue";
 
 const STATIC_PAGES = ["/", "/shop", "/makers", "/heritage", "/custom", "/about", "/sell", "/help"];
 
@@ -11,7 +11,7 @@ const STATIC_PAGES = ["/", "/shop", "/makers", "/heritage", "/custom", "/about",
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const site = getEnv().SITE_URL;
-  const [products, shops] = await Promise.all([publicCatalogue(), publicShops()]);
+  const [products, shops] = await Promise.all([publicProductSlugs(), publicShops()]);
   return [
     ...STATIC_PAGES.map((path) => ({ url: `${site}${path === "/" ? "" : path}` })),
     ...categories.map((c) => ({ url: `${site}/c/${c.slug}` })),

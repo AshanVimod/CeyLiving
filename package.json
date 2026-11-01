@@ -20,7 +20,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx --conditions=react-server --env-file-if-exists=.env.local prisma/seed.ts",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force && npm run db:seed"
   },
   "engines": {
     "node": ">=22.12 <23",

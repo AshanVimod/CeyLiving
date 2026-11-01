@@ -23,13 +23,13 @@ import { formatLkr, photoUrl } from "@/lib/format";
 import {
   getPublicProduct,
   getPublicShop,
-  publicCatalogue,
+  publicProductSlugs,
   publicReviewsOfProduct,
   relatedProducts,
 } from "@/lib/server/catalogue";
 
 export async function generateStaticParams() {
-  return (await publicCatalogue()).map((p) => ({ productSlug: p.slug }));
+  return (await publicProductSlugs()).map((p) => ({ productSlug: p.slug }));
 }
 
 export async function generateMetadata(props: PageProps<"/p/[productSlug]">): Promise<Metadata> {

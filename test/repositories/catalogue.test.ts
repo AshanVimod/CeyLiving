@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it } from "vitest";
 import * as catalogueRepo from "@/lib/server/repositories/catalogue";
+import { queryPublicProducts } from "@/lib/server/repositories/catalogue-search";
 import { ConflictError } from "@/lib/server/errors";
 import { buildSeed, type SeedData } from "@/prisma/seed-data";
 import type { Product, Shop } from "@/lib/types";
@@ -95,7 +96,7 @@ for (const [name, backend] of backends) {
     });
 
     it("RULE-P4 / RULE-S4 shows only active items of active shops", async () => {
-      const publicIds = (await repo.listPublicProducts(db)).map((p) => p.id).sort();
+      const publicIds = (await queryPublicProducts(db, {})).items.map((p) => p.id).sort();
       const activeShops = new Set(seed.shops.filter((s) => s.status === "ACTIVE").map((s) => s.slug));
       const expected = seed.products.filter((p) => p.status === "ACTIVE" && activeShops.has(p.shopSlug));
       expect(publicIds).toEqual(expected.map((p) => p.id).sort());
@@ -109,7 +110,7 @@ for (const [name, backend] of backends) {
       const shop = (await repo.findShopBySlug(db, MASKS))!;
       await withTx((tx) => repo.updateShop(tx, shop.id, { status: "SUSPENDED" }));
       expect(await repo.findPublicProductBySlug(db, item.slug)).toBeUndefined();
-      expect((await repo.listPublicProducts(db)).some((p) => p.shopSlug === MASKS)).toBe(false);
+      expect((await queryPublicProducts(db, {})).items.some((p) => p.shopSlug === MASKS)).toBe(false);
     });
 
     it("FR-2c stores a new item with its images, variants and customization fields in order", async () => {

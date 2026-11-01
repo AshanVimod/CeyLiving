@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ProductGrid } from "@/components/product/product-card";
 import { Container } from "@/components/ui/section-heading";
-import { publicCatalogue } from "@/lib/server/catalogue";
+import { queryCatalogue } from "@/lib/server/catalogue";
 import { photoUrl } from "@/lib/format";
 
 export const metadata: Metadata = {
@@ -56,7 +56,7 @@ const crafts = [
 ];
 
 export default async function HeritagePage() {
-  const heritage = (await publicCatalogue()).filter((p) => p.isHeritage).slice(0, 8);
+  const heritage = (await queryCatalogue({ heritage: true, limit: 8 })).items;
   return (
     <>
       <section className="dumbara border-b border-line">

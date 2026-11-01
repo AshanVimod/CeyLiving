@@ -1,17 +1,9 @@
 import Link from "next/link";
 import { Container } from "@/components/ui/section-heading";
-import { lowestPriceCents, type CatalogueProduct } from "@/lib/catalogue";
 import { PRICE_CHIPS } from "@/lib/config";
 
-function priceChipCount(products: CatalogueProduct[], min?: number, max?: number) {
-  return products.filter((p) => {
-    const price = lowestPriceCents(p);
-    return (min === undefined || price >= min) && (max === undefined || price <= max);
-  }).length;
-}
-
-/** Home page: "Shop to your budget" price ranges with a live count of pieces in each. */
-export function BudgetChips({ products }: { products: CatalogueProduct[] }) {
+/** Home page: "Shop to your budget" price ranges with a live count of pieces in each (`counts`, in PRICE_CHIPS order). */
+export function BudgetChips({ counts }: { counts: number[] }) {
   return (
     <section aria-labelledby="budget-heading" className="mt-24">
       <Container>
@@ -21,7 +13,7 @@ export function BudgetChips({ products }: { products: CatalogueProduct[] }) {
           </h2>
           <p className="mt-2 max-w-xl text-ink-soft">Pick a price range, or set your own on the shop page.</p>
           <ul className="mt-8 grid gap-3 sm:grid-cols-3">
-            {PRICE_CHIPS.map((chip) => {
+            {PRICE_CHIPS.map((chip, i) => {
               const params = new URLSearchParams();
               if (chip.minPrice !== undefined) params.set("minPrice", String(chip.minPrice));
               if (chip.maxPrice !== undefined) params.set("maxPrice", String(chip.maxPrice));
@@ -33,9 +25,7 @@ export function BudgetChips({ products }: { products: CatalogueProduct[] }) {
                   >
                     <span>
                       <span className="block font-display text-xl">{chip.label}</span>
-                      <span className="text-sm text-ink-soft">
-                        {priceChipCount(products, chip.minPrice, chip.maxPrice)} pieces
-                      </span>
+                      <span className="text-sm text-ink-soft">{counts[i] ?? 0} pieces</span>
                     </span>
                     <span
                       className="grid size-10 place-items-center rounded-full bg-forest text-paper transition-transform duration-300 group-hover:translate-x-1"

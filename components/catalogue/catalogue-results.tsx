@@ -4,6 +4,7 @@ import { PAGE_SIZE } from "@/lib/config";
 import { categories } from "@/lib/data/categories";
 import { queryCatalogue } from "@/lib/server/catalogue";
 import { ProductGrid, ProductGridSkeleton } from "../product/product-card";
+import { LoadMore } from "./load-more";
 import { FilterSidebar, ResultsToolbar } from "./filters";
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -19,14 +20,16 @@ export async function CatalogueResults({ searchParams, category, basePath }: Cat
   const raw = await searchParams;
   const query = parseProductQuery(raw);
   if (category) query.category = category;
-  const limit = query.limit && query.limit > PAGE_SIZE ? query.limit : PAGE_SIZE;
-  const { items, total, hasMore } = await queryCatalogue({ ...query, limit });
+  // Without JavaScript, "Load more" is a link to ?after=<cursor>: that page starts after the last item shown.
+  const after = typeof raw.after === "string" ? raw.after : undefined;
+  const { items, total, next } = await queryCatalogue({ ...query, limit: PAGE_SIZE }, after);
 
-  const moreParams = new URLSearchParams();
+  // The listing's own parameters, for the next page (category pages pass their fixed category too).
+  const listing = new URLSearchParams();
   Object.entries(raw).forEach(([k, v]) => {
-    if (typeof v === "string") moreParams.set(k, v);
+    if (typeof v === "string" && k !== "after" && k !== "limit") listing.set(k, v);
   });
-  moreParams.set("limit", String(limit + PAGE_SIZE));
+  if (category) listing.set("category", category);
 
   return (
     <div className="grid gap-10 lg:grid-cols-[250px_1fr]">
@@ -36,19 +39,15 @@ export async function CatalogueResults({ searchParams, category, basePath }: Cat
         {items.length ? (
           <>
             <ProductGrid products={items} morph priorityCount={4} />
-            {hasMore ? (
-              <div className="mt-14 flex flex-col items-center gap-3">
-                <p className="text-sm text-ink-soft">
-                  Showing {items.length} of {total}
-                </p>
-                <Link
-                  href={`${basePath}?${moreParams.toString()}`}
-                  scroll={false}
-                  className="inline-flex h-12 items-center rounded-full border border-ink/25 px-8 font-semibold hover:border-ink hover:bg-paper-raised"
-                >
-                  Load more
-                </Link>
-              </div>
+            {next ? (
+              <LoadMore
+                key={listing.toString() + (after ?? "")}
+                query={listing.toString()}
+                next={next}
+                shown={after ? undefined : items.length}
+                total={total}
+                basePath={basePath}
+              />
             ) : null}
           </>
         ) : (

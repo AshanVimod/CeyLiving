@@ -6,7 +6,6 @@ import {
   getPublicShop,
   lookupProducts,
   productCountByCategory,
-  publicCatalogue,
   publicShops,
   queryCatalogue,
   relatedProducts,
@@ -21,7 +20,7 @@ describe("public catalogue", () => {
   it("RULE-S4 hides the seeded suspended shop and its items", async () => {
     expect(await getPublicShop("pol-katu-lanka")).toBeUndefined();
     expect(await getPublicProduct("coconut-shell-owl")).toBeUndefined();
-    expect((await publicCatalogue()).some((p) => p.shopSlug === "pol-katu-lanka")).toBe(false);
+    expect((await queryCatalogue({})).items.some((p) => p.shopSlug === "pol-katu-lanka")).toBe(false);
   });
 
   it("RULE-S4 hides a shop everywhere as soon as it is suspended", async () => {

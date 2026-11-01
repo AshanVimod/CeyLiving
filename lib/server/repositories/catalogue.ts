@@ -193,15 +193,6 @@ export async function isProductPublic(tx: Tx, product: Product | undefined): Pro
   return product?.status === "ACTIVE" && isShopPublic(await findShopBySlug(tx, product.shopSlug));
 }
 
-export async function listPublicProducts(tx: Tx): Promise<Product[]> {
-  const rows = await clientOf(tx).product.findMany({
-    where: { status: "ACTIVE", shop: { status: "ACTIVE" } },
-    include: productInclude,
-    orderBy: [...oldestFirst],
-  });
-  return rows.map(toProduct);
-}
-
 export async function listPublicShops(tx: Tx): Promise<Shop[]> {
   const rows = await clientOf(tx).shop.findMany({ where: { status: "ACTIVE" }, orderBy: [...oldestFirst] });
   return rows.map(toShop);

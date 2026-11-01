@@ -19,6 +19,7 @@ export function useFilterParams() {
     const next = new URLSearchParams(params.toString());
     mutate(next);
     next.delete("limit");
+    next.delete("after"); // a cursor belongs to the old filters
     const qs = next.toString();
     startTransition(() => router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
   }

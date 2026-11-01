@@ -7,11 +7,19 @@ import { TrustStrip } from "@/components/home/trust-strip";
 import { SearchBox } from "@/components/layout/search-box";
 import { ProductGrid } from "@/components/product/product-card";
 import { Container, SectionHeading } from "@/components/ui/section-heading";
-import { categories, filterAndSort, lowestPriceCents, type CatalogueProduct } from "@/lib/catalogue";
-import { publicCatalogue, publicShops } from "@/lib/server/catalogue";
+import { categories, lowestPriceCents, type CatalogueProduct } from "@/lib/catalogue";
+import { PRICE_CHIPS } from "@/lib/config";
+import { getPublicProduct, publicShops, queryCatalogue } from "@/lib/server/catalogue";
+
+interface Pools {
+  newest: CatalogueProduct[];
+  customizable: CatalogueProduct[];
+  ecoFriendly: CatalogueProduct[];
+  heritage: CatalogueProduct[];
+}
 
 /** Picks products for each collection without repeats, so photo morphs never share a name. */
-function collections(products: CatalogueProduct[], heroSlug: string) {
+function collections(pools: Pools, heroSlug: string) {
   const used = new Set<string>([heroSlug]);
   const take = (list: CatalogueProduct[], n: number) => {
     const picked = list.filter((p) => !used.has(p.slug)).slice(0, n);
@@ -19,30 +27,42 @@ function collections(products: CatalogueProduct[], heroSlug: string) {
     return picked;
   };
   return {
-    newArrivals: take(filterAndSort(products, { sort: "newest" }).items, 4),
-    personalized: take(filterAndSort(products, { customizable: true }).items, 4),
-    sustainable: take(
-      products.filter((p) => p.isEcoFriendly),
-      4,
-    ),
-    heritage: take(
-      filterAndSort(products, { sort: "featured" }).items.filter((p) => p.isHeritage),
-      4,
-    ),
+    newArrivals: take(pools.newest, 4),
+    personalized: take(pools.customizable, 4),
+    sustainable: take(pools.ecoFriendly, 4),
+    heritage: take(pools.heritage, 4),
   };
 }
 
 export default async function HomePage() {
-  const products = await publicCatalogue();
-  const shops = await publicShops();
+  // Each collection reads a small page; 12 leaves room to skip items another collection already shows.
+  const [shops, all, newest, customizable, ecoFriendly, heritagePool, mask, budgetCounts] = await Promise.all([
+    publicShops(),
+    queryCatalogue({ limit: 1 }),
+    queryCatalogue({ sort: "newest", limit: 12 }),
+    queryCatalogue({ customizable: true, limit: 12 }),
+    queryCatalogue({ ecoFriendly: true, limit: 12 }),
+    queryCatalogue({ heritage: true, sort: "featured", limit: 12 }),
+    getPublicProduct("naga-raksha-mask"),
+    Promise.all(
+      PRICE_CHIPS.map(
+        async (chip) => (await queryCatalogue({ minPrice: chip.minPrice, maxPrice: chip.maxPrice, limit: 1 })).total,
+      ),
+    ),
+  ]);
   const districts = new Set(shops.map((s) => s.district)).size;
   // The mask leads the hero; if its shop is ever suspended, the top featured heritage piece takes its place.
-  const hero =
-    products.find((p) => p.slug === "naga-raksha-mask") ??
-    filterAndSort(products, { sort: "featured" }).items.find((p) => p.isHeritage) ??
-    products[0];
+  const hero = mask ?? heritagePool.items[0] ?? newest.items[0];
   const heroShop = shops.find((s) => s.slug === hero?.shopSlug);
-  const { newArrivals, personalized, sustainable, heritage } = collections(products, hero?.slug ?? "");
+  const { newArrivals, personalized, sustainable, heritage } = collections(
+    {
+      newest: newest.items,
+      customizable: customizable.items,
+      ecoFriendly: ecoFriendly.items,
+      heritage: heritagePool.items,
+    },
+    hero?.slug ?? "",
+  );
   const featured = shops.filter((s) => s.portrait).slice(0, 4);
   const [lead, ...otherMakers] = featured;
 
@@ -87,7 +107,7 @@ export default async function HomePage() {
               </Link>
             </div>
             <p className="fade-late mt-8 text-sm text-ink-soft" style={{ "--delay": "0.8s" } as React.CSSProperties}>
-              {products.length} pieces from {shops.length} makers in {districts} districts, and growing.
+              {all.total} pieces from {shops.length} makers in {districts} districts, and growing.
             </p>
           </div>
           {hero && heroShop ? (
@@ -159,7 +179,7 @@ export default async function HomePage() {
         </Container>
       </section>
 
-      <BudgetChips products={products} />
+      <BudgetChips counts={budgetCounts} />
 
       {/* Personalized */}
       <section aria-labelledby="personal-heading" className="mt-24">
