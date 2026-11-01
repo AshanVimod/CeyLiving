@@ -56,7 +56,8 @@ PostgreSQL 17 with Prisma 7 (`prisma/schema.prisma`, migrations in `prisma/migra
 - **Code:** `lib/server/db/pg.ts` holds the PostgreSQL handle (`db` and `withTx`, READ COMMITTED, retried up to 3 times on serialization or deadlock errors: DB-05). `lib/server/db/mappers.ts` turns rows into `lib/types.ts` objects (BE-01). `lib/server/repositories/pg/` holds the PostgreSQL repositories; `conformance.ts` makes `npm run typecheck` fail if one stops matching the dev-store version.
 - **Errors people see:** the services check every rule first, so the database only refuses a write when two requests race. A unique clash (a second open application, a web address just taken, a repeated vote or report) becomes a `ConflictError` with a plain message (`lib/server/db/pg-errors.ts`); any other database error is logged and shown as the generic message with a reference. Raw PostgreSQL text never reaches a page.
 - **Seed loader:** `lib/server/db/load-seed.ts` loads the categories and the dev-store seed into every table in one transaction. With `{ replace: true }` it empties the tables first, so running it again never duplicates rows; it refuses to replace data in production.
-- **Done so far:** B03a (people: users, applications, addresses, notifications, audit log, rate events) and B03b (catalogue: shops, products; content: reviews, questions, answers, reports, helpful votes). B03c adds commerce.
+- **Done so far:** B03a (people: users, applications, addresses, notifications, audit log, rate events) B03b (catalogue: shops, products; content: reviews, questions, answers, reports, helpful votes) and B03c (commerce: orders, seller orders, items, payouts, custom requests). Every dev-store repository now has a PostgreSQL twin; B04 switches the app over.
+- **Paid out once (BR-11):** `setPayoutOnSellerOrders` links only orders with no payout yet. If two payout runs race, the second gets a `ConflictError` and rolls back, so no order is ever paid twice. A contract test runs two payouts side by side to prove it.
 
 ## Logging and request IDs
 
@@ -68,7 +69,7 @@ PostgreSQL 17 with Prisma 7 (`prisma/schema.prisma`, migrations in `prisma/migra
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every pull request and push to `main`: `npm ci` → `npm run check` → `npm run build` → `npm audit` → Gitleaks secret scan. Actions are pinned by commit SHA.
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`, `Feature-01` and `Feature-02`: `npm ci` → `npm run check` → `npm run build` → `npm audit` → Gitleaks secret scan. Actions are pinned by commit SHA.
 
 **npm audit:** `npm audit --omit=dev --audit-level=high` blocks CI, so production dependencies must stay clean. The full audit runs too but only reports. It currently shows 5 high findings in dev-only dependencies (`braces` → `micromatch` → `fast-glob` → `eslint-config-next`). They are accepted for now because they run only in ESLint on developer machines and CI, never in the app, and the only offered fix is downgrading `eslint-config-next` to 14, which breaks linting for Next.js 16. Revisit when `eslint-config-next` ships a fixed version.
 

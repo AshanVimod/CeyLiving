@@ -1,9 +1,11 @@
 import type { Tx } from "../../db/tx";
 import type { PgTx } from "../../db/pg";
 import type * as devCatalogue from "../catalogue";
+import type * as devCommerce from "../commerce";
 import type * as devContent from "../content";
 import type * as devPeople from "../people";
 import type * as pgCatalogue from "./catalogue";
+import type * as pgCommerce from "./commerce";
 import type * as pgContent from "./content";
 import type * as pgPeople from "./people";
 
@@ -19,3 +21,4 @@ type Assert<T extends true> = T;
 export type PeopleConforms = Assert<Same<OnPg<typeof devPeople>, typeof pgPeople>>;
 export type CatalogueConforms = Assert<Same<OnPg<typeof devCatalogue>, typeof pgCatalogue>>;
 export type ContentConforms = Assert<Same<OnPg<typeof devContent>, typeof pgContent>>;
+export type CommerceConforms = Assert<Same<OnPg<typeof devCommerce>, typeof pgCommerce>>;

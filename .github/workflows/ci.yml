@@ -5,7 +5,8 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    # Feature-01 (the product) and Feature-02 (the demo) take direct pushes, so they are checked on every push too.
+    branches: [main, Feature-01, Feature-02]
 
 permissions:
   contents: read
@@ -35,6 +36,8 @@ jobs:
 
       - run: npm ci
 
+      # Includes the repository contract tests: Testcontainers starts PostgreSQL in the runner's Docker, and CI=true
+      # makes a missing Docker fail the run instead of skipping those tests.
       - run: npm run check
 
       - run: npm run build

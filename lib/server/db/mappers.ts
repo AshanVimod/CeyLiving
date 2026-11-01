@@ -9,6 +9,7 @@ import type {
   Material,
   Notification,
   Order,
+  OrderItem,
   Payout,
   Photo,
   Product,
@@ -373,19 +374,111 @@ export function toVote(row: Row.HelpfulVote): HelpfulVote {
   return { userId: row.userId, targetType: row.targetType, targetId: row.targetId, createdAt: iso(row.createdAt) };
 }
 
-// ---------- Commerce (written by load-seed.ts; the repositories arrive in B03c) ----------
+// ---------- Commerce ----------
 
-export const orderColumns = (order: Order) => ({
-  ...withDates(order, ["placedAt"]),
-  shippingAddress: order.shippingAddress as Prisma.InputJsonValue,
-});
+export function toOrder(row: Row.Order): Order {
+  return {
+    id: row.id,
+    orderNumber: row.orderNumber,
+    customerId: row.customerId,
+    shippingAddress: row.shippingAddress as unknown as Order["shippingAddress"],
+    subtotalCents: row.subtotalCents,
+    shippingCents: row.shippingCents,
+    totalCents: row.totalCents,
+    placedAt: iso(row.placedAt),
+  };
+}
+
+/** The columns for an Order (or a patch of one). The shipping address is a JSON snapshot taken at checkout. */
+export const orderColumns = (order: Partial<Order>) => withDates(order, ["placedAt"]);
+
+export function toSellerOrder(row: Row.SellerOrder): SellerOrder {
+  return {
+    id: row.id,
+    orderId: row.orderId,
+    shopId: row.shopId,
+    status: row.status,
+    subtotalCents: row.subtotalCents,
+    shippingCents: row.shippingCents,
+    courierName: opt(row.courierName),
+    trackingRef: opt(row.trackingRef),
+    cancelReason: opt(row.cancelReason),
+    acceptedAt: optIso(row.acceptedAt),
+    dispatchedAt: optIso(row.dispatchedAt),
+    completedAt: optIso(row.completedAt),
+    updatedAt: iso(row.updatedAt),
+    payoutId: opt(row.payoutId),
+  };
+}
 
 export const sellerOrderColumns = (so: Partial<SellerOrder>) =>
   withDates(so, ["acceptedAt", "dispatchedAt", "completedAt", "updatedAt"]);
 
+export function toOrderItem(row: Row.OrderItem): OrderItem {
+  return {
+    id: row.id,
+    sellerOrderId: row.sellerOrderId,
+    productId: row.productId,
+    variantSku: row.variantSku,
+    productTitle: row.productTitle,
+    variantLabel: row.variantLabel,
+    unitPriceCents: row.unitPriceCents,
+    quantity: row.quantity,
+  };
+}
+
+/** What every payout query loads: the ids of the seller orders it pays, oldest first. */
+export const payoutInclude = {
+  sellerOrders: { select: { id: true }, orderBy: [{ completedAt: "asc" }, { id: "asc" }] },
+} as const satisfies Prisma.PayoutInclude;
+
+export type PayoutRow = Prisma.PayoutGetPayload<{ include: typeof payoutInclude }>;
+
+export function toPayout(row: PayoutRow): Payout {
+  return {
+    id: row.id,
+    shopId: row.shopId,
+    periodStart: iso(row.periodStart),
+    periodEnd: iso(row.periodEnd),
+    sellerOrderIds: row.sellerOrders.map((so) => so.id),
+    grossCents: row.grossCents,
+    commissionCents: row.commissionCents,
+    refundsCents: row.refundsCents,
+    netCents: row.netCents,
+    status: row.status,
+    paidAt: optIso(row.paidAt),
+    reference: opt(row.reference),
+    createdAt: iso(row.createdAt),
+  };
+}
+
 /** `sellerOrderIds` is not stored: it is the seller orders whose payout_id points here. */
 export const payoutColumns = (payout: Partial<Payout>) =>
   without(withDates(payout, ["periodStart", "periodEnd", "paidAt", "createdAt"]), ["sellerOrderIds"]);
+
+export function toCustomRequest(row: Row.CustomRequest): CustomRequest {
+  const quoted = row.quotePriceCents !== null && row.quoteDays !== null && row.quotedAt !== null;
+  return {
+    id: row.id,
+    customerId: row.customerId,
+    customerName: row.customerName,
+    shopId: row.shopId,
+    message: row.message,
+    budgetCents: opt(row.budgetCents),
+    status: row.status,
+    quote: quoted
+      ? {
+          priceCents: row.quotePriceCents!,
+          days: row.quoteDays!,
+          message: opt(row.quoteMessage),
+          quotedAt: iso(row.quotedAt!),
+        }
+      : undefined,
+    declineReason: opt(row.declineReason),
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  };
+}
 
 export function customRequestColumns(request: Partial<CustomRequest>): Record<string, unknown> {
   const { quote } = request;
