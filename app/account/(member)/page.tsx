@@ -9,7 +9,8 @@ import { BadgeCheckIcon } from "@/components/ui/icons";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { REAPPLY_WAIT_DAYS } from "@/lib/config";
 import { formatDate } from "@/lib/format";
-import { signOut } from "@/lib/server/actions/session";
+import { signOut, signOutEverywhere } from "@/lib/server/actions/session";
+import { ChangePasswordForm } from "@/components/forms/auth-forms";
 import { requireUser } from "@/lib/server/auth";
 import { findShopByOwner } from "@/lib/server/repositories/catalogue";
 import { applicationsOf } from "@/lib/server/repositories/people";
@@ -166,6 +167,32 @@ async function Profile() {
           </div>
           <div className="mt-6 border-t border-line pt-6">
             <ProfileForm name={user.name} phone={user.phone} />
+          </div>
+        </section>
+
+        {/* B05a (AU-04): password and sessions. */}
+        <section
+          aria-labelledby="security-heading"
+          className="rounded-lg border border-line bg-paper-raised p-5 sm:p-6"
+        >
+          <h2 id="security-heading" className="font-sans text-base font-semibold">
+            Sign-in and security
+          </h2>
+          <div className="mt-4 max-w-md">
+            <ChangePasswordForm />
+          </div>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6">
+            <p className="max-w-md text-sm text-ink-soft">
+              Lost a phone or used a shared computer? Sign out on every device, this one included.
+            </p>
+            <form action={signOutEverywhere}>
+              <button
+                type="submit"
+                className={`${button} border border-ink/25 hover:border-lacquer hover:text-lacquer`}
+              >
+                Sign out everywhere
+              </button>
+            </form>
           </div>
         </section>
 

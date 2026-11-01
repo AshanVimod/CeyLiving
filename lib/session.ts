@@ -1,9 +1,9 @@
 import "server-only";
-import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import { connection } from "next/server";
-import { findUserById } from "./server/repositories/people";
-import { db } from "./server/db/tx";
-import { isProductionRuntime } from "./server/runtime";
+import { getAuth, SESSION_ABSOLUTE_SECONDS } from "./server/better-auth";
+import { deleteSessionByToken, findUserById } from "./server/repositories/people";
+import { db, withTx } from "./server/db/tx";
 import type { Role, User } from "./types";
 
 export type { Role };
@@ -13,21 +13,21 @@ export interface Session {
   user: SessionUser;
 }
 
-/** Development-only cookie holding a demo user's ID; set by the Demo accounts panel on /signin. */
-export const DEMO_SESSION_COOKIE = "ceyliving_demo_session";
-
 /**
- * Placeholder until Better Auth lands (T04): always signed out in production.
- * The user is loaded from the store on every request, so role changes (applicant → seller) show at once.
+ * AU-05: who is signed in, from the Better Auth session cookie. Returns the same `{ user }` as before B05, built
+ * from our `users` row, so role and restrictions changed by an admin show at once and every guard keeps working.
  */
 export async function getSession(): Promise<Session | null> {
   // Everything that depends on who is signed in is request-time; prerendering stops here.
   await connection();
-  const store = await cookies();
-  if (isProductionRuntime()) return null;
-  const userId = store.get(DEMO_SESSION_COOKIE)?.value;
-  if (!userId) return null;
-  const user = await findUserById(db, userId);
-  // FR-17: a deleted account can never sign in again.
+  const result = await getAuth().api.getSession({ headers: await headers() });
+  if (!result) return null;
+  // AU-03: 30 days after sign-in a session ends, however often it was used.
+  if (Date.now() - new Date(result.session.createdAt).getTime() > SESSION_ABSOLUTE_SECONDS * 1000) {
+    await withTx((tx) => deleteSessionByToken(tx, result.session.token));
+    return null;
+  }
+  const user = await findUserById(db, result.user.id);
+  // FR-17 / AU-11: a deleted account can never be signed in.
   return user && !user.deletedAt ? { user } : null;
 }

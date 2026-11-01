@@ -39,6 +39,9 @@ jobs:
     env:
       DATABASE_MIGRATION_URL: postgresql://ceyliving_migrator:ci_migrator@localhost:5432/ceyliving
       DATABASE_URL: postgresql://ceyliving_app:ci_app@localhost:5432/ceyliving
+      # B05a: production builds check these at start-up. Build-only values: no email is sent and no session made in CI.
+      BETTER_AUTH_SECRET: ci-build-only-${{ github.run_id }}-${{ github.run_attempt }}-not-a-secret
+      SMTP_URL: smtp://127.0.0.1:1025
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

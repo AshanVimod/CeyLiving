@@ -1,14 +1,10 @@
 "use server";
 
-import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { DEMO_SESSION_MAX_AGE_SECONDS } from "@/lib/config";
-import { DEMO_SESSION_COOKIE } from "@/lib/session";
-import { safeNextPath } from "../auth";
-import { findUserById } from "../repositories/people";
-import { db } from "../db/tx";
-import { isProductionRuntime } from "../runtime";
 import { z } from "zod";
+import { safeNextPath } from "../auth";
+import { demoSignInAllowed, getAuth } from "../better-auth";
 import { DEMO_ACCOUNTS } from "../demo-accounts";
 
 /** SEC-A3: the demo form carries only an account from the demo list and an optional return path. */
@@ -17,34 +13,48 @@ const demoSignInSchema = z.object({
   next: z.string().max(500).optional(),
 });
 
+interface DemoApi {
+  demoSignIn?: (input: { body: { userId: string }; headers: Headers }) => Promise<unknown>;
+}
+
 /**
- * Development-only sign-in as one of the seeded demo accounts (feature spec 7.5).
- * Only IDs on the demo list are accepted, and the cookie is HttpOnly and SameSite=Lax.
+ * AU-09: development-only sign-in as one of the seeded demo accounts (feature spec 7.5). It creates a real Better
+ * Auth session, so the rest of the app has one way of knowing who is signed in. Refused unless
+ * ENABLE_DEMO_LOGIN=true outside production; the endpoint doesn't even exist in production builds.
  */
 export async function signInAsDemo(formData: FormData): Promise<void> {
-  if (isProductionRuntime()) redirect("/signin");
+  if (!demoSignInAllowed()) redirect("/signin");
   const parsed = demoSignInSchema.safeParse({
     userId: formData.get("userId") ?? undefined,
     next: formData.get("next") ?? undefined,
   });
   if (!parsed.success) redirect("/signin");
-  const { userId, next } = parsed.data;
-  const user = await findUserById(db, userId);
-  if (!user || user.deletedAt) redirect("/signin");
-  const store = await cookies();
-  store.set(DEMO_SESSION_COOKIE, userId, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: DEMO_SESSION_MAX_AGE_SECONDS,
-  });
-  redirect(safeNextPath(next));
+  const api = getAuth().api as DemoApi;
+  if (!api.demoSignIn) redirect("/signin");
+  try {
+    await api.demoSignIn({ body: { userId: parsed.data.userId }, headers: await headers() });
+  } catch {
+    redirect("/signin");
+  }
+  redirect(safeNextPath(parsed.data.next));
 }
 
-/** Ends the session. With Better Auth this becomes its signOut call. */
+/** Ends this browser's session. */
 export async function signOut(): Promise<void> {
-  const store = await cookies();
-  store.delete(DEMO_SESSION_COOKIE);
+  await getAuth()
+    .api.signOut({ headers: await headers() })
+    .catch(() => undefined); // already signed out: nothing to end
   redirect("/");
+}
+
+/** AU-04: "Sign out everywhere" ends every session of the signed-in person, this one included. */
+export async function signOutEverywhere(): Promise<void> {
+  const requestHeaders = await headers();
+  await getAuth()
+    .api.revokeSessions({ headers: requestHeaders })
+    .catch(() => undefined);
+  await getAuth()
+    .api.signOut({ headers: requestHeaders })
+    .catch(() => undefined);
+  redirect("/signin?signedOut=everywhere");
 }

@@ -35,14 +35,17 @@ A pre-commit hook (Husky + lint-staged) runs Prettier and `eslint --fix` on stag
 
 `lib/env.ts` checks every variable with zod when the server starts (`instrumentation.ts`). A missing or malformed value stops the app with a message naming the key (never the value). `.env.example` lists every key; put real values in `.env.local` (git-ignored). Empty values count as not set.
 
-| Variable                 | Values                                                | Purpose                                                                                                                                                                                    |
-| ------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `NODE_ENV`               | `development`, `test`, `production`                   | Set by Next.js and Vitest. Don't set it in `.env` files.                                                                                                                                   |
-| `ENABLE_DEMO_LOGIN`      | `true` / `false` (default `false`)                    | Demo sign-in, development only (AU-09). The app refuses to start with `true` in production. For now it is only validated; the demo panel still follows `NODE_ENV` until Better Auth (B05). |
-| `LOG_LEVEL`              | `fatal` … `trace`, `silent`                           | Log level (OPS-01). Default `info`, or `silent` under tests.                                                                                                                               |
-| `SITE_URL`               | `https://…` address (default `http://localhost:3000`) | The site's public address for `sitemap.xml` and `robots.txt`. Must be `https://` in production, except on localhost.                                                                       |
-| `DATABASE_URL`           | `postgresql://` address                               | PostgreSQL as `ceyliving_app`, the data-only user (DB-10). Required in production; `npm run setup` sets the local one.                                                                     |
-| `DATABASE_MIGRATION_URL` | `postgresql://` address                               | PostgreSQL as `ceyliving_migrator`, the schema owner. Only migrations and the seed use it (`prisma.config.ts` also reads `.env.local`).                                                    |
+| Variable                 | Values                                                | Purpose                                                                                                                                                                       |
+| ------------------------ | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`               | `development`, `test`, `production`                   | Set by Next.js and Vitest. Don't set it in `.env` files.                                                                                                                      |
+| `ENABLE_DEMO_LOGIN`      | `true` / `false` (default `false`)                    | Demo sign-in, development only (AU-09). `npm run setup` puts it in `.env.development.local`, which only `next dev` reads. The app refuses to start with `true` in production. |
+| `LOG_LEVEL`              | `fatal` … `trace`, `silent`                           | Log level (OPS-01). Default `info`, or `silent` under tests.                                                                                                                  |
+| `SITE_URL`               | `https://…` address (default `http://localhost:3000`) | The site's public address for `sitemap.xml` and `robots.txt`. Must be `https://` in production, except on localhost.                                                          |
+| `DATABASE_URL`           | `postgresql://` address                               | PostgreSQL as `ceyliving_app`, the data-only user (DB-10). Required in production; `npm run setup` sets the local one.                                                        |
+| `DATABASE_MIGRATION_URL` | `postgresql://` address                               | PostgreSQL as `ceyliving_migrator`, the schema owner. Only migrations and the seed use it (`prisma.config.ts` also reads `.env.local`).                                       |
+| `BETTER_AUTH_SECRET`     | 32+ random characters                                 | Signs session cookies and email links (AU-03). Required in production; `npm run setup` writes a random local one.                                                             |
+| `SMTP_URL`               | `smtp://` or `smtps://` address                       | Where sign-in emails go. Required in production. Locally `smtp://127.0.0.1:1025` is Mailpit (read them at http://localhost:8025).                                             |
+| `EMAIL_FROM`             | sender                                                | Default `CeyLiving <no-reply@ceyliving.lk>`.                                                                                                                                  |
 
 ## Database
 
@@ -79,7 +82,7 @@ PostgreSQL 17 with Prisma 7 (`prisma/schema.prisma`, migrations in `prisma/migra
 
 ## Demo accounts (development only)
 
-Go to `/signin`. A **Demo accounts** panel signs you in with one click; it is not rendered in production and the server refuses demo sign-in there.
+Go to `/signin`. With `ENABLE_DEMO_LOGIN=true` (set by `npm run setup`), a **Demo accounts** panel signs you in with one click, through a real session. It never appears in production, where the endpoint doesn't exist and the server refuses it. Demo accounts have no password, so no one can sign in to them any other way.
 
 | Account                                      | What to try                                                                                                                            |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
@@ -116,12 +119,13 @@ Requests follow the feature spec (section 7.2): **form → server action → ser
 
 ## Security
 
+- **Sign-in (B05a, Better Auth):** email and password, with the email confirmed before posting, selling or checking out (AU-01). Passwords need 10+ characters and are checked against known data breaches; Better Auth hashes them. Messages never reveal whether an email has an account (AU-07). Sessions live in PostgreSQL behind an HttpOnly, SameSite=Lax cookie (Secure in production), last 7 days idle and 30 days in all, and end on a password change or reset, a role change and account deletion; "Sign out everywhere" is on `/account` (AU-03, AU-04, AU-11). Sign-in, sign-up and reset allow 5 attempts per 15 minutes per email and per IP, counted in the database so every app instance shares them (AU-06). Emails go out over SMTP (Mailpit locally). `getSession()` returns the same `{ user }` as before (AU-05). Two-step, passkeys and Turnstile come in B05b.
 - **Server checks:** every protected layout, page and action checks the session and role on the server (SEC-A1). Hidden buttons are never the check. `proxy.ts` is only a fast first redirect for visitors with no session.
 - **Ownership:** sellers' shops are always loaded by owner, never from IDs in the form (SEC-A2). Other people's orders, items and shops return 404 (SEC-A5).
 - **Input:** all input is validated with zod (SEC-A3). User text is rendered as plain text (SEC-A4). Questions, answers, reviews and replies can't contain emails, phone numbers or links (RULE-Q4).
 - **Rate limits:** posting actions are rate-limited per user (SEC-A6; limits in `lib/config.ts`).
 - **Admin actions:** every admin action needs a confirmation, a reason where the rules require one, and writes an append-only audit row in the same transaction (SEC-A9).
-- **Server-only code:** server modules start with `import "server-only"` (SEC-A7). The demo session is disabled in production, and tests prove it (SEC-A8).
+- **Server-only code:** server modules start with `import "server-only"` (SEC-A7). Demo sign-in is impossible in production, and tests prove it (SEC-A8).
 - **Buyer details:** sellers see a buyer's name, address and phone only for their own orders, and only until 30 days after delivery (SEC-A10).
 - **Response headers:** Content-Security-Policy, HSTS (production), X-Frame-Options, X-Content-Type-Options, Referrer-Policy and Permissions-Policy are set in `next.config.ts`.
   - The CSP allows `'unsafe-inline'` scripts because nonces are incompatible with Partial Prerendering.
@@ -134,7 +138,7 @@ Requests follow the feature spec (section 7.2): **form → server action → ser
 - **Payouts:** the weekly payout job (BR-11) is a button on `/admin/payouts` until a background worker exists.
 - **Account deletion:** deleting an account anonymises it and keeps order records (FR-17).
 
-**Not production-ready yet:** the demo sign-in makes the features testable, nothing more. Real accounts (Better Auth), PayHere payments and file uploads are still required before launch.
+**Not production-ready yet:** two-step sign-in for sellers and admins (B05b), PayHere payments and file uploads are still required before launch.
 
 ## Tests
 
@@ -142,7 +146,8 @@ Requests follow the feature spec (section 7.2): **form → server action → ser
 
 - **Unit tests:** every business rule, named with its ID (for example `RULE-R1 blocks a review without a delivered order`).
 - **Permission tests:** every server action is called as a guest, plus wrong-role and other-owner cases.
-- **Production guards:** the demo session is refused in production.
+- **Sign-in (`lib/server/auth-flows.test.ts`):** sign up, confirm by email, sign in; same answers for unknown emails; breached passwords refused; one-time reset links; sessions ended on reset, password change, role change and deletion; the 30-day limit; attempt limits shared across instances; a customer with a real session calling admin and seller actions directly is refused and nothing changes.
+- **Production guards:** demo sign-in is impossible in production, and an old or forged demo cookie signs no one in.
 - **Repositories (`test/repositories/`):** each repository against PostgreSQL, plus what only the database enforces: DB-05 retries, DB-07 constraints, DB-09 and DB-10 rights, one payout per order, and a seed loader that can run twice.
 - **Caching:** actions that change public data expire the catalogue cache, and failed ones don't (B04a).
 - **Transactions:** a failed step writes nothing (DB-04), a status that changed first gives a clear conflict (DB-06), and the shared read handle refuses writes (BE-03).

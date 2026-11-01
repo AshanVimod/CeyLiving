@@ -17,5 +17,8 @@ export default defineConfig({
     globalSetup: ["./test/global-setup.ts"],
     hookTimeout: 60_000,
     testTimeout: 30_000,
+    // Better Auth sets the session cookie through next/headers; processing it here lets the tests' mock of
+    // next/headers (test/auth.ts) catch that cookie, as a browser would.
+    server: { deps: { inline: ["better-auth"] } },
   },
 });

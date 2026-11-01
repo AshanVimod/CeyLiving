@@ -4,12 +4,12 @@ import { DemoAccountsPanel } from "@/components/account/demo-accounts-panel";
 import { SignInForm } from "@/components/forms/auth-forms";
 import { Container } from "@/components/ui/section-heading";
 import { currentUser, safeNextPath } from "@/lib/server/auth";
-import { isProductionRuntime } from "@/lib/server/runtime";
+import { demoSignInAllowed } from "@/lib/server/better-auth";
 
 export const metadata: Metadata = { title: "Sign in", robots: { index: false } };
 
 async function SignInContent({ searchParams }: { searchParams: PageProps<"/signin">["searchParams"] }) {
-  const { next, deleted } = await searchParams;
+  const { next, deleted, reset, signedOut } = await searchParams;
   const nextPath = safeNextPath(next);
   const user = await currentUser();
   return (
@@ -19,8 +19,18 @@ async function SignInContent({ searchParams }: { searchParams: PageProps<"/signi
           Your account was deleted and you’ve been signed out. Thank you for shopping with CeyLiving.
         </p>
       ) : null}
-      <SignInForm next={nextPath} signedInAs={user?.name} />
-      {isProductionRuntime() ? null : <DemoAccountsPanel next={nextPath} currentUserId={user?.id} />}
+      <SignInForm
+        next={nextPath}
+        signedInAs={user?.name}
+        notice={
+          reset === "1"
+            ? "Your new password is saved, and you’ve been signed out everywhere. Sign in with it now."
+            : signedOut === "everywhere"
+              ? "You’ve been signed out on every device."
+              : undefined
+        }
+      />
+      {demoSignInAllowed() ? <DemoAccountsPanel next={nextPath} currentUserId={user?.id} /> : null}
     </>
   );
 }

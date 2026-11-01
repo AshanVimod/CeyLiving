@@ -1,10 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ActionResult, ActionState } from "@/lib/action-result";
-import { DEMO_SESSION_COOKIE } from "@/lib/session";
 import {
   customRequestSchema,
   declineRequestSchema,
@@ -16,6 +15,7 @@ import {
   voteSchema,
 } from "@/lib/validation/more";
 import { requireActor } from "../auth";
+import { getAuth } from "../better-auth";
 import { refreshEverything } from "./refresh";
 import { formToObject, parseInput, runAction } from "../run-action";
 import { changeRole, toggleHelpful } from "../services/community-extras";
@@ -125,6 +125,9 @@ export async function deleteAccountAction(_: ActionState, form: FormData): Promi
     refreshEverything(); // FR-17: the anonymised name shows on the person's reviews and questions
   });
   if (!result.ok) return result;
-  (await cookies()).delete(DEMO_SESSION_COOKIE);
+  // The session rows are already gone (AU-11); this clears the browser's cookie too.
+  await getAuth()
+    .api.signOut({ headers: await headers() })
+    .catch(() => undefined);
   redirect("/signin?deleted=1");
 }

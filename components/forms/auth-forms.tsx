@@ -1,9 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Field } from "./fields";
-import { useHydrated } from "@/lib/use-hydrated";
+import {
+  changePasswordAction,
+  forgotPasswordAction,
+  registerAction,
+  resetPasswordAction,
+  signInAction,
+} from "@/lib/server/actions/auth";
+import { ActionForm, FormInput } from "./action-form";
+
+// B05a: the real sign-in forms. Each posts to a server action (so nothing typed can reach the address bar), the
+// server validates and checks everything (SEC-A1, SEC-A3), and messages never say whether an email has an account.
 
 function AuthShell({ title, children, footer }: { title: string; children: React.ReactNode; footer: React.ReactNode }) {
   return (
@@ -15,94 +23,49 @@ function AuthShell({ title, children, footer }: { title: string; children: React
   );
 }
 
-function usePreviewSubmit() {
-  const [state, setState] = useState<"idle" | "invalid" | "preview">("idle");
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    form
-      .querySelectorAll<HTMLInputElement>("input")
-      .forEach((el) => el.setAttribute("aria-invalid", String(!el.checkValidity())));
-    if (!form.checkValidity()) {
-      setState("invalid");
-      form.querySelector<HTMLElement>(":invalid")?.focus();
-      return;
-    }
-    setState("preview");
-  }
-  return { state, onSubmit };
-}
+const link = "font-semibold text-forest underline underline-offset-4";
 
-function PreviewNotice({ state }: { state: string }) {
-  if (state === "invalid")
-    return (
-      <p role="alert" className="rounded-md bg-lacquer/10 px-4 py-3 text-sm text-lacquer">
-        Check the fields marked below.
-      </p>
-    );
-  if (state === "preview")
-    return (
-      <p role="status" className="rounded-md bg-sage px-4 py-3 text-sm">
-        Accounts aren’t switched on in this preview. Nothing was sent.
-      </p>
-    );
-  return null;
-}
-
-export function SignInForm({ next, signedInAs }: { next: string; signedInAs?: string }) {
-  const { state, onSubmit } = usePreviewSubmit();
-  const hydrated = useHydrated();
+export function SignInForm({ next, signedInAs, notice }: { next: string; signedInAs?: string; notice?: string }) {
   return (
     <AuthShell
       title="Sign in"
       footer={
         <p>
           New to CeyLiving?{" "}
-          <Link
-            href={`/register?next=${encodeURIComponent(next)}`}
-            className="font-semibold text-forest underline underline-offset-4"
-          >
+          <Link href={`/register?next=${encodeURIComponent(next)}`} className={link}>
             Create an account
           </Link>
         </p>
       }
     >
+      {notice ? (
+        <p role="status" className="-mt-4 mb-6 rounded-md bg-sage px-4 py-3 text-sm">
+          {notice}
+        </p>
+      ) : null}
       {signedInAs ? (
         <p role="status" className="-mt-4 mb-6 rounded-md bg-sage px-4 py-3 text-sm">
           You’re signed in as {signedInAs}.{" "}
-          <Link href={next} className="font-semibold text-forest underline underline-offset-4">
+          <Link href={next} className={link}>
             Continue
           </Link>
         </p>
       ) : null}
-      {/* POST, so nothing typed reaches the address bar if it is sent before the page is ready. */}
-      <form method="post" onSubmit={onSubmit} noValidate className="space-y-5">
-        <PreviewNotice state={state} />
-        <Field label="Email" name="email" type="email" autoComplete="email webauthn" required />
-        <Field label="Password" name="password" type="password" autoComplete="current-password" required />
-        <div className="flex justify-end">
-          <Link href="/help#contact" className="text-sm font-medium text-forest underline underline-offset-4">
+      <ActionForm action={signInAction} submitLabel="Sign in" pendingLabel="Signing in…">
+        <input type="hidden" name="next" value={next} />
+        <FormInput label="Email" name="email" type="email" autoComplete="email" required />
+        <FormInput label="Password" name="password" type="password" autoComplete="current-password" required />
+        <p className="text-right text-sm">
+          <Link href="/forgot-password" className={link}>
             Forgot your password?
           </Link>
-        </div>
-        <button
-          type="submit"
-          disabled={!hydrated}
-          className="h-12 w-full rounded-full bg-forest font-semibold text-paper hover:bg-forest-deep active:scale-[0.98] disabled:opacity-60"
-        >
-          Sign in
-        </button>
-        <button type="button" className="h-12 w-full rounded-full border border-ink/25 font-semibold hover:border-ink">
-          Sign in with a passkey
-        </button>
-      </form>
+        </p>
+      </ActionForm>
     </AuthShell>
   );
 }
 
 export function RegisterForm({ seller, next }: { seller: boolean; next: string }) {
-  const { state, onSubmit } = usePreviewSubmit();
-  const hydrated = useHydrated();
   const signInHref = `/signin?next=${encodeURIComponent(next)}`;
   return (
     <AuthShell
@@ -110,7 +73,7 @@ export function RegisterForm({ seller, next }: { seller: boolean; next: string }
       footer={
         <p>
           Already have an account?{" "}
-          <Link href={signInHref} className="font-semibold text-forest underline underline-offset-4">
+          <Link href={signInHref} className={link}>
             Sign in{seller ? " and continue your application" : ""}
           </Link>
         </p>
@@ -118,32 +81,107 @@ export function RegisterForm({ seller, next }: { seller: boolean; next: string }
     >
       {seller ? (
         <p className="-mt-4 mb-6 text-ink-soft">
-          Start with an account. Next, you’ll tell us about your work on the application form, and we’ll review your
-          shop, usually within five working days.
+          Start with an account. After you confirm your email, you’ll tell us about your work on the application form,
+          and we’ll review your shop, usually within five working days.
         </p>
       ) : null}
-      {/* POST, so nothing typed reaches the address bar if it is sent before the page is ready. */}
-      <form method="post" onSubmit={onSubmit} noValidate className="space-y-5">
-        <PreviewNotice state={state} />
-        <Field label="Full name" name="name" autoComplete="name" required />
-        <Field label="Email" name="email" type="email" autoComplete="email" required />
-        <Field
+      <ActionForm
+        action={registerAction}
+        submitLabel={seller ? "Create account and continue" : "Create account"}
+        pendingLabel="Creating…"
+        resetOnSuccess
+      >
+        <input type="hidden" name="next" value={next} />
+        <FormInput label="Full name" name="name" autoComplete="name" required maxLength={80} />
+        <FormInput label="Email" name="email" type="email" autoComplete="email" required />
+        <FormInput
           label="Password"
           name="password"
           type="password"
           autoComplete="new-password"
           minLength={10}
+          maxLength={128}
           required
-          helper="At least 10 characters."
+          helper="At least 10 characters. We check it isn’t one that has leaked in a data breach."
         />
-        <button
-          type="submit"
-          disabled={!hydrated}
-          className="h-12 w-full rounded-full bg-forest font-semibold text-paper hover:bg-forest-deep active:scale-[0.98] disabled:opacity-60"
-        >
-          {seller ? "Continue to shop details" : "Create account"}
-        </button>
-      </form>
+      </ActionForm>
     </AuthShell>
+  );
+}
+
+export function ForgotPasswordForm() {
+  return (
+    <AuthShell
+      title="Forgot your password?"
+      footer={
+        <p>
+          Remembered it?{" "}
+          <Link href="/signin" className={link}>
+            Sign in
+          </Link>
+        </p>
+      }
+    >
+      <p className="-mt-4 mb-6 text-ink-soft">
+        Enter the email you signed up with. If it has an account, we’ll send a link to choose a new password.
+      </p>
+      <ActionForm action={forgotPasswordAction} submitLabel="Send the link" pendingLabel="Sending…" resetOnSuccess>
+        <FormInput label="Email" name="email" type="email" autoComplete="email" required />
+      </ActionForm>
+    </AuthShell>
+  );
+}
+
+export function ResetPasswordForm({ token }: { token: string }) {
+  return (
+    <AuthShell
+      title="Choose a new password"
+      footer={
+        <p>
+          Link not working?{" "}
+          <Link href="/forgot-password" className={link}>
+            Ask for a new one
+          </Link>
+        </p>
+      }
+    >
+      <ActionForm action={resetPasswordAction} submitLabel="Save new password" pendingLabel="Saving…">
+        <input type="hidden" name="token" value={token} />
+        <FormInput
+          label="New password"
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          minLength={10}
+          maxLength={128}
+          required
+          helper="At least 10 characters. Saving it signs you out on every device."
+        />
+      </ActionForm>
+    </AuthShell>
+  );
+}
+
+export function ChangePasswordForm() {
+  return (
+    <ActionForm action={changePasswordAction} submitLabel="Change password" pendingLabel="Saving…" resetOnSuccess>
+      <FormInput
+        label="Current password"
+        name="currentPassword"
+        type="password"
+        autoComplete="current-password"
+        required
+      />
+      <FormInput
+        label="New password"
+        name="password"
+        type="password"
+        autoComplete="new-password"
+        minLength={10}
+        maxLength={128}
+        required
+        helper="At least 10 characters. Your other devices are signed out."
+      />
+    </ActionForm>
   );
 }

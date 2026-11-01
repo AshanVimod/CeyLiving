@@ -14,10 +14,10 @@ import {
 import { commissionFor, generatePayouts, markPayoutPaid, sellerPayoutSummary } from "./payouts";
 import { deleteMyAccount, exportMyData } from "./privacy";
 
-let cookieUser = "user_customer";
 vi.mock("next/server", () => ({ connection: async () => undefined }));
-vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => ({ value: cookieUser }) }) }));
+vi.mock("next/headers", async () => (await import("@/test/auth")).nextHeaders);
 const { getSession } = await import("@/lib/session");
+const { signInAs } = await import("@/test/auth");
 
 withTestDatabase();
 
@@ -162,7 +162,7 @@ describe("FR-17 data export and account deletion", () => {
   it("deletion anonymises the person, keeps order records, and blocks sign-in", async () => {
     vi.stubEnv("NODE_ENV", "development");
     const reviewer = user("user_reviewer_1"); // Tom: delivered orders only
-    cookieUser = reviewer.id;
+    await signInAs(reviewer.id); // a real Better Auth session (B05a)
     expect((await getSession())?.user.id).toBe(reviewer.id);
     await deleteMyAccount(reviewer);
     const db = await readAll();

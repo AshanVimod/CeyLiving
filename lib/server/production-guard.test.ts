@@ -2,30 +2,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withTestDatabase } from "@/test/db";
 
-// SEC-A8 / AU-09: the demo session must refuse to work in production builds.
+// SEC-A8 / AU-09: before B05a a "ceyliving_demo_session" cookie holding a user ID signed people in. That cookie
+// must mean nothing now, in development and in production: only a signed Better Auth session counts. (Demo
+// sign-in itself is tested in auth-flows.test.ts.)
 vi.mock("next/server", () => ({ connection: async () => undefined }));
+const forged = new Headers({ cookie: "ceyliving_demo_session=user_admin; ceyliving.session_token=forged" });
 vi.mock("next/headers", () => ({
-  cookies: async () => ({
-    get: (name: string) => (name === "ceyliving_demo_session" ? { value: "user_admin" } : undefined),
-  }),
+  headers: async () => forged,
+  cookies: async () => ({ get: () => undefined, getAll: () => [], has: () => false, set: () => {}, delete: () => {} }),
 }));
 
 const { getSession } = await import("@/lib/session");
-const { isProductionRuntime } = await import("./runtime");
 
 withTestDatabase();
 
 afterEach(() => vi.unstubAllEnvs());
 
 describe("SEC-A8 production guard", () => {
-  it("ignores the demo cookie in production, even for an admin ID", async () => {
-    vi.stubEnv("NODE_ENV", "production");
-    expect(isProductionRuntime()).toBe(true);
+  it.each(["development", "production"])("a forged or old demo cookie signs no one in (%s)", async (mode) => {
+    vi.stubEnv("NODE_ENV", mode);
     expect(await getSession()).toBeNull();
-  });
-
-  it("uses the demo cookie in development", async () => {
-    vi.stubEnv("NODE_ENV", "development");
-    expect((await getSession())?.user.id).toBe("user_admin");
   });
 });

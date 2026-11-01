@@ -76,6 +76,11 @@ export function createPrismaClient(connectionString: string): PrismaClient {
 // One client per server process; kept on globalThis so dev reloads don't open a new pool each time.
 const shared = globalThis as unknown as { ceylivingPrisma?: PrismaClient };
 
+/** The app's own client (DB-10: as ceyliving_app). Only Better Auth's adapter (lib/server/better-auth.ts) uses it. */
+export function appPrisma(): PrismaClient {
+  return appClient();
+}
+
 function appClient(): PrismaClient {
   if (shared.ceylivingPrisma) return shared.ceylivingPrisma;
   const url = getEnv().DATABASE_URL;

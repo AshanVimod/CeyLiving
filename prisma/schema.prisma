@@ -151,6 +151,9 @@ model User {
   restrictionReason  String?            @map("restriction_reason")
   createdAt          DateTime           @map("created_at") @db.Timestamptz(3)
   deletedAt          DateTime?          @map("deleted_at") @db.Timestamptz(3)
+  /// B05a: Better Auth keeps these up to date; the app never shows a profile image yet.
+  updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  image              String?
 
   applications        SellerApplication[] @relation("applicant")
   decidedApplications SellerApplication[] @relation("decider")
@@ -167,9 +170,80 @@ model User {
   customRequests      CustomRequest[]
   helpfulVotes        HelpfulVote[]
   rateEvents          RateEvent[]
+  sessions            Session[]
+  accounts            Account[]
 
   @@index([role])
   @@map("users")
+}
+
+// ---------- Sign-in (Better Auth, B05a; backend plan AU-01 to AU-11) ----------
+
+/// One signed-in browser. The token is what the HttpOnly cookie carries (AU-03).
+model Session {
+  id        String   @id
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  /// A user's sessions end with the user row (users are never hard-deleted; FR-17 anonymises them).
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+/// How a user signs in. For email and password, providerId is "credential" and `password` holds Better Auth's
+/// hash (never written or logged by the app).
+model Account {
+  id                    String    @id
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id")
+  password              String?
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(3)
+  scope                 String?
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+/// Single-use email tokens (verify email, reset password); Better Auth deletes a row once it is used.
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([identifier])
+  @@index([expiresAt])
+  @@map("verifications")
+}
+
+/// AU-06 attempt counters, shared by every app instance because they live in the database.
+model RateLimit {
+  id          String @id
+  key         String @unique
+  count       Int
+  lastRequest BigInt @map("last_request")
+
+  @@map("rate_limits")
 }
 
 /// FR-2a: an application to open a shop.

@@ -54,14 +54,14 @@ describe("forms before the page is ready", () => {
     expect(action).toHaveBeenCalledTimes(1);
   });
 
-  it("sign-in and register post (never GET) and wait for the page before sending a password", () => {
+  it("sign-in and register post to their server actions, never GET, so a password can't reach a URL", () => {
     for (const html of [
       renderToString(<SignInForm next="/" />),
       renderToString(<RegisterForm seller={false} next="/" />),
     ]) {
       const [tag] = formTags(html);
-      expect(tag).toMatch(/method="post"/);
-      expect(html).toMatch(/<button type="submit" disabled=""/);
+      expect(tag).toMatch(/\saction=/);
+      expect(tag).not.toMatch(/method="get"/i);
     }
   });
 });

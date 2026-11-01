@@ -87,5 +87,4 @@ export const PAYOUT_HOLD_DAYS = 7;
 /** FR-14: open requests and unanswered quotes expire after this many days. */
 export const CUSTOM_REQUEST_EXPIRY_DAYS = 14;
 
-export const DEMO_SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 export const MS = { hour: HOUR_MS, day: DAY_MS } as const;

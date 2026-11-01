@@ -34,6 +34,8 @@ describe("OPS-02 proxy", () => {
     for (const path of ["/", "/accounts-help", "/sell", "/sellers", "/api/catalogue", "/account/wishlist"]) {
       expect(proxy(request(path)).headers.get("location"), path).toBeNull();
     }
-    expect(proxy(request("/account", { cookie: "ceyliving_demo_session=user_x" })).headers.get("location")).toBeNull();
+    expect(
+      proxy(request("/account", { cookie: "ceyliving.session_token=abc.sig" })).headers.get("location"),
+    ).toBeNull();
   });
 });

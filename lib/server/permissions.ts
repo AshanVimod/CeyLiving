@@ -31,14 +31,23 @@ export async function assertShopOwner(actor: Actor, shopId: string, tx: Tx): Pro
   return shop;
 }
 
-/** RULE-M3: muted or banned people can still buy and read, but can't post. */
+/** AU-01: a confirmed email address is needed before posting, selling or checking out. */
+export function assertEmailVerified(actor: Actor): void {
+  if (!actor.emailVerified) {
+    throw new ForbiddenError("Confirm your email address first: use the link we emailed you when you signed up.");
+  }
+}
+
+/** RULE-M3: muted or banned people can still buy and read, but can't post. AU-01: nor can unconfirmed accounts. */
 export function canPost(actor: Actor, now = new Date()): boolean {
+  if (!actor.emailVerified) return false;
   if (actor.postingRestriction === "BANNED") return false;
   if (actor.postingRestriction === "MUTED") return !actor.mutedUntil || new Date(actor.mutedUntil) <= now;
   return true;
 }
 
 export function assertCanPost(actor: Actor, now = new Date()): void {
+  assertEmailVerified(actor);
   if (canPost(actor, now)) return;
   const until =
     actor.postingRestriction === "MUTED" && actor.mutedUntil

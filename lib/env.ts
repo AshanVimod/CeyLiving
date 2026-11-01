@@ -18,6 +18,12 @@ export const envSchema = z
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/, error: "must be a postgresql:// address" }).optional(),
     // DB-10: migrations run as the schema owner, ceyliving_migrator. Read by the Prisma CLI (prisma.config.ts).
     DATABASE_MIGRATION_URL: z.url({ protocol: /^postgres(ql)?$/, error: "must be a postgresql:// address" }).optional(),
+    // B05a (AU-03): signs session cookies and email tokens. At least 32 characters; required in production.
+    BETTER_AUTH_SECRET: z.string().min(32, { error: "must be at least 32 characters" }).optional(),
+    // B05a: where verification and password-reset emails go (smtp:// or smtps://). Required in production; locally
+    // `npm run setup` points it at Mailpit. B10 moves email to the provider and the background worker.
+    SMTP_URL: z.url({ protocol: /^smtps?$/, error: "must be an smtp:// or smtps:// address" }).optional(),
+    EMAIL_FROM: z.string().min(3).default("CeyLiving <no-reply@ceyliving.lk>"),
     // OPS-01: log level. Default: info, or silent under NODE_ENV=test (see lib/server/observability/logger.ts).
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).optional(),
     // FR-2c: the site's public address, used for absolute links in sitemap.xml and robots.txt. No trailing slash.
@@ -33,6 +39,11 @@ export const envSchema = z
         path: ["ENABLE_DEMO_LOGIN"],
         message: "must not be true when NODE_ENV=production (AU-09)",
       });
+    }
+    for (const key of ["BETTER_AUTH_SECRET", "SMTP_URL"] as const) {
+      if (env.NODE_ENV === "production" && !env[key]) {
+        ctx.addIssue({ code: "custom", path: [key], message: "is required in production (B05a)" });
+      }
     }
     if (env.NODE_ENV === "production" && !env.DATABASE_URL) {
       ctx.addIssue({ code: "custom", path: ["DATABASE_URL"], message: "is required in production (DB-10)" });

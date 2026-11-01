@@ -196,3 +196,37 @@ export async function pruneRateEvents(tx: Tx, beforeMs: number): Promise<void> {
 export async function deleteRateEventsOf(tx: Tx, userId: string): Promise<void> {
   await writableClientOf(tx).rateEvent.deleteMany({ where: { userId } });
 }
+
+// ---------- Sign-in data (Better Auth tables, B05a) ----------
+
+/** AU-04 / AU-11: ends every session of a user (role change, deleted account); they sign in again. */
+export async function deleteSessionsOf(tx: Tx, userId: string): Promise<void> {
+  await writableClientOf(tx).session.deleteMany({ where: { userId } });
+}
+
+/** Ends one session by its cookie token (AU-03: past the 30-day limit). */
+export async function deleteSessionByToken(tx: Tx, token: string): Promise<void> {
+  await writableClientOf(tx).session.deleteMany({ where: { token } });
+}
+
+/** FR-17 / AU-11: removes how a deleted account signed in (its password hash and sessions). */
+export async function deleteSignInDataOf(tx: Tx, userId: string): Promise<void> {
+  const client = writableClientOf(tx);
+  await client.session.deleteMany({ where: { userId } });
+  await client.account.deleteMany({ where: { userId } });
+}
+
+/**
+ * AU-06: counts one attempt for `key` in a fixed window and returns the count so far. One statement, so attempts
+ * from several app instances at once are all counted (the row lives in PostgreSQL, not in a process).
+ */
+export async function countAuthAttempt(tx: Tx, key: string, windowMs: number, nowMs: number): Promise<number> {
+  const rows = await writableClientOf(tx).$queryRaw<{ count: number }[]>`
+    INSERT INTO rate_limits (id, key, count, last_request) VALUES (${newId("rl")}, ${key}, 1, ${nowMs})
+    ON CONFLICT (key) DO UPDATE SET
+      count = CASE WHEN rate_limits.last_request <= ${nowMs - windowMs} THEN 1 ELSE rate_limits.count + 1 END,
+      last_request = CASE WHEN rate_limits.last_request <= ${nowMs - windowMs} THEN ${nowMs}
+                          ELSE rate_limits.last_request END
+    RETURNING count`;
+  return rows[0]!.count;
+}

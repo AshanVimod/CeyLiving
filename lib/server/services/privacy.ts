@@ -24,6 +24,7 @@ import {
   deleteAddressesOf,
   deleteNotificationsOf,
   deleteRateEventsOf,
+  deleteSignInDataOf,
   findUserById,
   notificationsOf,
   updateApplication,
@@ -122,6 +123,7 @@ export async function deleteMyAccount(actor: Actor, now = new Date()): Promise<v
     if ((await sellerOrdersOfCustomer(tx, user.id)).some((so) => OPEN_ORDER.includes(so.status))) {
       throw new ConflictError("You have orders on their way. You can delete your account once they’ve been delivered.");
     }
+    await deleteSignInDataOf(tx, user.id); // AU-11: no password and no session survive deletion
     await updateUser(tx, user.id, {
       name: FORMER,
       email: `deleted-${user.id}@invalid`,

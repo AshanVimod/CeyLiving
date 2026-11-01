@@ -15,7 +15,8 @@ const eslintConfig = defineConfig([
   // BE-01: only repositories (and the transaction handle) touch stored rows; everything else goes through them.
   {
     files: ["app/**", "lib/**", "components/**", "proxy.ts"],
-    ignores: ["lib/server/db/**", "lib/server/repositories/**", "**/*.test.{ts,tsx}"],
+    // lib/server/better-auth.ts hands the app's client to Better Auth's adapter, which owns the sign-in tables.
+    ignores: ["lib/server/db/**", "lib/server/repositories/**", "lib/server/better-auth.ts", "**/*.test.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -27,7 +28,7 @@ const eslintConfig = defineConfig([
             },
             {
               group: ["**/db/tx"],
-              importNames: ["clientOf", "writableClientOf", "createPrismaClient", "handlesFor"],
+              importNames: ["clientOf", "writableClientOf", "createPrismaClient", "handlesFor", "appPrisma"],
               message: "Only repositories look inside a handle (BE-01). Pass `db` or a `tx` to a repository instead.",
             },
           ],

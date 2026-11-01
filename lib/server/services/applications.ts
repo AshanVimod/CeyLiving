@@ -4,11 +4,12 @@ import type { ApplicationStatus, SellerApplication, Shop } from "@/lib/types";
 import type { ApplicationInput, DecisionInput } from "@/lib/validation/application";
 import { withTx, type Tx } from "../db/tx";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
-import { assertRole, type Actor } from "../permissions";
+import { assertEmailVerified, assertRole, type Actor } from "../permissions";
 import { insertShop, shopSlugs } from "../repositories/catalogue";
 import {
   addNotification,
   applicationsOf,
+  deleteSessionsOf,
   findApplicationById,
   findUserById,
   insertApplication,
@@ -45,6 +46,7 @@ export async function submitApplication(
   now = new Date(),
 ): Promise<SellerApplication> {
   if (actor.role !== "CUSTOMER") throw new ForbiddenError("Only customer accounts can apply to open a shop.");
+  assertEmailVerified(actor); // AU-01: selling needs a confirmed email
   return withTx(async (tx) => {
     const mine = await applicationsOf(tx, actor.id);
     const open = mine.find((a) => OPEN.includes(a.status));
@@ -168,6 +170,7 @@ export async function decideApplication(
       if (!applicant || applicant.role !== "CUSTOMER")
         throw new ConflictError("This person can no longer become a seller.");
       await updateUser(tx, applicant.id, { role: "SELLER" });
+      await deleteSessionsOf(tx, applicant.id); // AU-04: a new role means a fresh sign-in
       await insertShop(tx, shopFromApplication(decided, applicant.name, await shopSlugs(tx), now));
       await addNotification(
         tx,

@@ -4,7 +4,7 @@ import { db, withTx, type Tx } from "../db/tx";
 import { ForbiddenError, NotFoundError } from "../errors";
 import { assertRole, type Actor } from "../permissions";
 import { countVotes, deleteVote, findQuestion, findReview, insertVote, votesFor } from "../repositories/content";
-import { addNotification, findUserById, updateUser } from "../repositories/people";
+import { addNotification, deleteSessionsOf, findUserById, updateUser } from "../repositories/people";
 import { assertRateLimit, audit } from "./shared";
 
 /**
@@ -21,6 +21,7 @@ export async function changeRole(actor: Actor, input: RoleChangeInput): Promise<
     if (target.role === "SELLER") throw new ForbiddenError("Sellers change role only when their shop is closed.");
     const before = target.role;
     await updateUser(tx, target.id, { role: input.role });
+    await deleteSessionsOf(tx, target.id); // AU-04: a new role means a fresh sign-in
     await addNotification(tx, target.id, "user.role", "Your account now has admin access", "/admin");
     await audit(tx, actor, "user.role_changed", "USER", target.id, { reason: input.reason, before, after: input.role });
   });

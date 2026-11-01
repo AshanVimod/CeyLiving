@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { REQUEST_ID_HEADER, resolveRequestId } from "./lib/server/observability/request-id";
 
-// Must match DEMO_SESSION_COOKIE in lib/session.ts (proxy can't import server-only modules).
-const SESSION_COOKIE = "ceyliving_demo_session";
+// AU-10: Better Auth's session cookie (cookiePrefix "ceyliving" in lib/server/better-auth.ts); production adds the
+// __Secure- prefix. Proxy only checks that one is present; layouts and actions check that it is valid (SEC-A1).
+const SESSION_COOKIES = ["ceyliving.session_token", "__Secure-ceyliving.session_token"];
 
 // Areas that need a session. The matcher below covers every page now, so the gate checks the path itself.
 const PROTECTED = /^\/(account|seller|admin|sell\/apply)(\/|$)/;
@@ -23,7 +24,11 @@ export function proxy(request: NextRequest) {
 
 function gate(request: NextRequest, requestId: string) {
   const { pathname, search } = request.nextUrl;
-  if (!PROTECTED.test(pathname) || pathname === "/account/wishlist" || request.cookies.has(SESSION_COOKIE)) {
+  if (
+    !PROTECTED.test(pathname) ||
+    pathname === "/account/wishlist" ||
+    SESSION_COOKIES.some((name) => request.cookies.has(name))
+  ) {
     const headers = new Headers(request.headers);
     headers.set(REQUEST_ID_HEADER, requestId);
     return NextResponse.next({ request: { headers } });
