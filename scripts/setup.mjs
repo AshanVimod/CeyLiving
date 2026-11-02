@@ -47,6 +47,23 @@ if (!fs.existsSync(devOnly)) {
   );
   console.log("Created .env.development.local: demo sign-in on /signin while developing.");
 }
+// B05b (AU-06): a production build needs Turnstile keys and refuses Cloudflare's test keys. For building on this
+// computer, .env.production.local (read only by `next build` and `next start`) gets placeholders. Turnstile can't
+// pass with them, so sign-up and reset don't work in a local production run; `next dev` uses the test keys.
+const prodOnly = path.join(root, ".env.production.local");
+if (!fs.existsSync(prodOnly)) {
+  fs.writeFileSync(
+    prodOnly,
+    [
+      "# Local production builds only (read by `next build` and `next start`, never by `next dev`).",
+      "# Placeholders: real keys come from the Cloudflare dashboard on the server.",
+      "TURNSTILE_SITE_KEY=local-build-only-site-key",
+      "TURNSTILE_SECRET_KEY=local-build-only-not-a-secret",
+      "",
+    ].join("\n"),
+  );
+  console.log("Created .env.production.local: placeholder Turnstile keys so `npm run build` works here.");
+}
 process.loadEnvFile(local);
 
 // 3. PostgreSQL and Mailpit in Docker

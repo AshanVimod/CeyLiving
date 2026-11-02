@@ -8,6 +8,12 @@ import { Field, TextArea } from "./fields";
 type ServerAction = (state: ActionState, formData: FormData) => Promise<ActionResult>;
 
 const ErrorsContext = createContext<Record<string, string>>({});
+const ResultContext = createContext<ActionState>(null);
+
+/** The last answer from the server (a new object for each submission), or null before the first. */
+export function useActionResult(): ActionState {
+  return useContext(ResultContext);
+}
 
 /** Field error for `name` from the last submission. */
 export function useFieldError(name: string): string | undefined {
@@ -93,46 +99,48 @@ export function ActionForm(props: ActionFormProps) {
 
   return (
     <ErrorsContext.Provider value={state && !state.ok ? (state.fieldErrors ?? {}) : {}}>
-      <form
-        ref={formRef}
-        action={dispatch}
-        onSubmit={onSubmit}
-        noValidate
-        className={`space-y-5 ${className}`}
-        aria-describedby={state ? statusId : undefined}
-      >
-        {state ? (
-          <p
-            ref={statusRef}
-            id={statusId}
-            tabIndex={-1}
-            role={state.ok ? "status" : "alert"}
-            className={`rounded-md px-4 py-3 text-sm focus:outline-none ${state.ok ? "bg-sage text-ink" : "bg-lacquer/10 text-lacquer"}`}
-          >
-            {state.ok ? (state.message ?? "Saved.") : state.message}
-          </p>
-        ) : null}
-        {children}
-        <fieldset disabled={waiting} className="flex flex-wrap gap-3">
-          <button
-            type="submit"
-            name={props.submitName}
-            value={props.submitValue}
-            disabled={pending || waiting}
-            aria-disabled={pending || waiting}
-            className={`inline-flex h-12 items-center gap-2 rounded-full px-7 font-semibold transition-[background-color,transform] active:scale-[0.98] disabled:opacity-60 ${variants[props.submitVariant ?? "primary"]}`}
-          >
-            {pending ? (
-              <span
-                className="size-4 animate-spin rounded-full border-2 border-current/40 border-t-current"
-                aria-hidden="true"
-              />
-            ) : null}
-            {waiting ? "Loading…" : pending ? pendingLabel : submitLabel}
-          </button>
-          {extraButtons}
-        </fieldset>
-      </form>
+      <ResultContext.Provider value={state}>
+        <form
+          ref={formRef}
+          action={dispatch}
+          onSubmit={onSubmit}
+          noValidate
+          className={`space-y-5 ${className}`}
+          aria-describedby={state ? statusId : undefined}
+        >
+          {state ? (
+            <p
+              ref={statusRef}
+              id={statusId}
+              tabIndex={-1}
+              role={state.ok ? "status" : "alert"}
+              className={`rounded-md px-4 py-3 text-sm focus:outline-none ${state.ok ? "bg-sage text-ink" : "bg-lacquer/10 text-lacquer"}`}
+            >
+              {state.ok ? (state.message ?? "Saved.") : state.message}
+            </p>
+          ) : null}
+          {children}
+          <fieldset disabled={waiting} className="flex flex-wrap gap-3">
+            <button
+              type="submit"
+              name={props.submitName}
+              value={props.submitValue}
+              disabled={pending || waiting}
+              aria-disabled={pending || waiting}
+              className={`inline-flex h-12 items-center gap-2 rounded-full px-7 font-semibold transition-[background-color,transform] active:scale-[0.98] disabled:opacity-60 ${variants[props.submitVariant ?? "primary"]}`}
+            >
+              {pending ? (
+                <span
+                  className="size-4 animate-spin rounded-full border-2 border-current/40 border-t-current"
+                  aria-hidden="true"
+                />
+              ) : null}
+              {waiting ? "Loading…" : pending ? pendingLabel : submitLabel}
+            </button>
+            {extraButtons}
+          </fieldset>
+        </form>
+      </ResultContext.Provider>
     </ErrorsContext.Provider>
   );
 }

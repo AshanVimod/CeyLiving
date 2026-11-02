@@ -4,9 +4,12 @@ const isDev = process.env.NODE_ENV === "development";
 
 // SEC-06: security headers. Nonce-based CSP is incompatible with Partial Prerendering (see the Next.js CSP guide),
 // so scripts allow 'unsafe-inline' for Next's inline bootstrap; everything else is locked to this site and the image CDN.
+// B05b (AU-06): Cloudflare Turnstile loads its script and its check (an iframe) from challenges.cloudflare.com.
+const turnstile = "https://challenges.cloudflare.com";
 const contentSecurityPolicy = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' ${turnstile}${isDev ? " 'unsafe-eval'" : ""}`,
+  `frame-src ${turnstile}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://images.unsplash.com",
   "font-src 'self'",

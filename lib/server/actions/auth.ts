@@ -13,16 +13,18 @@ import {
   resetPasswordSchema,
   signInSchema,
 } from "@/lib/validation/auth";
+import { rememberReplacedSession } from "@/lib/session";
 import { requireActor, safeNextPath } from "../auth";
 import { AUTH_ATTEMPTS, getAuth } from "../better-auth";
 import { withTx } from "../db/tx";
 import { RateLimitError, ValidationError } from "../errors";
-import { countAuthAttempt } from "../repositories/people";
+import { countAuthAttempt, peekAuthAttempts } from "../repositories/people";
 import { formToObject, parseInput, runAction } from "../run-action";
+import { TURNSTILE_FIELD, verifyTurnstile } from "../turnstile";
 
-// Sign-in forms (B05a, AU-01 to AU-07). Each action validates with zod (SEC-A3), counts the attempt per email and
-// per IP (AU-06), calls Better Auth on the server, and turns its answers into messages that never reveal whether
-// an email is registered (AU-07).
+// Sign-in forms (B05a and B05b, AU-01 to AU-07). Each action validates with zod (SEC-A3), counts the attempt per
+// email and per IP (AU-06), checks Turnstile on the server when it is needed (AU-06), calls Better Auth on the
+// server, and turns its answers into messages that never reveal whether an email is registered (AU-07).
 
 const SAME_ANSWER = "If an account exists for that email, we’ve sent a link. It works once, for 1 hour.";
 const WRONG_DETAILS = "That email and password don’t match an account. Check them and try again.";
@@ -35,6 +37,42 @@ function clientIp(requestHeaders: Headers): string {
 }
 
 const hashed = (value: string) => createHash("sha256").update(value).digest("hex");
+
+/** AU-06: after this many failed sign-ins (per email or per IP, in the 15-minute window) Turnstile is needed. */
+const FAILURES_BEFORE_TURNSTILE = 3;
+
+/** The field error that tells the form to show the Turnstile check (components/forms/turnstile.tsx). */
+const TURNSTILE_NEEDED = {
+  turnstile: "Complete the check that you’re a person, then try again.",
+};
+
+/** AU-06: verifies the form's Turnstile token with Cloudflare, on the server; refuses when it isn't valid. */
+async function requireTurnstile(form: FormData, requestHeaders: Headers): Promise<void> {
+  if (!(await verifyTurnstile(form.get(TURNSTILE_FIELD), clientIp(requestHeaders)))) {
+    throw new ValidationError("Complete the check that you’re a person, then try again.", TURNSTILE_NEEDED);
+  }
+}
+
+const failureKeys = (email: string, requestHeaders: Headers) => [
+  `ceyliving:sign-in-failed:email:${hashed(email)}`,
+  `ceyliving:sign-in-failed:ip:${clientIp(requestHeaders)}`,
+];
+
+/** AU-06: the most failed sign-ins for this email or this IP in the window (`record` counts one more first). */
+async function signInFailures(email: string, requestHeaders: Headers, record: boolean): Promise<number> {
+  const windowMs = AUTH_ATTEMPTS.window * 1000;
+  const now = Date.now();
+  const counts = await withTx(async (tx) => {
+    const out: number[] = [];
+    for (const key of failureKeys(email, requestHeaders)) {
+      out.push(
+        record ? await countAuthAttempt(tx, key, windowMs, now) : await peekAuthAttempts(tx, key, windowMs, now),
+      );
+    }
+    return out;
+  });
+  return Math.max(...counts);
+}
 
 /** AU-06: at most 5 attempts per 15 minutes for this email and for this IP; the email is stored only as a hash. */
 async function limitAttempts(kind: string, email: string, requestHeaders: Headers): Promise<void> {
@@ -68,19 +106,33 @@ export async function signInAction(_: ActionState, form: FormData): Promise<Acti
     next = safeNextPath(input.next);
     const requestHeaders = await headers();
     await limitAttempts("sign-in", input.email, requestHeaders);
+    // AU-06: after 3 failed attempts, a valid Turnstile token is needed before the password is even checked.
+    if ((await signInFailures(input.email, requestHeaders, false)) >= FAILURES_BEFORE_TURNSTILE) {
+      await requireTurnstile(form, requestHeaders);
+    }
     try {
-      await getAuth().api.signInEmail({
+      const signedIn = await getAuth().api.signInEmail({
         body: { email: input.email, password: input.password, rememberMe: true },
         headers: requestHeaders,
       });
+      // AU-02: the account has an authenticator app. Better Auth started no session; it set a short-lived cookie
+      // for the second step, which the code page finishes.
+      if ("twoFactorRedirect" in signedIn && signedIn.twoFactorRedirect) {
+        next = `/signin/two-step?next=${encodeURIComponent(next)}`;
+      }
     } catch (error) {
       const code = codeOf(error);
       // Only someone who knows the password learns the email is unconfirmed; Better Auth sends a fresh link.
       if (code === "EMAIL_NOT_VERIFIED") {
         return { ok: false, message: "Confirm your email first: we’ve sent you a new link." };
       }
-      if (isAPIError(error)) return { ok: false, message: WRONG_DETAILS }; // wrong details, or a deleted account
-      throw error;
+      if (!isAPIError(error)) throw error;
+      // Wrong details, or a deleted account. The same answer either way (AU-07); from the third failure on, the
+      // form shows the Turnstile check for the next try.
+      const failures = await signInFailures(input.email, requestHeaders, true);
+      return failures >= FAILURES_BEFORE_TURNSTILE
+        ? { ok: false, message: WRONG_DETAILS, fieldErrors: TURNSTILE_NEEDED }
+        : { ok: false, message: WRONG_DETAILS };
     }
   });
   if (!result.ok || result.message) return result;
@@ -92,6 +144,7 @@ export async function registerAction(_: ActionState, form: FormData): Promise<Ac
     const input = parseInput(registerSchema, formToObject(form));
     const requestHeaders = await headers();
     await limitAttempts("sign-up", input.email, requestHeaders);
+    await requireTurnstile(form, requestHeaders); // AU-06: always on sign-up
     // After confirming, people land where they were going (for example the shop application).
     const callbackURL = `${getEnv().SITE_URL}${safeNextPath(input.next)}`;
     try {
@@ -115,6 +168,7 @@ export async function forgotPasswordAction(_: ActionState, form: FormData): Prom
     const input = parseInput(forgotPasswordSchema, formToObject(form));
     const requestHeaders = await headers();
     await limitAttempts("reset", input.email, requestHeaders);
+    await requireTurnstile(form, requestHeaders); // AU-06: always on password reset
     await getAuth()
       .api.requestPasswordReset({
         body: { email: input.email, redirectTo: `${getEnv().SITE_URL}/reset-password` },
@@ -150,10 +204,12 @@ export async function changePasswordAction(_: ActionState, form: FormData): Prom
     const input = parseInput(changePasswordSchema, formToObject(form));
     try {
       // AU-04: every other session ends; this browser gets a fresh one.
-      await getAuth().api.changePassword({
+      const result = await getAuth().api.changePassword({
         body: { currentPassword: input.currentPassword, newPassword: input.password, revokeOtherSessions: true },
         headers: await headers(),
+        returnHeaders: true,
       });
+      await rememberReplacedSession(result.headers); // so the page drawn after this action still sees the person
     } catch (error) {
       if (codeOf(error) === "INVALID_PASSWORD") {
         throw new ValidationError("Check your current password.", {

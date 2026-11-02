@@ -7,7 +7,8 @@ import { jar, nextHeaders, SESSION_COOKIE, signInAs, signOutLocally, testIp } fr
 import { freshUser, readAll, user, withTestDatabase } from "@/test/db";
 
 // B05a: real sign-in with Better Auth, against the test database. Emails are captured instead of sent, and the
-// breached-password service is stubbed, so nothing leaves the machine.
+// breached-password service and Cloudflare Turnstile are stubbed, so nothing leaves the machine. Forms carry a
+// Turnstile token the stub accepts (B05b); lib/server/two-step.test.ts tests Turnstile itself.
 
 vi.mock("next/headers", async () => (await import("@/test/auth")).nextHeaders);
 vi.mock("next/server", async (original) => ({ ...(await original<object>()), connection: async () => undefined }));
@@ -46,6 +47,7 @@ beforeEach(() => {
   const real = globalThis.fetch;
   vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input instanceof Request ? input.url : input);
+    if (url === "https://challenges.cloudflare.com/turnstile/v0/siteverify") return Response.json({ success: true });
     if (!url.startsWith("https://api.pwnedpasswords.com/range/")) return real(input, init);
     const sha1 = createHash("sha1").update(BREACHED).digest("hex").toUpperCase();
     const prefix = url.slice(-5);
@@ -61,6 +63,7 @@ afterEach(() => {
 
 const form = (fields: Record<string, string>) => {
   const fd = new FormData();
+  fd.append("cf-turnstile-response", "stub-accepted-token"); // AU-06 (B05b)
   Object.entries(fields).forEach(([k, v]) => fd.append(k, v));
   return fd;
 };

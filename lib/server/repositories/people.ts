@@ -230,3 +230,73 @@ export async function countAuthAttempt(tx: Tx, key: string, windowMs: number, no
     RETURNING count`;
   return rows[0]!.count;
 }
+
+/** AU-04: ends every session of a user except the one carrying `keepToken` (two-step set-up). */
+export async function deleteOtherSessionsOf(tx: Tx, userId: string, keepToken: string): Promise<void> {
+  await writableClientOf(tx).session.deleteMany({ where: { userId, token: { not: keepToken } } });
+}
+
+export interface PasskeySummary {
+  id: string;
+  name?: string;
+  createdAt?: string;
+}
+
+export interface TwoStepStatus {
+  /** An authenticator app is set up and confirmed (AU-02). */
+  appEnabled: boolean;
+  /** Recovery codes not used yet; only their hashes are stored, so only the count can be shown. */
+  recoveryCodesLeft: number;
+  /** Whether the account has a password (accounts made before B05a may not). */
+  hasPassword: boolean;
+  passkeys: PasskeySummary[];
+}
+
+/** AU-02: what the security pages show about a person's second steps. */
+export async function twoStepStatusOf(tx: Tx, userId: string): Promise<TwoStepStatus> {
+  const client = clientOf(tx);
+  const [user, app, credential, passkeys] = await Promise.all([
+    client.user.findUnique({ where: { id: userId }, select: { twoFactorEnabled: true } }),
+    client.twoFactor.findUnique({ where: { userId }, select: { verified: true, backupCodes: true } }),
+    client.account.findFirst({ where: { userId, providerId: "credential" }, select: { id: true } }),
+    client.passkey.findMany({
+      where: { userId },
+      select: { id: true, name: true, createdAt: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    }),
+  ]);
+  const appEnabled = Boolean(user?.twoFactorEnabled && app?.verified);
+  let recoveryCodesLeft = 0;
+  if (appEnabled && app) {
+    try {
+      recoveryCodesLeft = (JSON.parse(app.backupCodes) as unknown[]).length;
+    } catch {
+      recoveryCodesLeft = 0;
+    }
+  }
+  return {
+    appEnabled,
+    recoveryCodesLeft,
+    hasPassword: Boolean(credential),
+    passkeys: passkeys.map((p) => ({ id: p.id, name: p.name ?? undefined, createdAt: p.createdAt?.toISOString() })),
+  };
+}
+
+/**
+ * AU-06: the count so far for `key` in its current window, without counting this request (see countAuthAttempt).
+ */
+export async function peekAuthAttempts(tx: Tx, key: string, windowMs: number, nowMs: number): Promise<number> {
+  const row = await clientOf(tx).rateLimit.findUnique({ where: { key }, select: { count: true, lastRequest: true } });
+  if (!row || Number(row.lastRequest) <= nowMs - windowMs) return 0;
+  return row.count;
+}
+
+/** AU-02: whether the account already has a second step (a confirmed authenticator app or a passkey). */
+export async function hasSecondStep(tx: Tx, userId: string): Promise<boolean> {
+  const client = clientOf(tx);
+  const [app, passkey] = await Promise.all([
+    client.twoFactor.findFirst({ where: { userId, verified: true }, select: { id: true } }),
+    client.passkey.findFirst({ where: { userId }, select: { id: true } }),
+  ]);
+  return Boolean(app || passkey);
+}

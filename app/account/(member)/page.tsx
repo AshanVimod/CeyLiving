@@ -11,9 +11,10 @@ import { REAPPLY_WAIT_DAYS } from "@/lib/config";
 import { formatDate } from "@/lib/format";
 import { signOut, signOutEverywhere } from "@/lib/server/actions/session";
 import { ChangePasswordForm } from "@/components/forms/auth-forms";
+import { Passkeys } from "@/components/account/two-step-panels";
 import { requireUser } from "@/lib/server/auth";
 import { findShopByOwner } from "@/lib/server/repositories/catalogue";
-import { applicationsOf } from "@/lib/server/repositories/people";
+import { applicationsOf, twoStepStatusOf } from "@/lib/server/repositories/people";
 import { adminWaitingTotal } from "@/lib/server/services/admin-stats";
 import type { SellerApplication, User } from "@/lib/types";
 
@@ -130,6 +131,7 @@ function CustomerLinks() {
 async function Profile() {
   const user = await requireUser("/account");
   const application = (await applicationsOf(db, user.id))[0];
+  const twoStep = await twoStepStatusOf(db, user.id);
   return (
     <>
       <PageTitle title="My profile" />
@@ -170,7 +172,7 @@ async function Profile() {
           </div>
         </section>
 
-        {/* B05a (AU-04): password and sessions. */}
+        {/* B05a (AU-04): password and sessions. B05b (AU-02): two-step sign-in and passkeys. */}
         <section
           aria-labelledby="security-heading"
           className="rounded-lg border border-line bg-paper-raised p-5 sm:p-6"
@@ -180,6 +182,30 @@ async function Profile() {
           </h2>
           <div className="mt-4 max-w-md">
             <ChangePasswordForm />
+          </div>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6">
+            <div className="max-w-md">
+              <h3 className="font-sans text-[0.95rem] font-semibold">Two-step sign-in</h3>
+              <p className="mt-1 text-sm text-ink-soft">
+                {twoStep.appEnabled
+                  ? `On, with an authenticator app. ${twoStep.recoveryCodesLeft} recovery codes left.`
+                  : twoStep.passkeys.length
+                    ? "On, with a passkey. You can also add an authenticator app."
+                    : user.role === "CUSTOMER"
+                      ? "Off. Add an authenticator app or a passkey so a stolen password alone can’t open your account."
+                      : "Needed for sellers and admins. Set it up to open your dashboard."}
+              </p>
+            </div>
+            <Link href="/account/two-step" className={`${button} border border-ink/25 hover:border-ink`}>
+              {twoStep.appEnabled || twoStep.passkeys.length ? "Manage two-step" : "Set up two-step"}
+            </Link>
+          </div>
+          <div className="mt-6 border-t border-line pt-6">
+            <h3 className="font-sans text-[0.95rem] font-semibold">Passkeys</h3>
+            <p className="mt-1 mb-4 max-w-md text-sm text-ink-soft">
+              Sign in with your fingerprint, face or device PIN instead of typing a password.
+            </p>
+            <Passkeys passkeys={twoStep.passkeys} />
           </div>
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-6">
             <p className="max-w-md text-sm text-ink-soft">

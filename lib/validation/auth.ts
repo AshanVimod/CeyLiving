@@ -36,6 +36,38 @@ export const resetPasswordSchema = z.object({
   password: newPassword,
 });
 
+/** AU-02: the second step at sign-in: a 6-digit code from the app, or one of the recovery codes. */
+export const twoStepSignInSchema = z.discriminatedUnion("method", [
+  z.object({
+    method: z.literal("app"),
+    code: z
+      .string()
+      .transform((v) => v.replace(/\s/g, ""))
+      .pipe(z.string().regex(/^\d{6}$/, { error: "Enter the 6-digit code from your app." })),
+    next: z.string().max(500).optional(),
+  }),
+  z.object({
+    method: z.literal("recovery"),
+    code: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9]{5}-?[A-Za-z0-9]{5}$/, { error: "Enter a recovery code, like abcde-12345." }),
+    next: z.string().max(500).optional(),
+  }),
+]);
+
+/** AU-02: setting up or changing two-step asks for the password when the account has one. */
+export const confirmPasswordSchema = z.object({ password: z.string().max(128).optional() });
+
+export const appCodeSchema = z.object({
+  code: z
+    .string()
+    .transform((v) => v.replace(/\s/g, ""))
+    .pipe(z.string().regex(/^\d{6}$/, { error: "Enter the 6-digit code from your app." })),
+});
+
+export const passkeyIdSchema = z.object({ passkeyId: z.string().min(1).max(100) });
+
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, { error: "Enter your current password." }).max(128),
   password: newPassword,

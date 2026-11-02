@@ -57,7 +57,7 @@ describe("forms before the page is ready", () => {
   it("sign-in and register post to their server actions, never GET, so a password can't reach a URL", () => {
     for (const html of [
       renderToString(<SignInForm next="/" />),
-      renderToString(<RegisterForm seller={false} next="/" />),
+      renderToString(<RegisterForm seller={false} next="/" turnstileSiteKey="1x00000000000000000000AA" />),
     ]) {
       const [tag] = formTags(html);
       expect(tag).toMatch(/\saction=/);

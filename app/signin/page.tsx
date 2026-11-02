@@ -5,6 +5,7 @@ import { SignInForm } from "@/components/forms/auth-forms";
 import { Container } from "@/components/ui/section-heading";
 import { currentUser, safeNextPath } from "@/lib/server/auth";
 import { demoSignInAllowed } from "@/lib/server/better-auth";
+import { turnstileSiteKey } from "@/lib/server/turnstile";
 
 export const metadata: Metadata = { title: "Sign in", robots: { index: false } };
 
@@ -21,6 +22,7 @@ async function SignInContent({ searchParams }: { searchParams: PageProps<"/signi
       ) : null}
       <SignInForm
         next={nextPath}
+        turnstileSiteKey={await turnstileSiteKey()}
         signedInAs={user?.name}
         notice={
           reset === "1"

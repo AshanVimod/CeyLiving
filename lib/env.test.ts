@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { EnvError, envSchema, getEnv, parseEnv } from "./env";
+import { EnvError, envSchema, getEnv, parseEnv, TURNSTILE_TEST_KEYS, turnstileKeys } from "./env";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -19,7 +19,16 @@ const DB = "postgresql://ceyliving_app:x@db.internal:5432/ceyliving";
 const SECRET = "s".repeat(40);
 const SMTP = "smtps://mailer:x@smtp.example.net:465";
 /** Everything production must have, so each test changes one thing. */
-const PROD = { NODE_ENV: "production", DATABASE_URL: DB, BETTER_AUTH_SECRET: SECRET, SMTP_URL: SMTP };
+const SITE_KEY = "real-site-key-placeholder";
+const TURNSTILE_SECRET = "real-secret-key-placeholder";
+const PROD = {
+  NODE_ENV: "production",
+  DATABASE_URL: DB,
+  BETTER_AUTH_SECRET: SECRET,
+  SMTP_URL: SMTP,
+  TURNSTILE_SITE_KEY: SITE_KEY,
+  TURNSTILE_SECRET_KEY: TURNSTILE_SECRET,
+};
 
 describe("lib/env", () => {
   it("AU-09 refuses ENABLE_DEMO_LOGIN=true when NODE_ENV=production", () => {
@@ -49,6 +58,29 @@ describe("lib/env", () => {
       "DATABASE_URL: must be a postgresql:// address",
     ]);
     expect(parseEnv({ NODE_ENV: "development" }).DATABASE_URL).toBeUndefined();
+  });
+
+  it("AU-06 production needs real Turnstile keys; elsewhere Cloudflare's test keys are used", () => {
+    expect(
+      problems(() => parseEnv({ ...PROD, TURNSTILE_SITE_KEY: undefined, TURNSTILE_SECRET_KEY: undefined })),
+    ).toEqual([
+      "TURNSTILE_SITE_KEY: is required in production (AU-06)",
+      "TURNSTILE_SECRET_KEY: is required in production (AU-06)",
+    ]);
+    expect(
+      problems(() =>
+        parseEnv({
+          ...PROD,
+          TURNSTILE_SITE_KEY: TURNSTILE_TEST_KEYS.siteKey,
+          TURNSTILE_SECRET_KEY: TURNSTILE_TEST_KEYS.secretKey,
+        }),
+      ),
+    ).toEqual([
+      "TURNSTILE_SITE_KEY: must not be a Cloudflare test key in production",
+      "TURNSTILE_SECRET_KEY: must not be a Cloudflare test key in production",
+    ]);
+    expect(turnstileKeys(parseEnv({ NODE_ENV: "development" }))).toEqual(TURNSTILE_TEST_KEYS);
+    expect(turnstileKeys(parseEnv(PROD))).toEqual({ siteKey: SITE_KEY, secretKey: TURNSTILE_SECRET });
   });
 
   it("B05a production needs a session secret of 32+ characters and an SMTP server for sign-in emails", () => {

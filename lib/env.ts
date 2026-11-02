@@ -9,6 +9,15 @@ const flag = z
   .default("false")
   .transform((value) => value === "true");
 
+/**
+ * Cloudflare's published Turnstile test keys (developers.cloudflare.com/turnstile/troubleshooting/testing): this
+ * pair always passes. Used in development and tests only; production refuses them.
+ */
+export const TURNSTILE_TEST_KEYS = {
+  siteKey: "1x00000000000000000000AA",
+  secretKey: "1x0000000000000000000000000000000AA",
+};
+
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -24,6 +33,10 @@ export const envSchema = z
     // `npm run setup` points it at Mailpit. B10 moves email to the provider and the background worker.
     SMTP_URL: z.url({ protocol: /^smtps?$/, error: "must be an smtp:// or smtps:// address" }).optional(),
     EMAIL_FROM: z.string().min(3).default("CeyLiving <no-reply@ceyliving.lk>"),
+    // B05b (AU-06): Cloudflare Turnstile. Required in production; elsewhere they default to Cloudflare's published
+    // test keys (TURNSTILE_TEST_KEYS), which always pass and never identify a real site.
+    TURNSTILE_SITE_KEY: z.string().min(1).max(100).optional(),
+    TURNSTILE_SECRET_KEY: z.string().min(1).max(100).optional(),
     // OPS-01: log level. Default: info, or silent under NODE_ENV=test (see lib/server/observability/logger.ts).
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).optional(),
     // FR-2c: the site's public address, used for absolute links in sitemap.xml and robots.txt. No trailing slash.
@@ -45,6 +58,13 @@ export const envSchema = z
         ctx.addIssue({ code: "custom", path: [key], message: "is required in production (B05a)" });
       }
     }
+    for (const key of ["TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY"] as const) {
+      if (env.NODE_ENV !== "production") continue;
+      if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: "is required in production (AU-06)" });
+      else if (Object.values(TURNSTILE_TEST_KEYS).includes(env[key])) {
+        ctx.addIssue({ code: "custom", path: [key], message: "must not be a Cloudflare test key in production" });
+      }
+    }
     if (env.NODE_ENV === "production" && !env.DATABASE_URL) {
       ctx.addIssue({ code: "custom", path: ["DATABASE_URL"], message: "is required in production (DB-10)" });
     }
@@ -55,6 +75,14 @@ export const envSchema = z
   });
 
 export type Env = z.output<typeof envSchema>;
+
+/** AU-06: the Turnstile keys in use (the test pair outside production when none are set). */
+export function turnstileKeys(env: Env = getEnv()): { siteKey: string; secretKey: string } {
+  return {
+    siteKey: env.TURNSTILE_SITE_KEY ?? TURNSTILE_TEST_KEYS.siteKey,
+    secretKey: env.TURNSTILE_SECRET_KEY ?? TURNSTILE_TEST_KEYS.secretKey,
+  };
+}
 
 /** Lists each bad key and why; never the value, so secrets can't reach logs. */
 export class EnvError extends Error {

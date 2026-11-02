@@ -5,7 +5,7 @@ import { withTx, type Tx } from "../db/tx";
 import { ForbiddenError, NotFoundError } from "../errors";
 import { findProductById, findShopBySlug, isProductPublic } from "../repositories/catalogue";
 import { findQuestion, insertAnswer, insertQuestion } from "../repositories/content";
-import { assertCanPost, assertShopOwner, type Actor } from "../permissions";
+import { assertCanPost, assertShopOwner, assertTwoStep, type Actor } from "../permissions";
 import { addNotification, newId } from "../repositories/people";
 import { assertRateLimit } from "./shared";
 
@@ -53,6 +53,7 @@ export async function addAnswer(tx: Tx, actor: Actor, input: AnswerInput, now = 
   const question = await findQuestion(tx, input.questionId);
   if (!question || question.status === "DELETED") throw new NotFoundError("Question not found.");
   if (actor.role !== "ADMIN") await assertShopOwner(actor, question.shopId, tx);
+  else assertTwoStep(actor); // AU-02
   await assertRateLimit(tx, actor.id, "answer", now);
   const answer = await insertAnswer(tx, {
     id: newId("a"),

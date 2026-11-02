@@ -4,7 +4,8 @@ import { ForbiddenError, NotFoundError, UnauthorizedError } from "./errors";
 import { findShopByOwner } from "./repositories/catalogue";
 import type { Tx } from "./db/tx";
 
-export type Actor = User;
+/** Whoever is acting. `needsTwoStep` comes from the session (lib/session.ts); see assertTwoStep. */
+export type Actor = User & { needsTwoStep?: boolean };
 
 // Pure permission checks used by every service (SEC-A1, SEC-A2). They never trust IDs from the browser.
 
@@ -14,6 +15,17 @@ export function assertSignedIn(actor: Actor | null | undefined): asserts actor i
 
 export function assertRole(actor: Actor, roles: Role[]): void {
   if (!roles.includes(actor.role)) throw new ForbiddenError();
+  assertTwoStep(actor);
+}
+
+/**
+ * AU-02: seller and admin work needs a session opened with two steps. Pages send people to set it up; an action
+ * called directly is refused here, so the check doesn't depend on which page the request came from.
+ */
+export function assertTwoStep(actor: Actor): void {
+  if (actor.needsTwoStep) {
+    throw new ForbiddenError("Set up two-step sign-in first: go to your account, then “Sign-in and security”.");
+  }
 }
 
 /** RULE-S1: the seller's shop, loaded by owner. Sellers without a shop get 404. */
@@ -26,6 +38,7 @@ export async function shopOfSeller(actor: Actor, tx: Tx): Promise<Shop> {
 
 /** Throws 404 (not 403) when the shop isn't the actor's, so other shops' data isn't revealed (SEC-A5). */
 export async function assertShopOwner(actor: Actor, shopId: string, tx: Tx): Promise<Shop> {
+  assertTwoStep(actor);
   const shop = actor.role === "SELLER" ? await findShopByOwner(tx, actor.id) : undefined;
   if (!shop || shop.id !== shopId) throw new NotFoundError();
   return shop;

@@ -11,7 +11,9 @@ import { requestLogger } from "./observability/logger";
  * server-side with the request ID and shown generically with that ID as a reference (CS-14, OPS-03).
  * Next.js redirects pass through untouched.
  */
-export async function runAction(body: () => Promise<ActionResult | void>): Promise<ActionResult> {
+export async function runAction<R extends ActionResult = ActionResult>(
+  body: () => Promise<R | void>,
+): Promise<R | ActionResult> {
   const started = performance.now();
   const { requestId, log } = requestLogger(await requestHeaders());
   const durationMs = () => Math.round(performance.now() - started);

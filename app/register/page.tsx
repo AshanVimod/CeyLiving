@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { RegisterForm } from "@/components/forms/auth-forms";
 import { Container } from "@/components/ui/section-heading";
 import { safeNextPath } from "@/lib/server/auth";
+import { turnstileSiteKey } from "@/lib/server/turnstile";
 
 export const metadata: Metadata = { title: "Create an account", robots: { index: false } };
 
@@ -10,7 +11,13 @@ async function Register({ searchParams }: { searchParams: PageProps<"/register">
   const { seller, next } = await searchParams;
   const isSeller = seller === "1";
   // The seller path continues to the application form once the person has an account (D-04).
-  return <RegisterForm seller={isSeller} next={safeNextPath(next, isSeller ? "/sell/apply" : "/account")} />;
+  return (
+    <RegisterForm
+      seller={isSeller}
+      next={safeNextPath(next, isSeller ? "/sell/apply" : "/account")}
+      turnstileSiteKey={await turnstileSiteKey()}
+    />
+  );
 }
 
 export default function RegisterPage(props: PageProps<"/register">) {

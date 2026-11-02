@@ -154,6 +154,8 @@ model User {
   /// B05a: Better Auth keeps these up to date; the app never shows a profile image yet.
   updatedAt          DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   image              String?
+  /// B05b (AU-02): an authenticator app is set up and confirmed. Better Auth sets it; sign-in then asks for a code.
+  twoFactorEnabled   Boolean            @default(false) @map("two_factor_enabled")
 
   applications        SellerApplication[] @relation("applicant")
   decidedApplications SellerApplication[] @relation("decider")
@@ -172,6 +174,8 @@ model User {
   rateEvents          RateEvent[]
   sessions            Session[]
   accounts            Account[]
+  twoFactor           TwoFactor?
+  passkeys            Passkey[]
 
   @@index([role])
   @@map("users")
@@ -189,6 +193,9 @@ model Session {
   userAgent String?  @map("user_agent")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  /// B05b (AU-02): this session was opened with two steps (a password and an authenticator code or recovery code,
+  /// or a passkey). Set only by the server when the session is created; sellers and admins need it.
+  twoStep   Boolean  @default(false) @map("two_step")
 
   /// A user's sessions end with the user row (users are never hard-deleted; FR-17 anonymises them).
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -234,6 +241,44 @@ model Verification {
   @@index([identifier])
   @@index([expiresAt])
   @@map("verifications")
+}
+
+/// B05b (AU-02): a user's authenticator app. `secret` is encrypted with BETTER_AUTH_SECRET; `backupCodes` holds
+/// only keyed hashes of the recovery codes (lib/server/better-auth.ts), so the codes themselves are never stored.
+model TwoFactor {
+  id                      String    @id
+  userId                  String    @unique @map("user_id")
+  secret                  String
+  backupCodes             String    @map("backup_codes")
+  /// False until the person enters a first code from the app; until then sign-in doesn't ask for one.
+  verified                Boolean   @default(true)
+  failedVerificationCount Int       @default(0) @map("failed_verification_count")
+  lockedUntil             DateTime? @map("locked_until") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("two_factors")
+}
+
+/// B05b (AU-02): a passkey (WebAuthn credential). Only the public key is stored; the private key never leaves the
+/// person's device.
+model Passkey {
+  id           String    @id
+  name         String?
+  publicKey    String    @map("public_key")
+  userId       String    @map("user_id")
+  credentialID String    @unique @map("credential_id")
+  counter      Int
+  deviceType   String    @map("device_type")
+  backedUp     Boolean   @map("backed_up")
+  transports   String?
+  createdAt    DateTime? @default(now()) @map("created_at") @db.Timestamptz(3)
+  aaguid       String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("passkeys")
 }
 
 /// AU-06 attempt counters, shared by every app instance because they live in the database.

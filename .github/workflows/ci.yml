@@ -42,6 +42,9 @@ jobs:
       # B05a: production builds check these at start-up. Build-only values: no email is sent and no session made in CI.
       BETTER_AUTH_SECRET: ci-build-only-${{ github.run_id }}-${{ github.run_attempt }}-not-a-secret
       SMTP_URL: smtp://127.0.0.1:1025
+      # B05b (AU-06): the build runs as production, which needs Turnstile keys; these placeholders never reach Cloudflare.
+      TURNSTILE_SITE_KEY: ci-build-only-site-key
+      TURNSTILE_SECRET_KEY: ci-build-only-not-a-secret
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
