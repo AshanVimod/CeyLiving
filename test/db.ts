@@ -163,11 +163,17 @@ export async function readAll(): Promise<SeedData> {
 /** B06: the jobs in one pg-boss queue of this file's database (any state), oldest first. */
 export async function queuedJobs(
   name: string,
-): Promise<{ id: string; state: string; data: unknown; singletonKey: string | null }[]> {
+): Promise<{ id: string; state: string; data: unknown; singletonKey: string | null; startAfter: Date }[]> {
   return current().migrator.$queryRawUnsafe(
-    `SELECT id::text, state::text, data, singleton_key AS "singletonKey" FROM pgboss.job WHERE name = $1 ORDER BY created_on, id`,
+    `SELECT id::text, state::text, data, singleton_key AS "singletonKey", start_after AS "startAfter"
+     FROM pgboss.job WHERE name = $1 ORDER BY created_on, id`,
     name,
   );
+}
+
+/** B07: the schema owner's client, for a test that must act like another process (e.g. a payment arriving). */
+export function migratorClient(): PrismaClient {
+  return current().migrator;
 }
 
 /**

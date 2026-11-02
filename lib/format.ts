@@ -30,6 +30,13 @@ export function formatDate(iso: string): string {
   return dateFormat.format(new Date(iso));
 }
 
+const timeFormat = new Intl.DateTimeFormat("en-LK", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Colombo" });
+
+/** A time of day in Sri Lankan time, e.g. "3:45 pm" (B07: when an unpaid order is cancelled). */
+export function formatTime(iso: string): string {
+  return timeFormat.format(new Date(iso));
+}
+
 /** Who made an audited change: the person's name, or CeyLiving itself when a scheduled job did it (B06). */
 export function auditActorName(actorId: string | undefined, userNames: ReadonlyMap<string, string>): string {
   return actorId ? (userNames.get(actorId) ?? actorId) : "CeyLiving (scheduled job)";

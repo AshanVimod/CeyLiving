@@ -16,6 +16,8 @@ export const JOBS = {
   },
   "image.process": { payload: z.object({ uploadId: id }) },
   "orders.expireUnpaid": { payload: z.object({ orderId: id }) },
+  // B07: asks the web app to drop its cached catalogue after stock came back. One queued at a time (singletonKey).
+  "catalogue.refresh": { payload: empty, policy: "short" },
   "orders.autoCancelUnaccepted": { payload: empty, cron: "*/15 * * * *" },
   "orders.autoComplete": { payload: empty, cron: "5 * * * *" },
   "payouts.generateWeekly": { payload: empty, cron: "0 6 * * 1" },

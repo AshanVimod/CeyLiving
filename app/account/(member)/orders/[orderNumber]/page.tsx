@@ -4,10 +4,11 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { ConfirmDeliveryForm } from "@/components/account/order-actions";
 import { PageTitle } from "@/components/account/area-shell";
+import { CustomizationDetails } from "@/components/orders/customization-details";
 import { ReviewForm } from "@/components/reviews/review-form";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { REVIEW_EDIT_DAYS } from "@/lib/config";
-import { daysSince, formatDate, formatLkr } from "@/lib/format";
+import { daysSince, formatDate, formatLkr, formatTime } from "@/lib/format";
 import { requireUser } from "@/lib/server/auth";
 import { NotFoundError } from "@/lib/server/errors";
 import { listShops } from "@/lib/server/repositories/catalogue";
@@ -45,6 +46,12 @@ async function OrderDetail({ params }: { params: PageProps<"/account/orders/[ord
         description={`Placed ${formatDate(order.placedAt)}. Total ${formatLkr(order.totalCents)}.`}
       />
       <div className="space-y-6">
+        {order.paymentStatus === "PENDING" ? (
+          <p role="status" className="rounded-md bg-turmeric-soft px-4 py-3">
+            Awaiting payment. Online payment is being switched on; until then this order is held for you until{" "}
+            {formatTime(order.expiresAt!)} and then cancelled, and nothing is charged.
+          </p>
+        ) : null}
         {sellerOrders.map(({ sellerOrder, items }) => {
           const shop = shops.find((s) => s.id === sellerOrder.shopId);
           return (
@@ -85,6 +92,7 @@ async function OrderDetail({ params }: { params: PageProps<"/account/orders/[ord
                           </span>
                           <span className="tabular-nums">{formatLkr(item.unitPriceCents * item.quantity)}</span>
                         </p>
+                        <CustomizationDetails customization={item.customization} />
                         {reviewable.has(item.id) ? (
                           <details className="mt-3 rounded-md border border-line p-4">
                             <summary className="cursor-pointer font-semibold text-forest">Write a review</summary>

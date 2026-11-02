@@ -29,6 +29,7 @@ const STATUS: Record<string, { label: string; tone: Tone }> = {
   HIDDEN: { label: "Hidden", tone: "warning" },
   DELETED: { label: "Deleted", tone: "danger" },
   // orders
+  PENDING_PAYMENT: { label: "Awaiting payment", tone: "warning" },
   NEW: { label: "New", tone: "info" },
   ACCEPTED: { label: "Accepted", tone: "info" },
   IN_PROGRESS: { label: "Being made", tone: "info" },

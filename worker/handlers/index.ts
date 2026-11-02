@@ -1,5 +1,6 @@
 import type { JobHandler } from "@/lib/server/observability/job";
 import type { JobName } from "@/lib/server/jobs/queues";
+import { catalogueRefresh } from "./catalogue-refresh";
 import { customRequestsExpire } from "./custom-requests-expire";
 import { emailSend } from "./email-send";
 import { imageProcess } from "./image-process";
@@ -17,6 +18,7 @@ export const HANDLERS: { [N in JobName]: JobHandler<N> } = {
   "email.send": emailSend,
   "image.process": imageProcess,
   "orders.expireUnpaid": ordersExpireUnpaid,
+  "catalogue.refresh": catalogueRefresh,
   "orders.autoCancelUnaccepted": ordersAutoCancelUnaccepted,
   "orders.autoComplete": ordersAutoComplete,
   "payouts.generateWeekly": payoutsGenerateWeekly,

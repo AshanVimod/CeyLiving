@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { PageTitle } from "@/components/account/area-shell";
 import { SellerOrderActions } from "@/components/seller/order-actions";
+import { CustomizationDetails } from "@/components/orders/customization-details";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { BUYER_DATA_VISIBLE_DAYS } from "@/lib/config";
 import { formatDate, formatLkr } from "@/lib/format";
@@ -46,6 +47,7 @@ async function SellerOrder({ params }: { params: PageProps<"/seller/orders/[id]"
                   {i.variantLabel ? <span className="text-ink-soft">, {i.variantLabel}</span> : null}
                 </span>
                 <span className="tabular-nums">{formatLkr(i.unitPriceCents * i.quantity)}</span>
+                <CustomizationDetails customization={i.customization} />
               </li>
             ))}
           </ul>

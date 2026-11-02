@@ -12,7 +12,9 @@ export type ShopStatus = "DRAFT" | "ACTIVE" | "SUSPENDED" | "CLOSED";
 export type ProductStatus = "DRAFT" | "PENDING_REVIEW" | "ACTIVE" | "REJECTED" | "ARCHIVED" | "REMOVED";
 export type ContentStatus = "VISIBLE" | "HIDDEN" | "DELETED";
 export type SellerOrderStatus =
-  "NEW" | "ACCEPTED" | "IN_PROGRESS" | "DISPATCHED" | "COMPLETED" | "CANCELLED" | "REFUNDED";
+  "PENDING_PAYMENT" | "NEW" | "ACCEPTED" | "IN_PROGRESS" | "DISPATCHED" | "COMPLETED" | "CANCELLED" | "REFUNDED";
+/** B07: PENDING until paid (B08); EXPIRED when not paid in time (BR-06). */
+export type PaymentStatus = "PENDING" | "PAID" | "EXPIRED";
 export type ReportStatus = "OPEN" | "RESOLVED" | "DISMISSED";
 export type PostingRestriction = "NONE" | "MUTED" | "BANNED";
 export type ReportTargetType = "PRODUCT" | "SHOP" | "REVIEW" | "QUESTION" | "ANSWER";
@@ -184,6 +186,9 @@ export interface Order {
   shippingCents: number;
   totalCents: number;
   placedAt: string;
+  paymentStatus: PaymentStatus;
+  /** BR-06: when an unpaid order is cancelled and its stock returned. Only orders placed through checkout have one. */
+  expiresAt?: string;
 }
 
 export interface SellerOrder {
@@ -215,6 +220,8 @@ export interface OrderItem {
   variantLabel: string;
   unitPriceCents: number;
   quantity: number;
+  /** BR-16: what the customer asked for, by the field's label at checkout (checked against the item's fields). */
+  customization?: Record<string, string>;
 }
 
 export interface Review {

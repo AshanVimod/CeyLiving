@@ -1,4 +1,5 @@
 import "server-only";
+import { PRODUCT_LIMITS } from "@/lib/config";
 import type { Product, Shop } from "@/lib/types";
 import type { Prisma } from "../db/generated/client";
 import {
@@ -206,4 +207,46 @@ export async function findPublicProductBySlug(tx: Tx, slug: string): Promise<Pro
 export async function findPublicShopBySlug(tx: Tx, slug: string): Promise<Shop | undefined> {
   const shop = await findShopBySlug(tx, slug);
   return isShopPublic(shop) ? shop : undefined;
+}
+
+// ---------- Checkout stock (B07, BR-06) ----------
+
+/** RULE-P4 / RULE-S4: the public items among `slugs`, each with its shop, in one query (BR-04: current prices). */
+export async function publicProductsForCheckout(tx: Tx, slugs: string[]): Promise<{ product: Product; shop: Shop }[]> {
+  const rows = await clientOf(tx).product.findMany({
+    where: { slug: { in: slugs }, status: "ACTIVE", shop: { status: "ACTIVE" } },
+    include: { ...productInclude, shop: true },
+  });
+  return rows.map((row) => ({ product: toProduct(row), shop: toShop(row.shop) }));
+}
+
+/**
+ * BR-06 / DB-06: takes `quantity` from a variant's stock only while that much is left, in one statement. Two
+ * checkouts racing for the last one: the second waits for the first's row lock, then finds too little and gets false.
+ */
+export async function reserveStock(tx: Tx, productId: string, sku: string, quantity: number): Promise<boolean> {
+  const { count } = await writableClientOf(tx).productVariant.updateMany({
+    where: { productId, sku, stock: { gte: quantity } },
+    data: { stock: { decrement: quantity } },
+  });
+  return count === 1;
+}
+
+/** A variant's stock right now, or undefined when the variant is gone. */
+export async function stockOf(tx: Tx, productId: string, sku: string): Promise<number | undefined> {
+  const row = await clientOf(tx).productVariant.findUnique({
+    where: { productId_sku: { productId, sku } },
+    select: { stock: true },
+  });
+  return row?.stock;
+}
+
+/**
+ * BR-06: gives back stock an unpaid order took. Capped at the stock limit, so a seller who raised the stock to the
+ * maximum meanwhile can't make the release fail; a variant deleted meanwhile is simply skipped.
+ */
+export async function releaseStock(tx: Tx, productId: string, sku: string, quantity: number): Promise<void> {
+  await writableClientOf(tx).$executeRaw`
+    UPDATE product_variants SET stock = LEAST(stock + ${quantity}, ${PRODUCT_LIMITS.stockMax})
+    WHERE product_id = ${productId} AND sku = ${sku}`;
 }

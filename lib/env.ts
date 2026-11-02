@@ -39,6 +39,15 @@ export const envSchema = z
     TURNSTILE_SECRET_KEY: z.string().min(1).max(100).optional(),
     // B06: how many jobs of one queue the worker runs at the same time (1 to 20). Default 2.
     WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(20).default(2),
+    // B07: the worker asks the web app to drop its cached catalogue after an unpaid order's stock comes back
+    // (POST /api/internal/catalogue-refresh). Both processes need the same secret: at least 32 characters, required
+    // in production. Left unset elsewhere, the refresh is skipped and the cache catches up within its lifetime.
+    CACHE_REFRESH_SECRET: z.string().min(32, { error: "must be at least 32 characters" }).optional(),
+    // B07: where the worker reaches the web app, e.g. http://web:3000 inside Docker. Default: SITE_URL.
+    INTERNAL_APP_URL: z
+      .url({ protocol: /^https?$/, error: "must be an http:// or https:// address" })
+      .optional()
+      .transform((url) => url?.replace(/\/+$/, "")),
     // OPS-01: log level. Default: info, or silent under NODE_ENV=test (see lib/server/observability/logger.ts).
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).optional(),
     // FR-2c: the site's public address, used for absolute links in sitemap.xml and robots.txt. No trailing slash.
@@ -59,6 +68,9 @@ export const envSchema = z
       if (env.NODE_ENV === "production" && !env[key]) {
         ctx.addIssue({ code: "custom", path: [key], message: "is required in production (B05a)" });
       }
+    }
+    if (env.NODE_ENV === "production" && !env.CACHE_REFRESH_SECRET) {
+      ctx.addIssue({ code: "custom", path: ["CACHE_REFRESH_SECRET"], message: "is required in production (B07)" });
     }
     for (const key of ["TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY"] as const) {
       if (env.NODE_ENV !== "production") continue;

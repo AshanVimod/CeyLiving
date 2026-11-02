@@ -16,6 +16,11 @@ export interface ShopGroup {
   shippingCents: number;
 }
 
+/** BR-05: one flat delivery fee per shop, free from the threshold up. Used by the cart and by checkout. */
+export function shippingForSubtotal(subtotalCents: number): number {
+  return subtotalCents >= FREE_SHIPPING_THRESHOLD_CENTS ? 0 : SHIPPING_FEE_PER_SHOP_CENTS;
+}
+
 /**
  * Prices the cart from current catalogue prices, never from stored values (BR-04),
  * and splits it per shop with a flat delivery fee each (BR-05). Items no longer for sale are dropped.
@@ -39,7 +44,7 @@ export function summarizeCart(cart: CartLine[], products: Map<string, LookupProd
   }
   const list = [...groups.values()].map((g) => ({
     ...g,
-    shippingCents: g.subtotalCents >= FREE_SHIPPING_THRESHOLD_CENTS ? 0 : SHIPPING_FEE_PER_SHOP_CENTS,
+    shippingCents: shippingForSubtotal(g.subtotalCents),
   }));
   const subtotalCents = list.reduce((s, g) => s + g.subtotalCents, 0);
   const shippingCents = list.reduce((s, g) => s + g.shippingCents, 0);

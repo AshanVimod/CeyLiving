@@ -27,10 +27,20 @@ const LOCAL_VALUES = {
   // B05a: sign-in emails go to Mailpit, and a random local secret signs session cookies.
   SMTP_URL: "smtp://127.0.0.1:1025",
   BETTER_AUTH_SECRET: crypto.randomBytes(32).toString("base64url"),
+  // B07: the worker and the web app share it to refresh the cached catalogue.
+  CACHE_REFRESH_SECRET: crypto.randomBytes(32).toString("base64url"),
 };
 const local = path.join(root, ".env.local");
 if (fs.existsSync(local)) {
-  console.log(".env.local already exists: left unchanged.");
+  // B07 added CACHE_REFRESH_SECRET after many .env.local files were made; add it (and only it) when missing.
+  const existing = fs.readFileSync(local, "utf8");
+  if (!/^CACHE_REFRESH_SECRET=./m.test(existing)) {
+    const separator = existing.endsWith("\n") ? "" : "\n";
+    fs.appendFileSync(local, `${separator}CACHE_REFRESH_SECRET=${LOCAL_VALUES.CACHE_REFRESH_SECRET}\n`);
+    console.log(".env.local already exists: added the new CACHE_REFRESH_SECRET (B07), left the rest unchanged.");
+  } else {
+    console.log(".env.local already exists: left unchanged.");
+  }
 } else {
   let text = fs.readFileSync(path.join(root, ".env.example"), "utf8");
   for (const [key, value] of Object.entries(LOCAL_VALUES)) text = text.replace(`# ${key}=`, `${key}=${value}`);

@@ -174,6 +174,8 @@ function buildOrder(spec: OrderSpec) {
     shippingCents: SHIPPING_FEE_PER_SHOP_CENTS,
     totalCents: variant.priceCents + SHIPPING_FEE_PER_SHOP_CENTS,
     placedAt: spec.placedAt,
+    // Seeded orders are paid ones; only checkout makes PENDING orders (B07).
+    paymentStatus: "PAID",
   };
   const sellerOrder: SellerOrder = {
     id: `so_${n}`,

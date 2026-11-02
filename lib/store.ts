@@ -103,6 +103,12 @@ export function removeLine(key: string) {
   commit({ ...current, cart: current.cart.filter((l) => l.key !== key) });
 }
 
+/** After checkout (B07): drops the lines that became an order; anything added meanwhile stays. */
+export function removeLines(keys: string[]) {
+  const current = load();
+  commit({ ...current, cart: current.cart.filter((l) => !keys.includes(l.key)) });
+}
+
 export function toggleWishlist(productSlug: string): boolean {
   const current = load();
   const has = current.wishlist.includes(productSlug);

@@ -386,11 +386,13 @@ export function toOrder(row: Row.Order): Order {
     shippingCents: row.shippingCents,
     totalCents: row.totalCents,
     placedAt: iso(row.placedAt),
+    paymentStatus: row.paymentStatus,
+    expiresAt: optIso(row.expiresAt),
   };
 }
 
 /** The columns for an Order (or a patch of one). The shipping address is a JSON snapshot taken at checkout. */
-export const orderColumns = (order: Partial<Order>) => withDates(order, ["placedAt"]);
+export const orderColumns = (order: Partial<Order>) => withDates(order, ["placedAt", "expiresAt"]);
 
 export function toSellerOrder(row: Row.SellerOrder): SellerOrder {
   return {
@@ -425,6 +427,7 @@ export function toOrderItem(row: Row.OrderItem): OrderItem {
     variantLabel: row.variantLabel,
     unitPriceCents: row.unitPriceCents,
     quantity: row.quantity,
+    customization: (row.customization as Record<string, string> | null) ?? undefined,
   };
 }
 

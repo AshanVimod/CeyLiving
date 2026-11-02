@@ -5,6 +5,8 @@ export const FREE_SHIPPING_THRESHOLD_CENTS = 1500000;
 export const COMMISSION_RATE_BPS = 1000;
 export const PAGE_SIZE = 12;
 export const MAX_CART_QUANTITY = 20;
+/** BR-06: an unpaid order is cancelled and its stock returned this long after checkout. */
+export const PAYMENT_WINDOW_MINUTES = 30;
 
 export const PRICE_CHIPS = [
   { label: "Under LKR 2,500", minPrice: undefined, maxPrice: 250000 },
@@ -43,6 +45,8 @@ export const RATE_LIMITS = {
   application: { max: 3, windowMs: DAY_MS },
   customRequest: { max: 5, windowMs: DAY_MS },
   vote: { max: 60, windowMs: HOUR_MS },
+  // Build spec 9.1: checkout is limited to 10 a minute per user.
+  checkout: { max: 10, windowMs: 60_000 },
 } as const;
 
 export const TEXT_LIMITS = {

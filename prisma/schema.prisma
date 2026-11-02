@@ -81,6 +81,8 @@ enum CustomizationKind {
 }
 
 enum SellerOrderStatus {
+  /// B07: created at checkout, waiting for payment. Sellers never see it (BR-06, backend plan 9.1).
+  PENDING_PAYMENT
   NEW
   ACCEPTED
   IN_PROGRESS
@@ -118,6 +120,13 @@ enum ReportStatus {
 enum VoteTargetType {
   REVIEW
   QUESTION
+}
+
+/// B07: whether the customer has paid for an order. PENDING orders expire at expires_at (BR-06).
+enum PaymentStatus {
+  PENDING
+  PAID
+  EXPIRED
 }
 
 enum PayoutStatus {
@@ -562,19 +571,27 @@ model CustomizationField {
 // ---------- Orders and money ----------
 
 model Order {
-  id              String   @id
-  orderNumber     String   @unique @map("order_number")
-  customerId      String   @map("customer_id")
+  id              String        @id
+  orderNumber     String        @unique @map("order_number")
+  customerId      String        @map("customer_id")
   /// Snapshot taken at checkout; never re-read from the address book.
-  shippingAddress Json     @map("shipping_address")
-  subtotalCents   Int      @map("subtotal_cents")
-  shippingCents   Int      @map("shipping_cents")
-  totalCents      Int      @map("total_cents")
-  placedAt        DateTime @map("placed_at") @db.Timestamptz(3)
+  shippingAddress Json          @map("shipping_address")
+  subtotalCents   Int           @map("subtotal_cents")
+  shippingCents   Int           @map("shipping_cents")
+  totalCents      Int           @map("total_cents")
+  placedAt        DateTime      @map("placed_at") @db.Timestamptz(3)
+  /// B07: PENDING until the payment notification (B08); EXPIRED when unpaid at expiresAt. No default: every insert
+  /// says which.
+  paymentStatus   PaymentStatus @map("payment_status")
+  /// B07: made by the checkout page when it opens; the same key twice returns the same order.
+  idempotencyKey  String?       @map("idempotency_key")
+  /// B07 (BR-06): an unpaid order is cancelled and its stock returned at this time (orders.expireUnpaid).
+  expiresAt       DateTime?     @map("expires_at") @db.Timestamptz(3)
 
   customer     User          @relation(fields: [customerId], references: [id], onDelete: Restrict)
   sellerOrders SellerOrder[]
 
+  @@unique([customerId, idempotencyKey])
   @@index([customerId, placedAt])
   @@map("orders")
 }
@@ -615,14 +632,18 @@ model SellerOrder {
 }
 
 model OrderItem {
-  id             String @id
-  sellerOrderId  String @map("seller_order_id")
-  productId      String @map("product_id")
-  variantSku     String @map("variant_sku")
-  productTitle   String @map("product_title")
-  variantLabel   String @map("variant_label")
-  unitPriceCents Int    @map("unit_price_cents")
+  id             String  @id
+  sellerOrderId  String  @map("seller_order_id")
+  productId      String  @map("product_id")
+  variantSku     String  @map("variant_sku")
+  productTitle   String  @map("product_title")
+  variantLabel   String  @map("variant_label")
+  unitPriceCents Int     @map("unit_price_cents")
   quantity       Int
+  /// B07 (BR-16): what the customer asked for, by the field's label at checkout; checked then. NULL when none.
+  customization  Json?
+  /// B07 (BR-06): whether checkout took this line's quantity from stock, so an expiry returns exactly that.
+  stockReserved  Boolean @default(false) @map("stock_reserved")
 
   sellerOrder SellerOrder @relation(fields: [sellerOrderId], references: [id], onDelete: Restrict)
   product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict)

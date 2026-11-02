@@ -1,24 +1,31 @@
 import "server-only";
-import { AUTO_COMPLETE_DAYS, BUYER_DATA_VISIBLE_DAYS } from "@/lib/config";
+import { AUTO_COMPLETE_DAYS, BUYER_DATA_VISIBLE_DAYS, PAYMENT_WINDOW_MINUTES } from "@/lib/config";
 import type { Order, SellerOrder, SellerOrderStatus } from "@/lib/types";
 import type { OrderTransitionInput } from "@/lib/validation/order";
 import { db, withTx, type Tx } from "../db/tx";
 import { NotFoundError } from "../errors";
 import { shopOfSeller, type Actor } from "../permissions";
-import { findShopById } from "../repositories/catalogue";
+import { findShopById, releaseStock } from "../repositories/catalogue";
 import {
   cancelOverdueNewSellerOrders,
+  cancelSellerOrdersAwaitingPayment,
   completeLongDispatchedSellerOrders,
   findOrderById,
   findOrderByNumber,
   findSellerOrder,
   findSellerOrderForShop,
   itemsOfSellerOrder,
+  markOrderExpired,
   partiesOfSellerOrders,
+  reservedItemsOfOrder,
   updateSellerOrder,
 } from "../repositories/commerce";
+import { enqueue } from "../repositories/jobs";
 import { addNotification, addNotifications } from "../repositories/people";
 import { assertTransition, inBatches, staleStatus } from "./shared";
+
+/** BR-06: the reason stored on seller orders cancelled because the order wasn't paid in time. */
+export const UNPAID_CANCEL_REASON = `Not paid within ${PAYMENT_WINDOW_MINUTES} minutes (cancelled automatically).`;
 
 /** BR-08: the reason stored on seller orders the accept-deadline job cancels. */
 export const AUTO_CANCEL_REASON = "Not accepted by the maker in time (cancelled automatically).";
@@ -146,6 +153,41 @@ export async function autoCancelUnacceptedOrders(now = new Date()): Promise<numb
   );
 }
 
+/**
+ * BR-06 (orders.expireUnpaid): an order still unpaid at its expiry time is cancelled and the stock it took comes
+ * back, in one transaction. JOB-03: only a PENDING order past expires_at changes, so a second run, or a run after
+ * the payment arrived, does nothing. A run that comes too early (clock drift) throws, and pg-boss retries it later.
+ */
+export async function expireUnpaidOrder(
+  orderId: string,
+  now = new Date(),
+): Promise<{ expired: boolean; stockReturned: number }> {
+  return withTx(async (tx) => {
+    const order = await markOrderExpired(tx, orderId, now);
+    if (!order) {
+      const current = await findOrderById(tx, orderId);
+      if (current?.paymentStatus === "PENDING" && current.expiresAt && Date.parse(current.expiresAt) > now.getTime()) {
+        throw new Error(`Order ${orderId} isn't due to expire until ${current.expiresAt}; retrying later.`);
+      }
+      return { expired: false, stockReturned: 0 };
+    }
+    await cancelSellerOrdersAwaitingPayment(tx, order.id, UNPAID_CANCEL_REASON, now);
+    // Same order as checkout took them (product id, then sku), so this never deadlocks with a checkout.
+    const reserved = await reservedItemsOfOrder(tx, order.id);
+    for (const item of reserved) await releaseStock(tx, item.productId, item.variantSku, item.quantity);
+    // The public catalogue is cached in the web app; ask it to read the returned stock (JOB-02: only if this commits).
+    if (reserved.length) await enqueue(tx, "catalogue.refresh", {}, { singletonKey: "catalogue" });
+    await addNotification(
+      tx,
+      order.customerId,
+      "order.expired",
+      `Your order ${order.orderNumber} was cancelled because it wasn’t paid within ${PAYMENT_WINDOW_MINUTES} minutes`,
+      `/account/orders/${order.orderNumber}`,
+    );
+    return { expired: true, stockReturned: reserved.reduce((n, i) => n + i.quantity, 0) };
+  });
+}
+
 /** BR-17 (orders.autoComplete): dispatched seller orders complete on their own this long after dispatch. */
 export async function autoCompleteDispatchedOrders(now = new Date()): Promise<number> {
   const dispatchedBefore = new Date(now.getTime() - AUTO_COMPLETE_DAYS * 86_400_000);
@@ -198,7 +240,7 @@ export async function sellerOrderForSeller(actor: Actor, sellerOrderId: string, 
  * and only until 30 days after delivery. Cancelled orders show nothing.
  */
 export function buyerContactFor(sellerOrder: SellerOrder, order: Order, now = new Date()) {
-  if (sellerOrder.status === "CANCELLED" || sellerOrder.status === "REFUNDED") return undefined;
+  if (["PENDING_PAYMENT", "CANCELLED", "REFUNDED"].includes(sellerOrder.status)) return undefined;
   if (
     sellerOrder.completedAt &&
     now.getTime() - Date.parse(sellerOrder.completedAt) > BUYER_DATA_VISIBLE_DAYS * 86_400_000

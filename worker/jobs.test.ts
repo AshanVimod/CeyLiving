@@ -257,13 +257,12 @@ describe("maintenance.cleanup", () => {
   });
 });
 
-describe("stubs until B07 to B10", () => {
-  it("JOB-03 email.send, image.process, orders.expireUnpaid and payments.reconcile change nothing", async () => {
+describe("stubs until B08 to B10", () => {
+  it("JOB-03 email.send, image.process and payments.reconcile change nothing", async () => {
     const before = await readAll();
     for (let run = 0; run < 2; run++) {
       await runJobNow("email.send", { template: "order.paid", to: "user_customer", data: {} });
       await runJobNow("image.process", { uploadId: "upload_x" });
-      await runJobNow("orders.expireUnpaid", { orderId: "order_x" });
       await runJobNow("payments.reconcile");
     }
     expect(await readAll()).toEqual(before);

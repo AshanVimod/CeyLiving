@@ -1,26 +1,56 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
+import { placeOrderAction } from "@/lib/server/actions/checkout";
 import { summarizeCart } from "@/lib/cart-summary";
 import { DISTRICTS } from "@/lib/districts";
 import { formatLkr } from "@/lib/format";
-import { selectCart, useStore } from "@/lib/store";
+import { removeLines, selectCart, useStore } from "@/lib/store";
 import { useCatalogueLookup } from "@/lib/use-catalogue-lookup";
 import { Field } from "../forms/fields";
 import { ShieldIcon } from "../ui/icons";
 import { useHydrated } from "@/lib/use-hydrated";
 
-export function CheckoutView() {
+/** The signed-in customer, from the page (the server checks again when the order is placed). */
+export interface CheckoutCustomer {
+  name: string;
+  phone?: string;
+  emailVerified: boolean;
+}
+
+/**
+ * Backend plan 9.1 (B07): sends the cart lines (item, variant, quantity, personalisation), the delivery address and
+ * an idempotency key made when the page opens. The server prices everything; the totals here are a preview.
+ */
+export function CheckoutView({ customer }: { customer: CheckoutCustomer }) {
   const cart = useStore(selectCart);
   const hydrated = useHydrated();
+  const router = useRouter();
   const lookup = useCatalogueLookup(cart.map((l) => l.productSlug));
   const { groups, subtotalCents, shippingCents, totalCents } = summarizeCart(cart, lookup.products);
-  const [status, setStatus] = useState<"idle" | "invalid" | "demo">("idle");
+  const [invalid, setInvalid] = useState(false);
+  // One key per visit to this page: a double click or a retry after a lost answer returns the same order.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
+  const [state, dispatch, pending] = useActionState(placeOrderAction, null);
+  const submitted = useRef<string[]>([]);
+  const statusRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (!state) return;
+    if (state.ok && "orderNumber" in state && state.orderNumber) {
+      removeLines(submitted.current);
+      router.replace(`/account/orders/${state.orderNumber}`);
+      return;
+    }
+    statusRef.current?.focus();
+  }, [state, router]);
 
   if (!hydrated || !lookup.ready) return <div className="skeleton h-96 rounded-lg" aria-busy="true" />;
 
-  if (groups.length === 0) {
+  const placed = state?.ok === true;
+  if (groups.length === 0 && !placed && !pending) {
     return (
       <div className="rounded-lg border border-dashed border-line px-6 py-16 text-center">
         <h2 className="text-2xl">There’s nothing to check out</h2>
@@ -34,32 +64,77 @@ export function CheckoutView() {
     );
   }
 
+  const lines = groups.flatMap((g) => g.lines);
+  const errors = state && !state.ok ? (state.fieldErrors ?? {}) : {};
+  const error = (name: string) => errors[`shippingAddress.${name}`];
+
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
     form
-      .querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select")
+      .querySelectorAll<HTMLInputElement | HTMLSelectElement>("input:not([type=hidden]), select")
       .forEach((el) => el.setAttribute("aria-invalid", String(!el.checkValidity())));
     if (!form.checkValidity()) {
-      setStatus("invalid");
+      setInvalid(true);
       form.querySelector<HTMLElement>(":invalid")?.focus();
       return;
     }
-    setStatus("demo");
+    setInvalid(false);
+    submitted.current = lines.map((l) => l.key);
+    const data = new FormData(form);
+    // BR-04: only what to buy; prices and totals are worked out again on the server.
+    data.set(
+      "lines",
+      JSON.stringify(
+        lines.map((l) => ({
+          productSlug: l.productSlug,
+          sku: l.sku,
+          quantity: l.quantity,
+          customization: l.customization,
+        })),
+      ),
+    );
+    startTransition(() => dispatch(data));
   }
+
+  const blocked = !customer.emailVerified;
 
   return (
     <form method="post" onSubmit={onSubmit} noValidate className="grid gap-10 lg:grid-cols-[1fr_380px] lg:items-start">
+      <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <div className="space-y-10">
-        {status === "invalid" ? (
+        {blocked ? (
+          <p role="alert" className="rounded-md bg-turmeric-soft px-4 py-3 text-sm">
+            Confirm your email address before you check out: use the link we emailed you when you signed up.
+          </p>
+        ) : null}
+        {invalid ? (
           <p role="alert" className="rounded-md bg-lacquer/10 px-4 py-3 text-sm text-lacquer">
             Some details are missing or invalid. They are marked below.
           </p>
         ) : null}
+        {state && !state.ok ? (
+          <p
+            ref={statusRef}
+            tabIndex={-1}
+            role="alert"
+            className="rounded-md bg-lacquer/10 px-4 py-3 text-sm text-lacquer focus:outline-none"
+          >
+            {state.message}
+            {state.fieldErrors?.lines ? ` ${state.fieldErrors.lines}` : ""}
+          </p>
+        ) : null}
         <fieldset className="space-y-5">
-          <legend className="mb-4 font-display text-2xl">Contact</legend>
+          <legend className="mb-4 font-display text-2xl">Delivery address</legend>
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Email" name="email" type="email" autoComplete="email" required />
+            <Field
+              label="Full name"
+              name="recipientName"
+              autoComplete="name"
+              required
+              defaultValue={customer.name}
+              error={error("recipientName")}
+            />
             <Field
               label="Mobile number"
               name="phone"
@@ -68,17 +143,21 @@ export function CheckoutView() {
               inputMode="tel"
               pattern="^(\+94|0)7\d{8}$"
               required
+              defaultValue={customer.phone}
               helper="For example 0771234567"
+              error={error("phone")}
             />
           </div>
-        </fieldset>
-        <fieldset className="space-y-5">
-          <legend className="mb-4 font-display text-2xl">Delivery address</legend>
-          <Field label="Full name" name="name" autoComplete="name" required />
-          <Field label="Address line 1" name="line1" autoComplete="address-line1" required />
-          <Field label="Address line 2" name="line2" autoComplete="address-line2" helper="Optional" />
+          <Field label="Address line 1" name="line1" autoComplete="address-line1" required error={error("line1")} />
+          <Field
+            label="Address line 2"
+            name="line2"
+            autoComplete="address-line2"
+            helper="Optional"
+            error={error("line2")}
+          />
           <div className="grid gap-5 sm:grid-cols-3">
-            <Field label="City" name="city" autoComplete="address-level2" required />
+            <Field label="City" name="city" autoComplete="address-level2" required error={error("city")} />
             <div>
               <label htmlFor="district" className="mb-1.5 block text-[0.95rem] font-medium">
                 District <span className="text-lacquer">*</span>
@@ -99,7 +178,14 @@ export function CheckoutView() {
                 ))}
               </select>
             </div>
-            <Field label="Postal code" name="postal" autoComplete="postal-code" inputMode="numeric" helper="Optional" />
+            <Field
+              label="Postal code"
+              name="postalCode"
+              autoComplete="postal-code"
+              inputMode="numeric"
+              helper="Optional"
+              error={error("postalCode")}
+            />
           </div>
         </fieldset>
       </div>
@@ -143,20 +229,23 @@ export function CheckoutView() {
         </dl>
         <button
           type="submit"
-          disabled={!hydrated}
-          className="mt-6 flex h-12 w-full items-center justify-center rounded-full bg-forest font-semibold text-paper transition-[background-color,transform] hover:bg-forest-deep active:scale-[0.98]"
+          disabled={!hydrated || pending || placed || blocked}
+          aria-disabled={!hydrated || pending || placed || blocked}
+          className="mt-6 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-forest font-semibold text-paper transition-[background-color,transform] hover:bg-forest-deep active:scale-[0.98] disabled:opacity-60"
         >
-          Continue to payment
+          {pending || placed ? (
+            <span
+              className="size-4 animate-spin rounded-full border-2 border-current/40 border-t-current"
+              aria-hidden="true"
+            />
+          ) : null}
+          {pending || placed ? "Placing your order…" : "Place order"}
         </button>
         <p className="mt-3 flex items-start gap-2 text-sm text-ink-soft">
           <ShieldIcon size={18} className="mt-0.5 shrink-0 text-forest" />
-          You’ll pay on PayHere’s secure page. CeyLiving never sees your card details.
+          You’ll pay on PayHere’s secure page. CeyLiving never sees your card details. Your items are held for 30
+          minutes while you pay.
         </p>
-        {status === "demo" ? (
-          <p role="status" className="mt-4 rounded-md bg-paper-raised p-3 text-sm">
-            Payments aren’t switched on in this preview. Your details were checked but not sent anywhere.
-          </p>
-        ) : null}
       </aside>
     </form>
   );

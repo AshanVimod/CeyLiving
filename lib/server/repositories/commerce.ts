@@ -1,6 +1,6 @@
 import "server-only";
 import type { CustomRequest, Order, OrderItem, Payout, SellerOrder, SellerOrderStatus } from "@/lib/types";
-import type { Prisma } from "../db/generated/client";
+import { Prisma } from "../db/generated/client";
 import {
   clearing,
   customRequestColumns,
@@ -70,6 +70,89 @@ export async function updateOrder(tx: Tx, id: string, patch: Partial<Order>): Pr
   await writableClientOf(tx).order.updateMany({ where: { id }, data });
 }
 
+// ---------- Checkout (B07) ----------
+
+/** The order a customer's checkout with this idempotency key made, if any. */
+export async function findOrderByIdempotencyKey(
+  tx: Tx,
+  customerId: string,
+  idempotencyKey: string,
+): Promise<Order | undefined> {
+  const row = await clientOf(tx).order.findUnique({
+    where: { customerId_idempotencyKey: { customerId, idempotencyKey } },
+  });
+  return row ? toOrder(row) : undefined;
+}
+
+/** A new order number, CM-<year>-<n>, from order_number_seq (gaps are fine; numbers never repeat). */
+export async function nextOrderNumber(tx: Tx, year: number): Promise<string> {
+  const [row] = await writableClientOf(tx).$queryRaw<{ n: bigint }[]>`SELECT nextval('order_number_seq') AS n`;
+  return `CM-${year}-${String(row!.n).padStart(6, "0")}`;
+}
+
+/**
+ * Inserts the order unless this customer already has one with the same idempotency key (ON CONFLICT DO NOTHING).
+ * A second request with the key waits on the unique index until the first commits, then inserts nothing, without
+ * an error that would abort its transaction. Returns whether this call inserted it.
+ */
+export async function insertOrderOnce(tx: Tx, order: Order, idempotencyKey: string): Promise<boolean> {
+  const data = { ...orderColumns(order), idempotencyKey } as Prisma.OrderCreateManyInput;
+  const { count } = await writableClientOf(tx).order.createMany({ data: [data], skipDuplicates: true });
+  return count === 1;
+}
+
+export async function insertSellerOrders(tx: Tx, sellerOrders: SellerOrder[]): Promise<void> {
+  await writableClientOf(tx).sellerOrder.createMany({
+    data: sellerOrders.map((so) => sellerOrderColumns(so) as Prisma.SellerOrderCreateManyInput),
+  });
+}
+
+/** Order items, each noting whether checkout took its quantity from stock (BR-06). */
+export async function insertOrderItems(tx: Tx, items: (OrderItem & { stockReserved: boolean })[]): Promise<void> {
+  await writableClientOf(tx).orderItem.createMany({
+    data: items.map(({ customization, ...item }) => ({ ...item, customization: customization ?? Prisma.DbNull })),
+  });
+}
+
+/**
+ * BR-06 / DB-06: marks an order EXPIRED only while it is still unpaid and past its expiry time. Returns undefined
+ * when it isn't (already paid, already expired, or not due yet), so a repeated or early run changes nothing.
+ * A payment confirmation racing this waits for the row lock and then finds the order no longer PENDING.
+ */
+export async function markOrderExpired(tx: Tx, orderId: string, now: Date): Promise<Order | undefined> {
+  const [row] = await writableClientOf(tx).order.updateManyAndReturn({
+    where: { id: orderId, paymentStatus: "PENDING", expiresAt: { lte: now } },
+    data: { paymentStatus: "EXPIRED" },
+  });
+  return row ? toOrder(row) : undefined;
+}
+
+/** BR-06: cancels an order's seller orders that were waiting for payment. */
+export async function cancelSellerOrdersAwaitingPayment(
+  tx: Tx,
+  orderId: string,
+  reason: string,
+  now: Date,
+): Promise<SellerOrder[]> {
+  const rows = await writableClientOf(tx).sellerOrder.updateManyAndReturn({
+    where: { orderId, status: "PENDING_PAYMENT" },
+    data: { status: "CANCELLED", cancelReason: reason, updatedAt: now },
+  });
+  return rows.map(toSellerOrder);
+}
+
+/** BR-06: the lines of an order whose quantity checkout took from stock. */
+export async function reservedItemsOfOrder(
+  tx: Tx,
+  orderId: string,
+): Promise<{ productId: string; variantSku: string; quantity: number }[]> {
+  return clientOf(tx).orderItem.findMany({
+    where: { sellerOrder: { orderId }, stockReserved: true },
+    select: { productId: true, variantSku: true, quantity: true },
+    orderBy: [{ productId: "asc" }, { variantSku: "asc" }],
+  });
+}
+
 // ---------- Seller orders ----------
 
 export async function findSellerOrder(tx: Tx, id: string): Promise<SellerOrder | undefined> {
@@ -77,19 +160,26 @@ export async function findSellerOrder(tx: Tx, id: string): Promise<SellerOrder |
   return row ? toSellerOrder(row) : undefined;
 }
 
-/** SEC-A5: a seller order of this shop only; other shops' orders look missing. */
+/**
+ * B07 (backend plan 9.1): sellers only ever see orders the customer has paid. Orders waiting for payment, and ones
+ * cancelled because they were never paid, stay out of every seller query.
+ */
+const paidOnly = { order: { paymentStatus: "PAID" } } satisfies Prisma.SellerOrderWhereInput;
+
+/** SEC-A5: a paid seller order of this shop only; other shops' orders look missing. */
 export async function findSellerOrderForShop(
   tx: Tx,
   sellerOrderId: string,
   shopId: string,
 ): Promise<SellerOrder | undefined> {
-  const row = await clientOf(tx).sellerOrder.findFirst({ where: { id: sellerOrderId, shopId } });
+  const row = await clientOf(tx).sellerOrder.findFirst({ where: { id: sellerOrderId, shopId, ...paidOnly } });
   return row ? toSellerOrder(row) : undefined;
 }
 
+/** A shop's paid seller orders (see paidOnly). */
 export async function sellerOrdersOfShop(tx: Tx, shopId: string): Promise<SellerOrder[]> {
   const rows = await clientOf(tx).sellerOrder.findMany({
-    where: { shopId },
+    where: { shopId, ...paidOnly },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
   });
   return rows.map(toSellerOrder);

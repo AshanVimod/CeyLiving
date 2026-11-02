@@ -6,7 +6,7 @@ import { REQUEST_ID_HEADER, resolveRequestId } from "./lib/server/observability/
 const SESSION_COOKIES = ["ceyliving.session_token", "__Secure-ceyliving.session_token"];
 
 // Areas that need a session. The matcher below covers every page now, so the gate checks the path itself.
-const PROTECTED = /^\/(account|seller|admin|sell\/apply)(\/|$)/;
+const PROTECTED = /^\/(account|seller|admin|sell\/apply|checkout)(\/|$)/;
 
 /**
  * Runs on every page, action and API request.

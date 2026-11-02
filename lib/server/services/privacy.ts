@@ -32,7 +32,8 @@ import {
 } from "../repositories/people";
 
 const FORMER = "Former customer";
-const OPEN_ORDER = ["NEW", "ACCEPTED", "IN_PROGRESS", "DISPATCHED"];
+// PENDING_PAYMENT (B07) too: an order waiting for payment is paid or expires within 30 minutes; deletion waits.
+const OPEN_ORDER = ["PENDING_PAYMENT", "NEW", "ACCEPTED", "IN_PROGRESS", "DISPATCHED"];
 
 /** FR-17 / SEC-12: everything we hold about the signed-in person, and nothing about anyone else. */
 export async function exportMyData(actor: Actor, tx: Tx = db) {

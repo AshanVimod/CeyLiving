@@ -28,6 +28,7 @@ const PROD = {
   SMTP_URL: SMTP,
   TURNSTILE_SITE_KEY: SITE_KEY,
   TURNSTILE_SECRET_KEY: TURNSTILE_SECRET,
+  CACHE_REFRESH_SECRET: "r".repeat(40),
 };
 
 describe("lib/env", () => {
@@ -49,6 +50,16 @@ describe("lib/env", () => {
       SITE_URL: "http://localhost:3000",
       WORKER_CONCURRENCY: 2,
     });
+  });
+
+  it("B07 production needs CACHE_REFRESH_SECRET; elsewhere the catalogue refresh is optional", () => {
+    expect(problems(() => parseEnv({ ...PROD, CACHE_REFRESH_SECRET: undefined }))).toEqual([
+      "CACHE_REFRESH_SECRET: is required in production (B07)",
+    ]);
+    expect(problems(() => parseEnv({ CACHE_REFRESH_SECRET: "short" }))).toEqual([
+      "CACHE_REFRESH_SECRET: must be at least 32 characters",
+    ]);
+    expect(parseEnv({ NODE_ENV: "development" }).CACHE_REFRESH_SECRET).toBeUndefined();
   });
 
   it("DB-10 production needs DATABASE_URL, and only a postgresql:// address", () => {

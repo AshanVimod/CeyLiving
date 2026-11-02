@@ -38,6 +38,7 @@ async function demoPurchase(customerId: string, productId: string) {
       shippingCents: SHIPPING_FEE_PER_SHOP_CENTS,
       totalCents: variant.priceCents + SHIPPING_FEE_PER_SHOP_CENTS,
       placedAt: new Date().toISOString(),
+      paymentStatus: "PAID",
     });
     db.sellerOrders.push({
       id: `so_j${n}`,
