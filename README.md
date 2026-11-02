@@ -14,12 +14,15 @@ npm run setup
 npm run dev
 ```
 
-Open http://localhost:3000 and pick a demo account on `/signin`. `npm run setup` creates `.env.local`, starts PostgreSQL and Mailpit in Docker, applies the migrations and loads the demo data (`prisma/seed-data.ts`). Run `npm run db:reset` to start again from the demo data.
+Open http://localhost:3000 and pick a demo account on `/signin`. `npm run setup` creates `.env.local`, starts PostgreSQL and Mailpit in Docker, applies the migrations, installs the job queue and loads the demo data (`prisma/seed-data.ts`). `npm run dev` starts the site and the background worker together (see **Background jobs**). Run `npm run db:reset` to start again from the demo data.
 
 | Command                                                                 | What it does                                                                                                                                          |
 | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `npm run setup`                                                         | From a clean clone to a working site: checks Node, creates `.env.local`, starts Docker services, migrates and loads the demo data. Safe to run again. |
-| `npm run dev`                                                           | Starts Next.js in development.                                                                                                                        |
+| `npm run dev`                                                           | Starts Next.js in development and the background worker beside it (lines prefixed `[web]` and `[worker]`). Ctrl+C stops both.                         |
+| `npm run dev:web`                                                       | Next.js only, without the worker (jobs wait in the queue until a worker runs).                                                                        |
+| `npm run worker`                                                        | The background worker only, as production runs it.                                                                                                    |
+| `npm run jobs:migrate`                                                  | Installs or upgrades the job queue's tables (schema `pgboss`) and creates its queues, as `ceyliving_migrator`. Safe to run again.                     |
 | `npm run check`                                                         | Format check + lint + typecheck + tests (Docker must be running). Run it before every commit; CI runs the same command.                               |
 | `npm run format`                                                        | Formats every file with Prettier (`.prettierrc.json`, 120 columns).                                                                                   |
 | `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test` | The parts of `check` on their own.                                                                                                                    |
@@ -27,7 +30,7 @@ Open http://localhost:3000 and pick a demo account on `/signin`. `npm run setup`
 | `npm run db:up` / `npm run db:down`                                     | Starts / stops the local PostgreSQL and Mailpit in Docker (`infra/docker-compose.dev.yml`). See **Database** below.                                   |
 | `npm run db:migrate`                                                    | Applies new migrations to the local database (`prisma migrate dev`, as `ceyliving_migrator`).                                                         |
 | `npm run db:generate`                                                   | Regenerates the Prisma client in `lib/server/db/generated/` (git-ignored). `npm install` runs it too.                                                 |
-| `npm run db:seed` / `npm run db:reset`                                  | Replaces the local data with the demo data / drops the local database, migrates it and loads the demo data again.                                     |
+| `npm run db:seed` / `npm run db:reset`                                  | Replaces the local data with the demo data / drops the local database, migrates it, installs the job queue and loads the demo data again.             |
 
 A pre-commit hook (Husky + lint-staged) runs Prettier and `eslint --fix` on staged files. `.editorconfig` and `.gitattributes` keep indentation and LF line endings the same on every OS.
 
@@ -42,7 +45,8 @@ A pre-commit hook (Husky + lint-staged) runs Prettier and `eslint --fix` on stag
 | `LOG_LEVEL`              | `fatal` … `trace`, `silent`                           | Log level (OPS-01). Default `info`, or `silent` under tests.                                                                                                                  |
 | `SITE_URL`               | `https://…` address (default `http://localhost:3000`) | The site's public address for `sitemap.xml` and `robots.txt`. Must be `https://` in production, except on localhost.                                                          |
 | `DATABASE_URL`           | `postgresql://` address                               | PostgreSQL as `ceyliving_app`, the data-only user (DB-10). Required in production; `npm run setup` sets the local one.                                                        |
-| `DATABASE_MIGRATION_URL` | `postgresql://` address                               | PostgreSQL as `ceyliving_migrator`, the schema owner. Only migrations and the seed use it (`prisma.config.ts` also reads `.env.local`).                                       |
+| `DATABASE_MIGRATION_URL` | `postgresql://` address                               | PostgreSQL as `ceyliving_migrator`, the schema owner. Only migrations, `npm run jobs:migrate` and the seed use it (`prisma.config.ts` also reads `.env.local`).               |
+| `WORKER_CONCURRENCY`     | 1 to 20 (default 2)                                   | How many jobs of one queue the worker runs at the same time (B06).                                                                                                            |
 | `BETTER_AUTH_SECRET`     | 32+ random characters                                 | Signs session cookies and email links (AU-03). Required in production; `npm run setup` writes a random local one.                                                             |
 | `SMTP_URL`               | `smtp://` or `smtps://` address                       | Where sign-in emails go. Required in production. Locally `smtp://127.0.0.1:1025` is Mailpit (read them at http://localhost:8025).                                             |
 | `EMAIL_FROM`             | sender                                                | Default `CeyLiving <no-reply@ceyliving.lk>`.                                                                                                                                  |
@@ -66,7 +70,41 @@ PostgreSQL 17 with Prisma 7 (`prisma/schema.prisma`, migrations in `prisma/migra
 - **Errors people see:** the services check every rule first, so the database only refuses a write when two requests race. A unique clash (a second open application, a web address just taken, a repeated vote or report) becomes a `ConflictError` with a plain message (`lib/server/db/pg-errors.ts`); any other database error is logged and shown as the generic message with a reference. Raw PostgreSQL text never reaches a page.
 - **Seed loader:** `lib/server/db/load-seed.ts` loads the categories and the demo data into every table in one transaction. With `{ replace: true }` it empties the tables first, so running it again never duplicates rows; it refuses to replace data in production.
 - **Done so far:** B03a (people: users, applications, addresses, notifications, audit log, rate events) B03b (catalogue: shops, products; content: reviews, questions, answers, reports, helpful votes) and B03c (commerce: orders, seller orders, items, payouts, custom requests). B04a switched the app to PostgreSQL and removed the dev JSON store; its last version is kept in git as the tag `pre-b04a-dev-store`. B04b moved the catalogue, search and paging into SQL.
-- **Paid out once (BR-11):** `setPayoutOnSellerOrders` links only orders with no payout yet. If two payout runs race, the second gets a `ConflictError` and rolls back, so no order is ever paid twice. A repository test runs two payouts side by side to prove it.
+- **Paid out once (BR-11):** `setPayoutOnSellerOrders` links only orders with no payout yet. If two payout runs race, the second gets a `ConflictError` and rolls back, so no order is ever paid twice. A repository test runs two payouts side by side to prove it. Since B06 the admin button and the weekly job share one service, `runPayouts`, which makes each shop's payout in its own transaction and skips a shop another run has just paid; a test runs both at once.
+- **B06 migration (`jobs_worker`):** adds `seller_orders.accept_deadline_at` (BR-08; NULL means no deadline, and B08 sets it at payment), indexes for the jobs' lookups, and lets `audit_log.actor_id` be NULL, meaning a scheduled job made the change. The audit pages show "CeyLiving (scheduled job)" and the reason names the job. The migration's header explains the rollback, including the one part that can't be undone once jobs have written audit rows.
+
+## Background jobs
+
+A second process, the worker (`worker/index.ts`, pg-boss 12), runs the jobs of backend plan 10.2 from the same code as the site: the same services, repositories and rules. The queue lives in PostgreSQL (schema `pgboss`), so there is no Redis to run. `lib/server/jobs/queues.ts` lists every job. `worker/handlers/` has one file per job: it checks the payload with zod, calls a service and returns what it did for the log (JOB-01).
+
+| Job                           | When                            | What it does                                                                                                         |
+| ----------------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `payouts.generateWeekly`      | Mondays 06:00                   | The payout run (BR-11). The **Generate payouts** button on `/admin/payouts` runs the same service by hand.           |
+| `orders.autoCancelUnaccepted` | Every 15 minutes                | NEW seller orders past their accept deadline are cancelled, and the customer and maker are told (BR-08).             |
+| `orders.autoComplete`         | Hourly                          | Orders dispatched 7 days ago and still not confirmed are marked delivered (BR-17).                                   |
+| `customRequests.expire`       | Hourly                          | Open requests and unanswered quotes older than 14 days expire, and the customer is told (FR-14).                     |
+| `users.liftExpiredMutes`      | Hourly                          | Mutes that have run out are lifted, the person is told and the change is audited (RULE-M3).                          |
+| `reports.autoHide`            | When a post gets its 3rd report | Hides the post until an admin looks (RULE-M4). Enqueued in the report's transaction, with one queued check per post. |
+| `maintenance.cleanup`         | Daily 03:00                     | Deletes rate events and attempt counters over a day old, expired sessions and expired email links.                   |
+| `orders.expireUnpaid`         | Per order                       | **Stub** until B07 (checkout creates unpaid orders and enqueues this for each).                                      |
+| `payments.reconcile`          | Daily 02:00                     | **Stub** until B08 (PayHere payments, PAY-08).                                                                       |
+| `email.send`, `image.process` | On demand                       | **Stubs** until B10 (email) and B09 (uploads). Sign-in emails still go out directly.                                 |
+
+Times are Sri Lankan time (Asia/Colombo).
+
+- **Created with the change (JOB-02):** `enqueue(tx, name, payload)` (`lib/server/repositories/jobs.ts`) writes the job through the business transaction's own connection, so a job exists only if that change committed.
+- **Safe to run twice (JOB-03):** every job selects only rows still in their old state and changes them with a conditional update. A retry, a second worker or a person acting at the same moment never changes a row twice. Each job has a test that runs it twice.
+- **Retries (JOB-04):** five tries, about 30 seconds, 1, 2 and 4 minutes apart. A job that fails its last try stays in `pgboss.job` as `failed` and is logged as `job.failed` (level error), and every admin gets a notification. A payload that fails its schema is logged as `job.invalid_payload` and alerted without retrying.
+- **Schedules run once (JOB-05):** pg-boss stores schedules in the database and files each tick under one key, so a tick makes one job however many workers run. Scheduled queues also allow only one waiting and one running job.
+- **Batches (JOB-06):** jobs that touch many rows take 100 at a time, each batch in its own transaction, until a batch comes back short. A crash loses only the open batch, and the next run carries on.
+- **Graceful stop (JOB-07):** on SIGTERM or Ctrl+C the worker takes no new jobs and waits up to 30 seconds for running ones. A job still running then is retried later, which JOB-03 makes safe. A second signal stops at once.
+- **Database rights (DB-10):** `npm run jobs:migrate` installs and upgrades the `pgboss` schema as `ceyliving_migrator` and gives `ceyliving_app` row rights only. The site and the worker connect as `ceyliving_app` and never change the queue's structure. A worker that finds the schema missing or out of date refuses to start.
+
+**Running the worker**
+
+- **Development:** `npm run dev` runs both processes, and the worker restarts itself when its code changes. `npm run dev:web` runs the site alone; jobs then wait in the queue and run when a worker starts.
+- **Production:** run the site (`npm start`) and the worker (`npm run worker`) as two processes, each kept running and restarted if it stops (in B14 they become two containers from one image). Before starting a new version, run `npx prisma migrate deploy` and then `npm run jobs:migrate`. Stop the worker with SIGTERM (`docker stop` sends it, then waits) and give it at least 30 seconds. Restarting is safe at any time. One worker is enough at launch, and more can run side by side.
+- **Watching it:** the worker logs JSON lines with `service: "ceyliving-worker"`: `worker.started`, then `job.completed` (with `job`, `jobId`, `attempt`, `durationMs` and counts), `job.retrying` and `job.failed`. Admins get a notification for every job that fails for good. To look at the queue: `SELECT name, state, count(*) FROM pgboss.job GROUP BY 1, 2;` and `SELECT name, cron, timezone FROM pgboss.schedule;`. Finished and failed jobs stay there for pg-boss's retention period. The admin "Operations" card comes in B12 (OPS-07).
 
 ## Logging and request IDs
 
@@ -141,14 +179,14 @@ Requests follow the feature spec (section 7.2): **form → server action → ser
 **Also included:**
 
 - **Helpful votes:** reviews and questions can be voted helpful, and are sorted most helpful first (FR-19).
-- **Payouts:** the weekly payout job (BR-11) is a button on `/admin/payouts` until a background worker exists.
+- **Payouts:** the weekly payout job (BR-11) runs in the worker on Mondays, and the button on `/admin/payouts` still runs it by hand.
 - **Account deletion:** deleting an account anonymises it and keeps order records (FR-17).
 
 **Not production-ready yet:** PayHere payments and file uploads are still required before launch.
 
 ## Tests
 
-`npm test` runs every test against PostgreSQL. Docker must be running: a Vitest global setup (`test/global-setup.ts`) starts one throwaway PostgreSQL with Testcontainers and applies the real migrations, each test file gets its own copy of that database, and the demo data is loaded again before every test (`test/db.ts`). Without Docker the run stops with a clear message instead of skipping database tests.
+`npm test` runs every test against PostgreSQL. Docker must be running: a Vitest global setup (`test/global-setup.ts`) starts one throwaway PostgreSQL with Testcontainers, applies the real migrations and installs the job queue, each test file gets its own copy of that database, and the demo data is loaded again before every test (`test/db.ts`). Without Docker the run stops with a clear message instead of skipping database tests.
 
 - **Unit tests:** every business rule, named with its ID (for example `RULE-R1 blocks a review without a delivered order`).
 - **Permission tests:** every server action is called as a guest, plus wrong-role and other-owner cases.
@@ -161,6 +199,7 @@ Requests follow the feature spec (section 7.2): **form → server action → ser
 - **Environment:** `lib/env.ts` refuses demo login in production (AU-09), requires real Turnstile keys there (AU-06) and names bad keys without echoing values.
 - **Logging (OPS-01 to OPS-03):** redaction of secrets and personal data, request-ID rules, the proxy's header and redirects, and the `runAction` and `withRoute` references.
 - **Header components:** the header's sign-in states and menus.
+- **Background jobs (`worker/jobs.test.ts`, `worker/worker.test.ts`):** every job run twice (JOB-03) with its rule (BR-08, BR-11, BR-17, FR-14, RULE-M3, RULE-M4); the admin payout button and the weekly job at the same moment pay each order once; 250 rows handled in batches of 100 (JOB-06); a job enqueued in a rolled-back transaction never exists (JOB-02). With real pg-boss workers: two workers run one schedule tick once (JOB-05), a failing job is retried and then alerts the admins (JOB-04), and stopping waits for a running job, up to its time limit (JOB-07).
 - **Full journey:** apply → approve → set up → post → approve item → buy → deliver → review → ask → answer → report → hide.
 
 ## Design: Lacquer & Loom

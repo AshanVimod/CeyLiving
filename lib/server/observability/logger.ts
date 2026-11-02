@@ -56,15 +56,17 @@ function serializeError(error: unknown) {
 export interface LoggerOptions {
   level?: Level | "silent";
   destination?: DestinationStream;
+  /** The process writing the lines: the web app (default) or the background worker (B06). */
+  service?: "ceyliving-web" | "ceyliving-worker";
 }
 
 /** One JSON object per line: level, time, service, msg, plus the fields each call adds (OPS-01). */
-export function createLogger({ level, destination }: LoggerOptions = {}): Logger {
+export function createLogger({ level, destination, service = "ceyliving-web" }: LoggerOptions = {}): Logger {
   const env = getEnv();
   return pino(
     {
       level: level ?? env.LOG_LEVEL ?? (env.NODE_ENV === "test" ? "silent" : "info"),
-      base: { service: "ceyliving-web" },
+      base: { service },
       timestamp: pino.stdTimeFunctions.isoTime,
       formatters: { level: (label) => ({ level: label }) },
       serializers: { err: serializeError },

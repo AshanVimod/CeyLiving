@@ -5,7 +5,7 @@ import { PageTitle } from "@/components/account/area-shell";
 import { MakeAdminButton } from "@/components/account/privacy-actions";
 import { UserRestrictionActions } from "@/components/admin/user-actions";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { formatDate } from "@/lib/format";
+import { auditActorName, formatDate } from "@/lib/format";
 import { requireRole } from "@/lib/server/auth";
 import { listShops } from "@/lib/server/repositories/catalogue";
 import { listOrdersOfCustomer } from "@/lib/server/repositories/commerce";
@@ -89,7 +89,7 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
         <ul className="space-y-2">
           {history.map((h) => (
             <li key={h.id} className="rounded-md border border-line bg-paper-raised px-4 py-3">
-              <span className="font-semibold">{h.action}</span> by {userNames.get(h.actorId) ?? h.actorId},{" "}
+              <span className="font-semibold">{h.action}</span> by {auditActorName(h.actorId, userNames)},{" "}
               {formatDate(h.createdAt)}
               {h.reason ? <span className="block text-ink-soft">Reason: {h.reason}</span> : null}
             </li>

@@ -25,6 +25,7 @@ import {
   toUser,
   toVote,
 } from "@/lib/server/db/mappers";
+import { stopJobProducer } from "@/lib/server/db/boss";
 import { createPrismaClient, disconnectAppClient, handlesFor, type Handles } from "@/lib/server/db/tx";
 import type { User } from "@/lib/types";
 import { buildSeed, type SeedData } from "@/prisma/seed-data";
@@ -95,13 +96,18 @@ export function withTestDatabase() {
     database = await openTestDatabase();
     process.env.DATABASE_URL = database.appUrl;
     await disconnectAppClient();
+    await stopJobProducer();
   });
   beforeEach(async () => {
     loaded = buildSeed(new Date());
     await database!.reset(loaded);
+    // B06: jobs (and schedules) a previous test created would leak into this one.
+    await database!.migrator.$executeRawUnsafe("DELETE FROM pgboss.job");
+    await database!.migrator.$executeRawUnsafe("DELETE FROM pgboss.schedule");
   });
   afterAll(async () => {
     await disconnectAppClient();
+    await stopJobProducer();
     await database?.stop();
   });
 }
@@ -152,6 +158,16 @@ export async function readAll(): Promise<SeedData> {
     customRequests: (await c.customRequest.findMany({ orderBy: [...byCreated] })).map(toCustomRequest),
     helpfulVotes: (await c.helpfulVote.findMany({ orderBy: [{ createdAt: "asc" }, { userId: "asc" }] })).map(toVote),
   };
+}
+
+/** B06: the jobs in one pg-boss queue of this file's database (any state), oldest first. */
+export async function queuedJobs(
+  name: string,
+): Promise<{ id: string; state: string; data: unknown; singletonKey: string | null }[]> {
+  return current().migrator.$queryRawUnsafe(
+    `SELECT id::text, state::text, data, singleton_key AS "singletonKey" FROM pgboss.job WHERE name = $1 ORDER BY created_on, id`,
+    name,
+  );
 }
 
 /**

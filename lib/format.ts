@@ -29,3 +29,8 @@ export function daysSince(iso: string): number {
 export function formatDate(iso: string): string {
   return dateFormat.format(new Date(iso));
 }
+
+/** Who made an audited change: the person's name, or CeyLiving itself when a scheduled job did it (B06). */
+export function auditActorName(actorId: string | undefined, userNames: ReadonlyMap<string, string>): string {
+  return actorId ? (userNames.get(actorId) ?? actorId) : "CeyLiving (scheduled job)";
+}

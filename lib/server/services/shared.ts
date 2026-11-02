@@ -33,16 +33,37 @@ function label(status: string) {
   return status.toLowerCase().replace(/_/g, " ");
 }
 
-/** SEC-A9: admin actions write their audit row in the same transaction as the change. */
+/** Changes made by a scheduled job rather than a person (B06). Audit rows record it as a missing actor. */
+export const WORKER = "worker" as const;
+
+/** SEC-A9: admin actions (and scheduled jobs' changes) write their audit row in the same transaction. */
 export async function audit(
   tx: Tx,
-  actor: Actor,
+  actor: Actor | typeof WORKER,
   action: string,
   targetType: string,
   targetId: string,
   extra: { reason?: string; before?: unknown; after?: unknown } = {},
 ) {
-  await addAuditEntry(tx, { actorId: actor.id, action, targetType, targetId, ...extra });
+  const actorId = actor === WORKER ? undefined : actor.id;
+  await addAuditEntry(tx, { actorId, action, targetType, targetId, ...extra });
+}
+
+/** JOB-06: rows a scheduled job changes per transaction. */
+export const JOB_BATCH_SIZE = 100;
+
+/**
+ * JOB-06: runs `batch` (one transaction each) until it handles fewer than `size` rows, and returns the total. A
+ * crash part-way loses only the open batch; the next run picks up what is left, because each batch only selects
+ * rows still in their old state.
+ */
+export async function inBatches(batch: (limit: number) => Promise<number>, size = JOB_BATCH_SIZE): Promise<number> {
+  let total = 0;
+  for (;;) {
+    const handled = await batch(size);
+    total += handled;
+    if (handled < size) return total;
+  }
 }
 
 /** RULE-S2: lowercase words joined by hyphens. */

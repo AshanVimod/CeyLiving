@@ -6,7 +6,7 @@ import { PageTitle } from "@/components/account/area-shell";
 import { DataTable, Td } from "@/components/admin/data-table";
 import { ShopDecisions } from "@/components/admin/shop-decisions";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { formatDate } from "@/lib/format";
+import { auditActorName, formatDate } from "@/lib/format";
 import { requireRole } from "@/lib/server/auth";
 import { findShopById, productsOfShop } from "@/lib/server/repositories/catalogue";
 import { findUserById, listAuditLog, listUsers } from "@/lib/server/repositories/people";
@@ -62,7 +62,7 @@ async function Shop({ params }: { params: PageProps<"/admin/sellers/[shopId]">["
         <ul className="space-y-2 text-[0.95rem]">
           {history.map((h) => (
             <li key={h.id} className="rounded-md border border-line bg-paper-raised px-4 py-3">
-              <span className="font-semibold">{h.action}</span> by {userNames.get(h.actorId) ?? h.actorId},{" "}
+              <span className="font-semibold">{h.action}</span> by {auditActorName(h.actorId, userNames)},{" "}
               {formatDate(h.createdAt)}
               {h.reason ? <span className="block text-ink-soft">Reason: {h.reason}</span> : null}
             </li>

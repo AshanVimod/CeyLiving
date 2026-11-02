@@ -84,6 +84,8 @@ export const SHOP_SLUG = {
 
 /** BR-11: earnings become payable this many days after delivery. */
 export const PAYOUT_HOLD_DAYS = 7;
+/** BR-17: a dispatched order the customer hasn't confirmed completes on its own this many days after dispatch. */
+export const AUTO_COMPLETE_DAYS = 7;
 /** FR-14: open requests and unanswered quotes expire after this many days. */
 export const CUSTOM_REQUEST_EXPIRY_DAYS = 14;
 

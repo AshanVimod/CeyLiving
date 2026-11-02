@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { questionSchema } from "@/lib/validation/content";
 import { findContactDetails } from "@/lib/validation/contact";
-import { readAll, freshUser, user, withTestDatabase } from "@/test/db";
+import { queuedJobs, readAll, freshUser, user, withTestDatabase } from "@/test/db";
+import { runJobNow } from "@/test/jobs";
 import { getPublicProduct } from "../catalogue";
 import { ConflictError, ForbiddenError, NotFoundError, RateLimitError } from "../errors";
 import { canPost } from "../permissions";
@@ -96,10 +97,18 @@ describe("FR-5 / FR-8 reports and moderation", () => {
     await expect(reportContent(user("user_muted"), input)).rejects.toBeInstanceOf(ConflictError);
   });
 
-  it("RULE-M4 content is hidden automatically at 3 open reports", async () => {
+  it("RULE-M4 content is hidden automatically at 3 open reports (by the reports.autoHide job, JOB-02)", async () => {
     const input = { targetType: "QUESTION" as const, targetId: "q_naga_size", reason: "Offensive or abusive" as const };
-    for (const id of ["user_muted", "user_applicant", "user_seller"]) await reportContent(user(id), input);
-    expect((await readAll()).questions.find((q) => q.id === "q_naga_size")!.status).toBe("HIDDEN");
+    const status = async () => (await readAll()).questions.find((q) => q.id === "q_naga_size")!.status;
+    await reportContent(user("user_muted"), input);
+    await reportContent(user("user_applicant"), input);
+    expect(await queuedJobs("reports.autoHide")).toEqual([]); // two reports: below the threshold
+    await reportContent(user("user_seller"), input);
+    const [job] = await queuedJobs("reports.autoHide");
+    expect(job!.data).toEqual({ targetType: "QUESTION", targetId: "q_naga_size" });
+    expect(await status()).toBe("VISIBLE"); // the report itself doesn't wait for moderation
+    await runJobNow("reports.autoHide", { targetType: "QUESTION", targetId: "q_naga_size" });
+    expect(await status()).toBe("HIDDEN");
   });
 
   it("RULE-M1 only admins hide content; each action needs a reason and leaves an audit row", async () => {

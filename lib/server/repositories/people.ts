@@ -140,6 +140,18 @@ export async function addNotification(
   });
 }
 
+/** One notification per entry, in one insert (scheduled jobs tell many people at once). */
+export async function addNotifications(
+  tx: Tx,
+  notifications: { userId: string; type: string; title: string; href: string }[],
+): Promise<void> {
+  if (!notifications.length) return;
+  const createdAt = new Date();
+  await writableClientOf(tx).notification.createMany({
+    data: notifications.map((n) => ({ id: newId("notif"), ...n, createdAt })),
+  });
+}
+
 /** RULE-N1: marks only the user's own unread notifications (all of them, or just `ids`). */
 export async function markNotificationsRead(tx: Tx, userId: string, at: string, ids?: string[]): Promise<void> {
   await writableClientOf(tx).notification.updateMany({
@@ -176,6 +188,27 @@ export async function listAuditLog(tx: Tx): Promise<AuditLogEntry[]> {
   return rows.map(toAuditEntry);
 }
 
+/**
+ * RULE-M3 (B06): ends mutes whose time has run out, at most `limit` people per call (JOB-06). The condition is in
+ * the update, so a person an admin re-muted or banned meanwhile is left alone. Returns who was unmuted.
+ */
+export async function liftExpiredMutes(tx: Tx, now: Date, limit: number): Promise<User[]> {
+  const client = writableClientOf(tx);
+  const due = { postingRestriction: "MUTED", mutedUntil: { lte: now } } satisfies Prisma.UserWhereInput;
+  const ids = await client.user.findMany({
+    where: due,
+    select: { id: true },
+    orderBy: [{ mutedUntil: "asc" }, { id: "asc" }],
+    take: limit,
+  });
+  if (!ids.length) return [];
+  const rows = await client.user.updateManyAndReturn({
+    where: { id: { in: ids.map((r) => r.id) }, ...due },
+    data: { postingRestriction: "NONE", mutedUntil: null, restrictionReason: null },
+  });
+  return rows.map(toUser);
+}
+
 // ---------- Rate events (SEC-A6) ----------
 
 export async function countRateEvents(tx: Tx, userId: string, kind: string, sinceMs: number): Promise<number> {
@@ -195,6 +228,44 @@ export async function pruneRateEvents(tx: Tx, beforeMs: number): Promise<void> {
 
 export async function deleteRateEventsOf(tx: Tx, userId: string): Promise<void> {
   await writableClientOf(tx).rateEvent.deleteMany({ where: { userId } });
+}
+
+// ---------- Maintenance (B06, maintenance.cleanup) ----------
+// Each deletes at most `limit` rows per call (JOB-06) and returns how many, so the job repeats until a short batch.
+
+/** Rate events older than `before` can no longer count towards any limit. */
+export async function deleteOldRateEvents(tx: Tx, before: Date, limit: number): Promise<number> {
+  const client = writableClientOf(tx);
+  const where = { at: { lt: before } };
+  const rows = await client.rateEvent.findMany({ where, select: { id: true }, take: limit });
+  if (!rows.length) return 0;
+  return (await client.rateEvent.deleteMany({ where: { id: { in: rows.map((r) => r.id) }, ...where } })).count;
+}
+
+export async function deleteExpiredSessions(tx: Tx, now: Date, limit: number): Promise<number> {
+  const client = writableClientOf(tx);
+  const where = { expiresAt: { lt: now } };
+  const rows = await client.session.findMany({ where, select: { id: true }, take: limit });
+  if (!rows.length) return 0;
+  return (await client.session.deleteMany({ where: { id: { in: rows.map((r) => r.id) }, ...where } })).count;
+}
+
+/** Expired email links (verification, password reset). */
+export async function deleteExpiredVerifications(tx: Tx, now: Date, limit: number): Promise<number> {
+  const client = writableClientOf(tx);
+  const where = { expiresAt: { lt: now } };
+  const rows = await client.verification.findMany({ where, select: { id: true }, take: limit });
+  if (!rows.length) return 0;
+  return (await client.verification.deleteMany({ where: { id: { in: rows.map((r) => r.id) }, ...where } })).count;
+}
+
+/** AU-06 attempt counters last touched before `beforeMs`; their windows are long over. */
+export async function deleteOldAuthAttempts(tx: Tx, beforeMs: number, limit: number): Promise<number> {
+  const client = writableClientOf(tx);
+  const where = { lastRequest: { lt: BigInt(beforeMs) } };
+  const rows = await client.rateLimit.findMany({ where, select: { id: true }, take: limit });
+  if (!rows.length) return 0;
+  return (await client.rateLimit.deleteMany({ where: { id: { in: rows.map((r) => r.id) }, ...where } })).count;
 }
 
 // ---------- Sign-in data (Better Auth tables, B05a) ----------

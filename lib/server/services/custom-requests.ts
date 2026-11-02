@@ -9,12 +9,13 @@ import { findShopById } from "../repositories/catalogue";
 import {
   customRequestsOfCustomer,
   customRequestsOfShop,
+  expireStaleCustomRequests,
   findCustomRequest,
   insertCustomRequest,
   updateCustomRequest,
 } from "../repositories/commerce";
-import { addNotification, newId } from "../repositories/people";
-import { assertRateLimit, assertTransition } from "./shared";
+import { addNotification, addNotifications, newId } from "../repositories/people";
+import { assertRateLimit, assertTransition, inBatches } from "./shared";
 
 // FR-14 status flow: OPEN → QUOTED → ACCEPTED / DECLINED; open or quoted requests expire after 14 days.
 const FLOW: Partial<Record<CustomRequestStatus, readonly CustomRequestStatus[]>> = {
@@ -28,13 +29,34 @@ export function effectiveStatus(request: CustomRequest, now = new Date()): Custo
   return stale && (request.status === "OPEN" || request.status === "QUOTED") ? "EXPIRED" : request.status;
 }
 
-/** Loads a request inside a transaction, recording the expiry if it has gone stale. */
+/**
+ * Loads a request inside a transaction. One that has gone stale since the last customRequests.expire run reads as
+ * expired, so it can't be quoted or answered in the meantime; the job records the expiry.
+ */
 async function load(tx: Tx, id: string, now: Date): Promise<CustomRequest> {
   const request = await findCustomRequest(tx, id);
   if (!request) throw new NotFoundError("Request not found.");
-  if (effectiveStatus(request, now) === "EXPIRED" && request.status !== "EXPIRED")
-    return (await updateCustomRequest(tx, id, { status: "EXPIRED" }))!;
-  return request;
+  return { ...request, status: effectiveStatus(request, now) };
+}
+
+/** FR-14 (customRequests.expire): records the expiry of stale requests and tells the customer. */
+export async function expireStaleRequests(now = new Date()): Promise<number> {
+  const staleBefore = new Date(now.getTime() - CUSTOM_REQUEST_EXPIRY_DAYS * 86_400_000);
+  return inBatches((limit) =>
+    withTx(async (tx) => {
+      const expired = await expireStaleCustomRequests(tx, staleBefore, now, limit);
+      await addNotifications(
+        tx,
+        expired.map((r) => ({
+          userId: r.customerId,
+          type: "request.expired",
+          title: `Your custom request expired after ${CUSTOM_REQUEST_EXPIRY_DAYS} days without a reply`,
+          href: "/account/requests",
+        })),
+      );
+      return expired.length;
+    }),
+  );
 }
 
 /** A signed-in customer asks an active shop for something made to order (not their own shop). */

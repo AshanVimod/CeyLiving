@@ -10,11 +10,12 @@ import {
   insertPayout,
   payoutsOfShop,
   setPayoutOnSellerOrders,
+  shopsWithUnpaidCompletedOrders,
   unpaidCompletedSellerOrders,
   updatePayout,
 } from "../repositories/commerce";
 import { addNotification, newId } from "../repositories/people";
-import { audit } from "./shared";
+import { audit, JOB_BATCH_SIZE, WORKER } from "./shared";
 
 const DAY = 86_400_000;
 
@@ -27,9 +28,9 @@ export function payableFrom(sellerOrder: SellerOrder): Date | undefined {
   return sellerOrder.completedAt ? new Date(Date.parse(sellerOrder.completedAt) + PAYOUT_HOLD_DAYS * DAY) : undefined;
 }
 
-/** BR-11: delivered, past the hold period, and not yet in any payout. */
-async function payableOrders(tx: Tx, now: Date): Promise<SellerOrder[]> {
-  return (await unpaidCompletedSellerOrders(tx)).filter(
+/** BR-11: the shop's orders that are delivered, past the hold period, and not yet in any payout. */
+async function payableOrders(tx: Tx, shopId: string, now: Date): Promise<SellerOrder[]> {
+  return (await unpaidCompletedSellerOrders(tx, shopId)).filter(
     (so) => (payableFrom(so)?.getTime() ?? Infinity) <= now.getTime(),
   );
 }
@@ -54,18 +55,18 @@ function buildPayout(shop: Shop, orders: SellerOrder[], now: Date): Payout {
 }
 
 /**
- * The weekly payout job (BR-11). Run by an admin until a background worker exists.
- * Shops without payout details are skipped and picked up next time.
+ * BR-11: one shop's payout, in its own transaction. Shops without payout details are skipped and picked up next
+ * time. If another run (the admin button and the weekly job at once, or a retried job) linked any of these orders
+ * first, setPayoutOnSellerOrders throws, this shop's transaction rolls back and the shop is skipped: an order is
+ * never in two payouts.
  */
-export async function generatePayouts(actor: Actor, now = new Date()): Promise<Payout[]> {
-  assertRole(actor, ["ADMIN"]);
-  return withTx(async (tx) => {
-    const byShop = new Map<string, SellerOrder[]>();
-    (await payableOrders(tx, now)).forEach((so) => byShop.set(so.shopId, [...(byShop.get(so.shopId) ?? []), so]));
-    const created: Payout[] = [];
-    for (const [shopId, orders] of byShop) {
+async function payoutForShop(by: Actor | typeof WORKER, shopId: string, now: Date): Promise<Payout | undefined> {
+  try {
+    return await withTx(async (tx) => {
       const shop = await findShopById(tx, shopId);
-      if (!shop?.payoutAccountMasked) continue;
+      if (!shop?.payoutAccountMasked) return undefined;
+      const orders = await payableOrders(tx, shop.id, now);
+      if (!orders.length) return undefined;
       const payout = await insertPayout(tx, buildPayout(shop, orders, now));
       await setPayoutOnSellerOrders(
         tx,
@@ -73,13 +74,41 @@ export async function generatePayouts(actor: Actor, now = new Date()): Promise<P
         payout.id,
       );
       await addNotification(tx, shop.ownerId, "payout.scheduled", "A new payout statement is ready", "/seller/payouts");
-      await audit(tx, actor, "payout.generated", "PAYOUT", payout.id, {
+      await audit(tx, by, "payout.generated", "PAYOUT", payout.id, {
         after: { shopId, netCents: payout.netCents, orders: orders.length },
+        ...(by === WORKER && { reason: "Weekly payout job (payouts.generateWeekly)" }),
       });
-      created.push(payout);
+      return payout;
+    });
+  } catch (error) {
+    if (error instanceof ConflictError) return undefined;
+    throw error;
+  }
+}
+
+/**
+ * The payout run (BR-11), shared by the admin button and the weekly job (payouts.generateWeekly), so both follow
+ * the same rules. Shops are read in pages of JOB_BATCH_SIZE and each gets its own transaction (JOB-06): a crash
+ * part-way keeps the payouts already made, and the next run carries on with the rest.
+ */
+export async function runPayouts(by: Actor | typeof WORKER, now = new Date()): Promise<Payout[]> {
+  const created: Payout[] = [];
+  let after: string | undefined;
+  for (;;) {
+    const shopIds = await shopsWithUnpaidCompletedOrders(db, after, JOB_BATCH_SIZE);
+    for (const shopId of shopIds) {
+      const payout = await payoutForShop(by, shopId, now);
+      if (payout) created.push(payout);
     }
-    return created;
-  });
+    if (shopIds.length < JOB_BATCH_SIZE) return created;
+    after = shopIds.at(-1);
+  }
+}
+
+/** The admin's "Generate payouts" button: a manual run of the weekly job. */
+export async function generatePayouts(actor: Actor, now = new Date()): Promise<Payout[]> {
+  assertRole(actor, ["ADMIN"]);
+  return runPayouts(actor, now);
 }
 
 /** An admin records the bank transfer; the reference is kept for reconciliation (SEC-A9 audit). */

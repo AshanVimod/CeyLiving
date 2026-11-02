@@ -155,7 +155,7 @@ export function toNotification(row: Row.Notification): Notification {
 export function toAuditEntry(row: Row.AuditLogEntry): AuditLogEntry {
   return {
     id: row.id,
-    actorId: row.actorId,
+    actorId: opt(row.actorId),
     action: row.action,
     targetType: row.targetType,
     targetId: row.targetId,
@@ -406,13 +406,14 @@ export function toSellerOrder(row: Row.SellerOrder): SellerOrder {
     acceptedAt: optIso(row.acceptedAt),
     dispatchedAt: optIso(row.dispatchedAt),
     completedAt: optIso(row.completedAt),
+    acceptDeadlineAt: optIso(row.acceptDeadlineAt),
     updatedAt: iso(row.updatedAt),
     payoutId: opt(row.payoutId),
   };
 }
 
 export const sellerOrderColumns = (so: Partial<SellerOrder>) =>
-  withDates(so, ["acceptedAt", "dispatchedAt", "completedAt", "updatedAt"]);
+  withDates(so, ["acceptedAt", "dispatchedAt", "completedAt", "acceptDeadlineAt", "updatedAt"]);
 
 export function toOrderItem(row: Row.OrderItem): OrderItem {
   return {

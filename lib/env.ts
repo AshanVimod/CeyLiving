@@ -37,6 +37,8 @@ export const envSchema = z
     // test keys (TURNSTILE_TEST_KEYS), which always pass and never identify a real site.
     TURNSTILE_SITE_KEY: z.string().min(1).max(100).optional(),
     TURNSTILE_SECRET_KEY: z.string().min(1).max(100).optional(),
+    // B06: how many jobs of one queue the worker runs at the same time (1 to 20). Default 2.
+    WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(20).default(2),
     // OPS-01: log level. Default: info, or silent under NODE_ENV=test (see lib/server/observability/logger.ts).
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).optional(),
     // FR-2c: the site's public address, used for absolute links in sitemap.xml and robots.txt. No trailing slash.

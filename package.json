@@ -3,9 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "next dev",
     "build": "next build",
     "start": "next start",
+    "worker": "tsx --conditions=react-server --env-file-if-exists=.env.local worker/index.ts",
     "lint": "eslint",
     "test": "vitest run",
     "typecheck": "next typegen && tsc --noEmit",
@@ -20,7 +22,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx --conditions=react-server --env-file-if-exists=.env.local prisma/seed.ts",
-    "db:reset": "prisma migrate reset --force && npm run db:seed"
+    "db:reset": "prisma migrate reset --force && npm run jobs:migrate && npm run db:seed",
+    "jobs:migrate": "tsx --env-file-if-exists=.env.local worker/migrate-cli.ts"
   },
   "engines": {
     "node": ">=22.12 <23",
@@ -34,6 +37,7 @@
     "next": "16.4.2",
     "nodemailer": "10.1.7",
     "pg": "8.23.1",
+    "pg-boss": "12.38.0",
     "pino": "10.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -86,6 +90,8 @@
     "@peculiar/asn1-rsa": "2.11.0",
     "@peculiar/asn1-schema": "2.11.0",
     "@peculiar/asn1-x509": "2.11.0",
-    "@peculiar/asn1-x509-attr": "2.11.0"
+    "@peculiar/asn1-x509-attr": "2.11.0",
+    "cron-parser": "5.10.2",
+    "@opentelemetry/api": "1.9.1"
   }
 }

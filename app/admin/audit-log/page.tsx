@@ -4,6 +4,7 @@ import { EmptyState, PageTitle } from "@/components/account/area-shell";
 import { DataTable, FilterLinks, Td } from "@/components/admin/data-table";
 import { requireRole } from "@/lib/server/auth";
 import { listAuditLog, listUsers } from "@/lib/server/repositories/people";
+import { auditActorName } from "@/lib/format";
 
 export const metadata = { title: "Audit log" };
 
@@ -37,7 +38,7 @@ async function AuditLog({ searchParams }: { searchParams: PageProps<"/admin/audi
           {entries.map((e) => (
             <tr key={e.id}>
               <Td className="whitespace-nowrap">{dateTime.format(new Date(e.createdAt))}</Td>
-              <Td>{userNames.get(e.actorId) ?? e.actorId}</Td>
+              <Td>{auditActorName(e.actorId, userNames)}</Td>
               <Td className="font-semibold">{e.action}</Td>
               <Td className="text-sm text-ink-soft [overflow-wrap:anywhere]">
                 {e.targetType} {e.targetId}

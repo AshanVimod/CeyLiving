@@ -152,6 +152,124 @@ export async function setPayoutOnSellerOrders(tx: Tx, sellerOrderIds: string[], 
   if (taken > 0) throw new ConflictError("These orders were just paid out by another run. Refresh and check.");
 }
 
+// ---------- Scheduled jobs (B06) ----------
+// Each takes one batch of at most `limit` rows (JOB-06) and changes them with a conditional update (DB-06), so a
+// second run, or a person acting at the same moment, never changes a row twice (JOB-03).
+
+/** BR-08: cancels NEW seller orders whose accept deadline has passed. Returns the ones this call cancelled. */
+export async function cancelOverdueNewSellerOrders(
+  tx: Tx,
+  now: Date,
+  reason: string,
+  limit: number,
+): Promise<SellerOrder[]> {
+  const client = writableClientOf(tx);
+  const due = { status: "NEW", acceptDeadlineAt: { lte: now } } satisfies Prisma.SellerOrderWhereInput;
+  const ids = await client.sellerOrder.findMany({
+    where: due,
+    select: { id: true },
+    orderBy: [{ acceptDeadlineAt: "asc" }, { id: "asc" }],
+    take: limit,
+  });
+  if (!ids.length) return [];
+  const rows = await client.sellerOrder.updateManyAndReturn({
+    where: { id: { in: ids.map((r) => r.id) }, ...due },
+    data: { status: "CANCELLED", cancelReason: reason, updatedAt: now },
+  });
+  return rows.map(toSellerOrder);
+}
+
+/** BR-17: completes seller orders dispatched at or before `dispatchedBefore`. Returns the ones this call completed. */
+export async function completeLongDispatchedSellerOrders(
+  tx: Tx,
+  dispatchedBefore: Date,
+  now: Date,
+  limit: number,
+): Promise<SellerOrder[]> {
+  const client = writableClientOf(tx);
+  const due = { status: "DISPATCHED", dispatchedAt: { lte: dispatchedBefore } } satisfies Prisma.SellerOrderWhereInput;
+  const ids = await client.sellerOrder.findMany({
+    where: due,
+    select: { id: true },
+    orderBy: [{ dispatchedAt: "asc" }, { id: "asc" }],
+    take: limit,
+  });
+  if (!ids.length) return [];
+  const rows = await client.sellerOrder.updateManyAndReturn({
+    where: { id: { in: ids.map((r) => r.id) }, ...due },
+    data: { status: "COMPLETED", completedAt: now, updatedAt: now },
+  });
+  return rows.map(toSellerOrder);
+}
+
+/** Who to tell about each seller order: the customer (with the order number) and the shop's owner. One query. */
+export async function partiesOfSellerOrders(
+  tx: Tx,
+  sellerOrderIds: string[],
+): Promise<Map<string, { orderNumber: string; customerId: string; shopOwnerId: string; shopName: string }>> {
+  const rows = await clientOf(tx).sellerOrder.findMany({
+    where: { id: { in: sellerOrderIds } },
+    select: {
+      id: true,
+      order: { select: { orderNumber: true, customerId: true } },
+      shop: { select: { ownerId: true, name: true } },
+    },
+  });
+  return new Map(
+    rows.map((r) => [
+      r.id,
+      {
+        orderNumber: r.order.orderNumber,
+        customerId: r.order.customerId,
+        shopOwnerId: r.shop.ownerId,
+        shopName: r.shop.name,
+      },
+    ]),
+  );
+}
+
+/** BR-11: shops with delivered orders not yet in a payout, by id, after `afterShopId` (keyset paging, JOB-06). */
+export async function shopsWithUnpaidCompletedOrders(
+  tx: Tx,
+  afterShopId: string | undefined,
+  limit: number,
+): Promise<string[]> {
+  const rows = await clientOf(tx).sellerOrder.findMany({
+    where: { status: "COMPLETED", payoutId: null, ...(afterShopId && { shopId: { gt: afterShopId } }) },
+    select: { shopId: true },
+    distinct: ["shopId"],
+    orderBy: { shopId: "asc" },
+    take: limit,
+  });
+  return rows.map((r) => r.shopId);
+}
+
+/** FR-14: expires open requests and unanswered quotes last changed at or before `staleBefore`. */
+export async function expireStaleCustomRequests(
+  tx: Tx,
+  staleBefore: Date,
+  now: Date,
+  limit: number,
+): Promise<CustomRequest[]> {
+  const client = writableClientOf(tx);
+  const due = {
+    status: { in: ["OPEN", "QUOTED"] },
+    updatedAt: { lte: staleBefore },
+  } satisfies Prisma.CustomRequestWhereInput;
+  const ids = await client.customRequest.findMany({
+    where: due,
+    select: { id: true },
+    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+    take: limit,
+  });
+  if (!ids.length) return [];
+  const rows = await client.customRequest.updateManyAndReturn({
+    where: { id: { in: ids.map((r) => r.id) }, ...due },
+    data: { status: "EXPIRED", updatedAt: now },
+  });
+  return rows.map(toCustomRequest);
+}
+
 // ---------- Order items ----------
 
 export async function itemsOfSellerOrder(tx: Tx, sellerOrderId: string): Promise<OrderItem[]> {

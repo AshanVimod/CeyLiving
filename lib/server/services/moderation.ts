@@ -23,9 +23,18 @@ import {
   updateOpenReport,
   updateReview,
   type Content,
+  type ContentType,
 } from "../repositories/content";
-import { addNotification, findUserById, newId, updateUser } from "../repositories/people";
-import { assertRateLimit, assertTransition, audit } from "./shared";
+import { enqueue } from "../repositories/jobs";
+import {
+  addNotification,
+  addNotifications,
+  findUserById,
+  liftExpiredMutes,
+  newId,
+  updateUser,
+} from "../repositories/people";
+import { assertRateLimit, assertTransition, audit, inBatches, WORKER } from "./shared";
 import { addAnswer } from "./questions";
 
 // Feature spec 8.4: content status flow.
@@ -56,15 +65,61 @@ export async function reportContent(actor: Actor, input: ReportInput, now = new 
       status: "OPEN",
       createdAt: now.toISOString(),
     });
-    const open = openBefore.length + 1;
-    if (input.targetType !== "PRODUCT" && input.targetType !== "SHOP" && open >= AUTO_HIDE_REPORT_THRESHOLD) {
-      await updateContent(tx, input.targetType, input.targetId, {
-        status: "HIDDEN",
-        statusReason: `Hidden automatically after ${open} reports, waiting for review.`,
-      });
+    // RULE-M4 runs in the worker (reports.autoHide), enqueued in this transaction so it exists only if the report
+    // does (JOB-02). One queued check per post: later reports before it runs are counted by that same check.
+    if (
+      input.targetType !== "PRODUCT" &&
+      input.targetType !== "SHOP" &&
+      openBefore.length + 1 >= AUTO_HIDE_REPORT_THRESHOLD
+    ) {
+      await enqueue(
+        tx,
+        "reports.autoHide",
+        { targetType: input.targetType, targetId: input.targetId },
+        { singletonKey: `${input.targetType}:${input.targetId}` },
+      );
     }
     return report;
   });
+}
+
+/**
+ * RULE-M4 (reports.autoHide): a review, question or answer with AUTO_HIDE_REPORT_THRESHOLD open reports is hidden
+ * until an admin looks at it. Counts again from the database, so a repeat run, or one after an admin already
+ * decided, changes nothing (JOB-03). Returns whether this run hid it.
+ */
+export async function autoHideReportedContent(targetType: ContentType, targetId: string): Promise<boolean> {
+  return withTx(async (tx) => {
+    const content = await findContent(tx, targetType, targetId);
+    if (content?.status !== "VISIBLE") return false;
+    const open = (await openReportsFor(tx, targetType, targetId)).length;
+    if (open < AUTO_HIDE_REPORT_THRESHOLD) return false;
+    const reason = `Hidden automatically after ${open} reports, waiting for review.`;
+    await updateContent(tx, targetType, targetId, { status: "HIDDEN", statusReason: reason });
+    await audit(tx, WORKER, "content.auto_hidden", targetType, targetId, { reason: `${reason} (reports.autoHide)` });
+    return true;
+  });
+}
+
+/** RULE-M3 (users.liftExpiredMutes): mutes whose time has run out are lifted, the person told, the change audited. */
+export async function liftExpiredMutesNow(now = new Date()): Promise<number> {
+  return inBatches((limit) =>
+    withTx(async (tx) => {
+      const unmuted = await liftExpiredMutes(tx, now, limit);
+      await addNotifications(
+        tx,
+        unmuted.map((u) => ({
+          userId: u.id,
+          type: "user.lift",
+          title: "You can post reviews and questions again",
+          href: "/account",
+        })),
+      );
+      for (const u of unmuted)
+        await audit(tx, WORKER, "user.mute_expired", "USER", u.id, { reason: "Mute ended (users.liftExpiredMutes)" });
+      return unmuted.length;
+    }),
+  );
 }
 
 /** RULE-M1 / RULE-M2: admins hide, restore or delete content (with a reason) but never edit it. */

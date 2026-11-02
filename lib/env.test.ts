@@ -47,6 +47,7 @@ describe("lib/env", () => {
       ENABLE_DEMO_LOGIN: false,
       EMAIL_FROM: "CeyLiving <no-reply@ceyliving.lk>",
       SITE_URL: "http://localhost:3000",
+      WORKER_CONCURRENCY: 2,
     });
   });
 
@@ -96,6 +97,12 @@ describe("lib/env", () => {
     ]);
   });
 
+  it("B06 WORKER_CONCURRENCY is a whole number from 1 to 20", () => {
+    expect(parseEnv({ WORKER_CONCURRENCY: "5" }).WORKER_CONCURRENCY).toBe(5);
+    for (const bad of ["0", "21", "2.5", "lots"])
+      expect(problems(() => parseEnv({ WORKER_CONCURRENCY: bad }))[0]).toMatch(/^WORKER_CONCURRENCY:/);
+  });
+
   it("OPS-01 accepts a known LOG_LEVEL and rejects anything else", () => {
     expect(parseEnv({ LOG_LEVEL: "debug" }).LOG_LEVEL).toBe("debug");
     expect(problems(() => parseEnv({ LOG_LEVEL: "verbose" }))[0]).toMatch(/^LOG_LEVEL:/);
@@ -118,6 +125,7 @@ describe("lib/env", () => {
       ENABLE_DEMO_LOGIN: false,
       EMAIL_FROM: "CeyLiving <no-reply@ceyliving.lk>",
       SITE_URL: "http://localhost:3000",
+      WORKER_CONCURRENCY: 2,
     });
   });
 

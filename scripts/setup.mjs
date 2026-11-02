@@ -79,9 +79,15 @@ run("docker compose -f infra/docker-compose.dev.yml up -d --wait");
 console.log("\nApplying migrations…");
 run("npx prisma migrate deploy");
 
-// 5. Demo data
+// 5. The job queue's tables (pg-boss, schema pgboss), also as the schema owner (B06)
+console.log("\nInstalling the job queue…");
+run("npm run jobs:migrate");
+
+// 6. Demo data
 console.log("\nLoading the demo data…");
 run("npm run db:seed");
 
-console.log("\nReady. Next: npm run dev, then open http://localhost:3000 and pick a demo account on /signin.");
+console.log(
+  "\nReady. Next: npm run dev (the site and the background worker), then open http://localhost:3000 and pick a demo account on /signin.",
+);
 console.log("Emails the app sends land in Mailpit: http://localhost:8025.");

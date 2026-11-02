@@ -3,9 +3,11 @@ import path from "node:path";
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { Client } from "pg";
 import type { TestProject } from "vitest/node";
+import { installJobQueue } from "../worker/migrate";
 
 // Starts one throwaway PostgreSQL (the image of infra/docker-compose.dev.yml), creates the two database users of
-// DB-10 and applies the real migrations to the `ceyliving` database, which each test file then copies (test/db.ts).
+// DB-10, applies the real migrations and installs the job queue (B06) in the `ceyliving` database, which each test
+// file then copies (test/db.ts).
 // Docker is required: without it the run stops with a clear message instead of quietly skipping database tests.
 
 declare module "vitest" {
@@ -42,6 +44,8 @@ export default async function setup(project: TestProject) {
     env: { ...process.env, DATABASE_MIGRATION_URL: migratorUrl },
     stdio: "pipe",
   });
+  // B06: the job queue's tables (schema pgboss), as `npm run jobs:migrate` installs them.
+  await installJobQueue(migratorUrl);
 
   project.provide("postgres", { migratorUrl, appPassword: APP_PASSWORD });
   return async () => {

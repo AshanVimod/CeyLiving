@@ -199,6 +199,8 @@ export interface SellerOrder {
   acceptedAt?: string;
   dispatchedAt?: string;
   completedAt?: string;
+  /** BR-08: a NEW order not accepted by then is cancelled automatically. Set when the order is paid (B08). */
+  acceptDeadlineAt?: string;
   updatedAt: string;
   /** The payout this order's earnings were included in (BR-11); each order is paid out once. */
   payoutId?: string;
@@ -273,7 +275,8 @@ export interface Report {
 
 export interface AuditLogEntry {
   id: string;
-  actorId: string;
+  /** Missing when the worker made the change (a scheduled job, B06); the reason names the job. */
+  actorId?: string;
   action: string;
   targetType: string;
   targetId: string;

@@ -1,5 +1,5 @@
 import "server-only";
-import { BUYER_DATA_VISIBLE_DAYS } from "@/lib/config";
+import { AUTO_COMPLETE_DAYS, BUYER_DATA_VISIBLE_DAYS } from "@/lib/config";
 import type { Order, SellerOrder, SellerOrderStatus } from "@/lib/types";
 import type { OrderTransitionInput } from "@/lib/validation/order";
 import { db, withTx, type Tx } from "../db/tx";
@@ -7,15 +7,21 @@ import { NotFoundError } from "../errors";
 import { shopOfSeller, type Actor } from "../permissions";
 import { findShopById } from "../repositories/catalogue";
 import {
+  cancelOverdueNewSellerOrders,
+  completeLongDispatchedSellerOrders,
   findOrderById,
   findOrderByNumber,
   findSellerOrder,
   findSellerOrderForShop,
   itemsOfSellerOrder,
+  partiesOfSellerOrders,
   updateSellerOrder,
 } from "../repositories/commerce";
-import { addNotification } from "../repositories/people";
-import { assertTransition, staleStatus } from "./shared";
+import { addNotification, addNotifications } from "../repositories/people";
+import { assertTransition, inBatches, staleStatus } from "./shared";
+
+/** BR-08: the reason stored on seller orders the accept-deadline job cancels. */
+export const AUTO_CANCEL_REASON = "Not accepted by the maker in time (cancelled automatically).";
 
 // Spec BR-07: seller order status machine. Sellers move orders forward; customers confirm delivery.
 export const SELLER_ORDER_FLOW: Partial<Record<SellerOrderStatus, readonly SellerOrderStatus[]>> = {
@@ -99,6 +105,72 @@ export async function confirmDelivery(actor: Actor, sellerOrderId: string, now =
         `/seller/orders/${so.id}`,
       );
   });
+}
+
+// ---------- Scheduled jobs (B06) ----------
+
+/**
+ * BR-08 (orders.autoCancelUnaccepted): NEW seller orders past their accept deadline are cancelled, and the customer
+ * and the maker are told. The refund itself is recorded by an admin until B08 adds payments (PAY-07).
+ */
+export async function autoCancelUnacceptedOrders(now = new Date()): Promise<number> {
+  return inBatches((limit) =>
+    withTx(async (tx) => {
+      const cancelled = await cancelOverdueNewSellerOrders(tx, now, AUTO_CANCEL_REASON, limit);
+      const parties = await partiesOfSellerOrders(
+        tx,
+        cancelled.map((so) => so.id),
+      );
+      await addNotifications(
+        tx,
+        cancelled.flatMap((so) => {
+          const p = parties.get(so.id)!;
+          return [
+            {
+              userId: p.customerId,
+              type: "order.cancelled",
+              title: `Your order ${p.orderNumber} from ${p.shopName} was cancelled: the maker didn’t accept it in time`,
+              href: `/account/orders/${p.orderNumber}`,
+            },
+            {
+              userId: p.shopOwnerId,
+              type: "order.cancelled",
+              title: `${p.orderNumber} was cancelled because it wasn’t accepted in time`,
+              href: `/seller/orders/${so.id}`,
+            },
+          ];
+        }),
+      );
+      return cancelled.length;
+    }),
+  );
+}
+
+/** BR-17 (orders.autoComplete): dispatched seller orders complete on their own this long after dispatch. */
+export async function autoCompleteDispatchedOrders(now = new Date()): Promise<number> {
+  const dispatchedBefore = new Date(now.getTime() - AUTO_COMPLETE_DAYS * 86_400_000);
+  return inBatches((limit) =>
+    withTx(async (tx) => {
+      const completed = await completeLongDispatchedSellerOrders(tx, dispatchedBefore, now, limit);
+      const parties = await partiesOfSellerOrders(
+        tx,
+        completed.map((so) => so.id),
+      );
+      await addNotifications(
+        tx,
+        completed.map((so) => {
+          const p = parties.get(so.id)!;
+          return {
+            userId: p.shopOwnerId,
+            type: "order.completed",
+            title: `${p.orderNumber} was marked delivered ${AUTO_COMPLETE_DAYS} days after dispatch`,
+            href: `/seller/orders/${so.id}`,
+          };
+        }),
+      );
+      return completed.length;
+    }),
+  );
 }
 
 /** The customer's own order; anyone else gets "not found" (SEC-A5). */

@@ -178,6 +178,8 @@ model User {
   passkeys            Passkey[]
 
   @@index([role])
+  /// B06 (users.liftExpiredMutes): finds mutes that have run out without reading every user.
+  @@index([mutedUntil], map: "users_muted_until_idx", where: raw("posting_restriction = 'MUTED'::\"PostingRestriction\""))
   @@map("users")
 }
 
@@ -367,7 +369,8 @@ model Notification {
 /// SEC-A9 / DB-09: append-only. The app role may INSERT and SELECT only (rights in the migration).
 model AuditLogEntry {
   id         String   @id
-  actorId    String   @map("actor_id")
+  /// NULL: the worker did it (a scheduled job, B06); the reason names the job.
+  actorId    String?  @map("actor_id")
   action     String
   targetType String   @map("target_type")
   targetId   String   @map("target_id")
@@ -376,7 +379,7 @@ model AuditLogEntry {
   after      Json?
   createdAt  DateTime @map("created_at") @db.Timestamptz(3)
 
-  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  actor User? @relation(fields: [actorId], references: [id], onDelete: Restrict)
 
   @@index([targetType, targetId])
   @@index([createdAt])
@@ -577,21 +580,24 @@ model Order {
 }
 
 model SellerOrder {
-  id            String            @id
-  orderId       String            @map("order_id")
-  shopId        String            @map("shop_id")
-  status        SellerOrderStatus
-  subtotalCents Int               @map("subtotal_cents")
-  shippingCents Int               @map("shipping_cents")
-  courierName   String?           @map("courier_name")
-  trackingRef   String?           @map("tracking_ref")
-  cancelReason  String?           @map("cancel_reason")
-  acceptedAt    DateTime?         @map("accepted_at") @db.Timestamptz(3)
-  dispatchedAt  DateTime?         @map("dispatched_at") @db.Timestamptz(3)
-  completedAt   DateTime?         @map("completed_at") @db.Timestamptz(3)
-  updatedAt     DateTime          @map("updated_at") @db.Timestamptz(3)
+  id               String            @id
+  orderId          String            @map("order_id")
+  shopId           String            @map("shop_id")
+  status           SellerOrderStatus
+  subtotalCents    Int               @map("subtotal_cents")
+  shippingCents    Int               @map("shipping_cents")
+  courierName      String?           @map("courier_name")
+  trackingRef      String?           @map("tracking_ref")
+  cancelReason     String?           @map("cancel_reason")
+  acceptedAt       DateTime?         @map("accepted_at") @db.Timestamptz(3)
+  dispatchedAt     DateTime?         @map("dispatched_at") @db.Timestamptz(3)
+  completedAt      DateTime?         @map("completed_at") @db.Timestamptz(3)
+  /// BR-08 (B06): a NEW order not accepted by then is cancelled by orders.autoCancelUnaccepted. Set when the order
+  /// is paid (B08); NULL means no deadline.
+  acceptDeadlineAt DateTime?         @map("accept_deadline_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @map("updated_at") @db.Timestamptz(3)
   /// BR-11: each seller order is paid out once.
-  payoutId      String?           @map("payout_id")
+  payoutId         String?           @map("payout_id")
 
   order  Order       @relation(fields: [orderId], references: [id], onDelete: Restrict)
   shop   Shop        @relation(fields: [shopId], references: [id], onDelete: Restrict)
@@ -603,6 +609,8 @@ model SellerOrder {
   @@index([shopId, updatedAt])
   @@index([payoutId])
   @@index([status, completedAt])
+  @@index([status, acceptDeadlineAt])
+  @@index([status, dispatchedAt])
   @@map("seller_orders")
 }
 
@@ -670,6 +678,7 @@ model CustomRequest {
 
   @@index([customerId, updatedAt])
   @@index([shopId, updatedAt])
+  @@index([status, updatedAt])
   @@map("custom_requests")
 }
 
