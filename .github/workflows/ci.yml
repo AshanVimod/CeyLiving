@@ -45,6 +45,12 @@ jobs:
       # B05b (AU-06): the build runs as production, which needs Turnstile keys; these placeholders never reach Cloudflare.
       TURNSTILE_SITE_KEY: ci-build-only-site-key
       TURNSTILE_SECRET_KEY: ci-build-only-not-a-secret
+      # B07: production needs the worker's cache-refresh secret (32+ characters). No worker runs in CI.
+      CACHE_REFRESH_SECRET: ci-build-only-${{ github.run_id }}-${{ github.run_attempt }}-not-a-secret
+      # B08 (PAY-02): production needs PayHere merchant details. Placeholders that match no PayHere account (and are
+      # not the dev stand-ins, which production refuses); the build never calls PayHere.
+      PAYHERE_MERCHANT_ID: "1000000"
+      PAYHERE_MERCHANT_SECRET: ci-build-only-not-a-secret
       # B09 (SEC-07): production stores uploads in R2. Placeholders: the build never calls R2.
       STORAGE_DRIVER: r2
       R2_ACCOUNT_ID: 00000000000000000000000000000000
