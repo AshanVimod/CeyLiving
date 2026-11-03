@@ -16,6 +16,7 @@ const community = await import("./community");
 const selling = await import("./selling");
 const account = await import("./account");
 const extras = await import("./extras");
+const uploads = await import("./uploads");
 const { getPublicProduct, getPublicShop } = await import("../catalogue");
 
 withTestDatabase();
@@ -44,6 +45,26 @@ describe("SEC-A1 every server action denies guests", () => {
   it.each(Object.keys(ACTIONS))("%s refuses a signed-out visitor", async (name) => {
     const result = await ACTIONS[name]!(null, form({}));
     expect(result).toMatchObject({ ok: false, message: "Sign in to continue." });
+  });
+});
+
+describe("SEC-A1 B09 the upload actions deny guests and check the input", () => {
+  it.each(Object.keys(uploads))("uploads.%s refuses a signed-out visitor", async (name) => {
+    const action = uploads[name as keyof typeof uploads] as (input: unknown) => Promise<{ ok: boolean }>;
+    expect(await action({ uploadId: `upl_${crypto.randomUUID()}` })).toMatchObject({
+      ok: false,
+      message: "Sign in to continue.",
+    });
+  });
+
+  it("SEC-07 a request for a non-image comes back as a field error", async () => {
+    sessionUser = user("user_seller");
+    const result = await uploads.requestUploadAction({
+      purpose: "PRODUCT_IMAGE",
+      contentType: "text/html",
+      sizeBytes: 100,
+    });
+    expect(result).toMatchObject({ ok: false, fieldErrors: { contentType: "Choose a JPEG, PNG or WebP photo." } });
   });
 });
 

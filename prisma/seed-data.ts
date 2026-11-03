@@ -345,11 +345,7 @@ function seedApplicationAndContent(data: SeedData, now: Date, productBySlug: (s:
     address: { line1: "42 Kandy Road", city: "Matale", district: "Matale", postalCode: "21000" },
     story:
       "My family has turned and lacquered wood in Matale for three generations. I make bowls, boxes and walking sticks with the traditional red, yellow and black bands, using lac and natural pigments.",
-    workPhotoUrls: [
-      "https://images.unsplash.com/photo-1786468539104-e03f3ae580ea",
-      "https://images.unsplash.com/photo-1759523121247-76be6b3490b2",
-      "https://images.unsplash.com/photo-1788296817269-8df0458ab799",
-    ],
+    workPhotoIds: ["1786468539104-e03f3ae580ea", "1759523121247-76be6b3490b2", "1788296817269-8df0458ab799"],
     acceptedTermsAt: iso(now, -3),
     status: "PENDING",
     createdAt: iso(now, -3),

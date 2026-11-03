@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { db as readDb } from "@/lib/server/db/tx";
 import { applicationSchema, decisionSchema } from "@/lib/validation/application";
 import { validApplication } from "@/test/fixtures";
+import { applicationPhotos } from "@/test/uploads";
 import { changeData, readAll, user, withTestDatabase } from "@/test/db";
 import { ConflictError, ForbiddenError } from "../errors";
 import { findShopByOwner } from "../repositories/catalogue";
@@ -16,12 +17,12 @@ describe("seller applications", () => {
     const result = applicationSchema.safeParse({
       ...validApplication(),
       story: "Too short",
-      workPhotoUrls: ["https://example.com/a.jpg"],
+      workPhotoIds: ["https://example.com/a.jpg"],
       acceptTerms: undefined,
     });
     expect(result.success).toBe(false);
     const paths = result.error!.issues.map((i) => i.path.join("."));
-    expect(paths).toEqual(expect.arrayContaining(["story", "workPhotoUrls.0", "acceptTerms"]));
+    expect(paths).toEqual(expect.arrayContaining(["story", "workPhotoIds.0", "acceptTerms"]));
   });
 
   it("RULE-A1 refuses a second application while one is open", async () => {
@@ -41,7 +42,10 @@ describe("seller applications", () => {
   });
 
   it("lets a customer apply and notifies admins", async () => {
-    const app = await submitApplication(user("user_customer"), validApplication());
+    const app = await submitApplication(
+      user("user_customer"),
+      validApplication(await applicationPhotos("user_customer")),
+    );
     expect(app.status).toBe("PENDING");
     expect((await readAll()).notifications.some((n) => n.userId === "user_admin" && n.href.endsWith(app.id))).toBe(
       true,
@@ -132,7 +136,10 @@ describe("seller applications", () => {
   });
 
   it("FR-2a saves the applicant, categories and shop address with the application", async () => {
-    const app = await submitApplication(user("user_customer"), validApplication());
+    const app = await submitApplication(
+      user("user_customer"),
+      validApplication(await applicationPhotos("user_customer")),
+    );
     expect(app).toMatchObject({
       applicantName: "Nimali Perera",
       categorySlugs: ["home-decor", "eco-friendly"],

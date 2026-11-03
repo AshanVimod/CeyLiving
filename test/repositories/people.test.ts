@@ -24,7 +24,7 @@ function application(id: string, userId: string, createdAt: string): SellerAppli
     categorySlugs: ["masks"],
     address: { line1: "12 Temple Road", city: "Galle", district: "Galle" },
     story: "Three generations of carvers.",
-    workPhotoUrls: [],
+    workPhotoIds: [],
     acceptedTermsAt: createdAt,
     status: "PENDING",
     createdAt,

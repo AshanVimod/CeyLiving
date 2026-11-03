@@ -19,7 +19,7 @@ export function ProductForm({ product }: { product?: Product }) {
 
   const payload = JSON.stringify({
     ...f,
-    images: f.images.map((r) => r.value).filter((i) => i.url || i.alt),
+    images: f.images.map((r) => r.value).filter((i) => i.id || i.alt),
     variants: f.variants.map((r) => ({ ...r.value, compareAt: r.value.compareAt || undefined })),
     customization: f.customization.map((r) => ({ ...r.value, helper: r.value.helper || undefined })),
     processingDays: f.type === "MADE_TO_ORDER" ? f.processingDays : undefined,
@@ -225,7 +225,7 @@ export function ProductForm({ product }: { product?: Product }) {
         items={f.images}
         onChange={(rowKey, patch) => updateRow<ImageRow>("images", rowKey, patch)}
         onRemove={(rowKey) => removeRow("images", rowKey)}
-        onAdd={() => set("images", [...f.images, ...rows([{ url: "", alt: "" }])])}
+        onAdd={() => set("images", [...f.images, ...rows([{ id: "", alt: "" }])])}
       />
 
       <VariantRows

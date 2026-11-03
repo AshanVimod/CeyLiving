@@ -10,9 +10,8 @@ export function formatLkr(cents: number): string {
   return lkr.format(cents / 100).replace(/ /g, " ");
 }
 
-export function photoUrl(id: string): string {
-  return `https://images.unsplash.com/photo-${id}`;
-}
+/** B09: uploaded photos come from our image domain, older ones from Unsplash (lib/photos.ts). */
+export { photoUrl } from "./photos";
 
 const dateFormat = new Intl.DateTimeFormat("en-LK", {
   day: "numeric",

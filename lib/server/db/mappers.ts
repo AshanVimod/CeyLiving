@@ -24,6 +24,7 @@ import type {
   SellerApplication,
   SellerOrder,
   Shop,
+  Upload,
   User,
 } from "@/lib/types";
 import type * as Row from "./generated/client";
@@ -96,7 +97,7 @@ export function toApplication(row: Row.SellerApplication): SellerApplication {
       postalCode: opt(row.addressPostalCode),
     },
     story: row.story,
-    workPhotoUrls: row.workPhotoUrls,
+    workPhotoIds: row.workPhotoIds ?? [],
     socialUrl: opt(row.socialUrl),
     acceptedTermsAt: iso(row.acceptedTermsAt),
     status: row.status,
@@ -120,6 +121,8 @@ export function applicationColumns(app: Partial<SellerApplication>) {
       addressDistrict: address.district,
       addressPostalCode: address.postalCode ?? null,
     }),
+    // B09: the old links column is no longer filled; an empty list (not NULL) keeps the previous version working.
+    ...(app.workPhotoIds && { workPhotoUrls: [] }),
     ...("acceptedTermsAt" in app && { acceptedTermsAt: toDate(acceptedTermsAt) }),
     ...("decidedAt" in app && { decidedAt: toDate(decidedAt) }),
     ...("createdAt" in app && { createdAt: toDate(createdAt) }),
@@ -539,5 +542,25 @@ export function toRefund(row: Row.Refund): Refund {
     createdAt: iso(row.createdAt),
     settledAt: optIso(row.settledAt),
     deductedPayoutId: opt(row.deductedPayoutId),
+  };
+}
+
+// ---------- Uploads (B09) ----------
+
+export function toUpload(row: Row.Upload): Upload {
+  return {
+    id: row.id,
+    ownerId: row.ownerId,
+    storageKey: row.storageKey,
+    purpose: row.purpose,
+    contentType: row.contentType,
+    sizeBytes: row.sizeBytes,
+    status: row.status,
+    rejectReason: opt(row.rejectReason),
+    width: opt(row.width),
+    height: opt(row.height),
+    createdAt: iso(row.createdAt),
+    confirmedAt: optIso(row.confirmedAt),
+    processedAt: optIso(row.processedAt),
   };
 }

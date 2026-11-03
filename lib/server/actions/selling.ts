@@ -32,7 +32,7 @@ export async function submitApplicationAction(_: ActionState, form: FormData): P
       parseInput(applicationSchema, {
         ...raw,
         categorySlugs: form.getAll("categorySlugs").map(String),
-        workPhotoUrls: form.getAll("workPhotoUrls").map(String),
+        workPhotoIds: form.getAll("workPhotoIds").map(String),
         address: {
           line1: field("address.line1"),
           line2: field("address.line2"),
@@ -64,8 +64,8 @@ export async function updateShopAction(_: ActionState, form: FormData): Promise<
     const raw = formToObject(form);
     const input = parseInput(shopSchema, {
       ...raw,
-      logo: { url: raw["logo.url"], alt: raw["logo.alt"] },
-      banner: { url: raw["banner.url"], alt: raw["banner.alt"] },
+      logo: { id: raw["logo.id"], alt: raw["logo.alt"] },
+      banner: { id: raw["banner.id"], alt: raw["banner.alt"] },
     });
     const shop = await updateShop(actor, input);
     refreshCatalogue();

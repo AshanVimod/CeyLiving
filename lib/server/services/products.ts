@@ -2,7 +2,6 @@ import "server-only";
 import { APPROVED_ITEMS_FOR_AUTOPUBLISH } from "@/lib/config";
 import type { Product, ProductStatus, Shop } from "@/lib/types";
 import type { ProductDecisionInput, ProductInput } from "@/lib/validation/product";
-import { photoIdFromUrl } from "@/lib/validation/photo";
 import { ConflictError, NotFoundError } from "../errors";
 import { assertRole, shopOfSeller, type Actor } from "../permissions";
 import { withTx, type Tx } from "../db/tx";
@@ -17,6 +16,7 @@ import {
 import { addNotification, listAdminIds, newId } from "../repositories/people";
 import { activateIfReady } from "./shops";
 import { assertTransition, audit, slugify, staleStatus, uniqueSlug } from "./shared";
+import { assertPhotosUsable } from "./uploads";
 
 // Feature spec 8.3: product status flow. Sellers move their own items; admins approve, reject and remove.
 const SELLER_FLOW: Partial<Record<ProductStatus, readonly ProductStatus[]>> = {
@@ -70,7 +70,7 @@ function toFields(
     isEcoFriendly: input.isEcoFriendly,
     dimensions: input.dimensions,
     care: input.care,
-    images: input.images.map((i) => ({ id: photoIdFromUrl(i.url)!, alt: i.alt })),
+    images: input.images.map((i) => ({ id: i.id, alt: i.alt })),
     variants: input.variants.map((v, i) => ({
       sku: `${skuBase}-${i + 1}`,
       label: v.label,
@@ -106,6 +106,13 @@ export async function saveProduct(
     const existing = productId ? await ownProduct(shop, productId, tx) : undefined;
     if (existing?.status === "REMOVED")
       throw new ConflictError("This item was removed by CeyLiving and can’t be edited.");
+    // SEC-A2 (B09): photos already on this item stay; new ones must be this seller's finished uploads.
+    await assertPhotosUsable(
+      tx,
+      actor,
+      input.images.map((image, i) => ({ field: `images.${i}.id`, id: image.id, purpose: "PRODUCT_IMAGE" as const })),
+      existing?.images.map((image) => image.id),
+    );
     const now = new Date().toISOString();
     const slug =
       existing && existing.status !== "DRAFT"

@@ -31,6 +31,13 @@ const PROD = {
   CACHE_REFRESH_SECRET: "r".repeat(40),
   PAYHERE_MERCHANT_ID: "1211149",
   PAYHERE_MERCHANT_SECRET: "p".repeat(40),
+  STORAGE_DRIVER: "r2",
+  R2_ACCOUNT_ID: "0123456789abcdef".repeat(2),
+  R2_ACCESS_KEY_ID: "r2-access-key-placeholder",
+  R2_SECRET_ACCESS_KEY: "s".repeat(40),
+  R2_UPLOAD_BUCKET: "ceyliving-uploads",
+  R2_PUBLIC_BUCKET: "ceyliving-images",
+  NEXT_PUBLIC_IMAGE_BASE_URL: "https://img.ceyliving.lk",
 };
 
 describe("lib/env", () => {
@@ -150,7 +157,28 @@ describe("lib/env", () => {
       SITE_URL: "http://localhost:3000",
       WORKER_CONCURRENCY: 2,
       PAYHERE_MODE: "sandbox",
+      STORAGE_DRIVER: "local",
+      NEXT_PUBLIC_IMAGE_BASE_URL: "/dev-uploads",
     });
+  });
+
+  it("SEC-07 B09 production stores uploads in R2 and serves photos from an https image domain", () => {
+    expect(
+      problems(() => parseEnv({ ...PROD, STORAGE_DRIVER: "local", NEXT_PUBLIC_IMAGE_BASE_URL: undefined })),
+    ).toEqual([
+      "STORAGE_DRIVER: must be r2 in production (B09)",
+      "NEXT_PUBLIC_IMAGE_BASE_URL: must be an https:// address in production (SEC-07)",
+    ]);
+    expect(problems(() => parseEnv({ ...PROD, R2_SECRET_ACCESS_KEY: undefined }))).toEqual([
+      "R2_SECRET_ACCESS_KEY: is required when STORAGE_DRIVER=r2",
+    ]);
+    expect(problems(() => parseEnv({ ...PROD, R2_ACCOUNT_ID: "not-an-account" }))).toEqual([
+      "R2_ACCOUNT_ID: must be the 32-character Cloudflare account id",
+    ]);
+    expect(parseEnv({ NEXT_PUBLIC_IMAGE_BASE_URL: "https://img.example.lk/" }).NEXT_PUBLIC_IMAGE_BASE_URL).toBe(
+      "https://img.example.lk",
+    );
+    expect(parseEnv({}).STORAGE_DRIVER).toBe("local");
   });
 
   it("12.3 getEnv reads the current environment on every call", () => {

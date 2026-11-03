@@ -24,9 +24,11 @@ export type PostingRestriction = "NONE" | "MUTED" | "BANNED";
 export type ReportTargetType = "PRODUCT" | "SHOP" | "REVIEW" | "QUESTION" | "ANSWER";
 export type PayoutStatus = "PENDING" | "SCHEDULED" | "PAID" | "FAILED";
 export type CustomRequestStatus = "OPEN" | "QUOTED" | "ACCEPTED" | "DECLINED" | "EXPIRED";
+export type UploadPurpose = "PRODUCT_IMAGE" | "SHOP_LOGO" | "SHOP_BANNER" | "APPLICATION_PHOTO";
+export type UploadStatus = "PENDING" | "READY" | "REJECTED";
 
 export interface Photo {
-  /** Image CDN photo id. */
+  /** Photo id: an upload id (upl_…) or an Unsplash id (lib/photos.ts). */
   id: string;
   alt: string;
 }
@@ -83,7 +85,8 @@ export interface SellerApplication {
   categorySlugs: string[];
   address: ShopAddress;
   story: string;
-  workPhotoUrls: string[];
+  /** 3 to 6 photo ids; application photos are private (applicant and admins only). */
+  workPhotoIds: string[];
   socialUrl?: string;
   acceptedTermsAt: string;
   status: ApplicationStatus;
@@ -395,4 +398,21 @@ export interface RateEvent {
   userId: string;
   kind: string;
   at: string;
+}
+
+/** B09 (backend plan 11.1): a photo someone uploaded. Its id is the photo id that products and shops store. */
+export interface Upload {
+  id: string;
+  ownerId: string;
+  storageKey: string;
+  purpose: UploadPurpose;
+  contentType: string;
+  sizeBytes: number;
+  status: UploadStatus;
+  rejectReason?: string;
+  width?: number;
+  height?: number;
+  createdAt: string;
+  confirmedAt?: string;
+  processedAt?: string;
 }

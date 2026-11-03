@@ -1,11 +1,49 @@
 "use client";
 
+import { useState } from "react";
 import { DISTRICTS } from "@/lib/districts";
 import { savePayoutAction, updateShopAction } from "@/lib/server/actions/selling";
-import type { Shop } from "@/lib/types";
-import { ActionForm, FormInput, FormSelect, FormTextArea } from "../forms/action-form";
+import type { Photo, Shop, UploadPurpose } from "@/lib/types";
+import { ActionForm, FormInput, FormSelect, FormTextArea, useFieldError } from "../forms/action-form";
+import { FieldError } from "./application-fields";
+import { PhotoUpload } from "./photo-upload";
 
-const photoUrl = (id: string) => (id ? `https://images.unsplash.com/photo-${id}` : "");
+/** B09: the logo or banner, uploaded here; the form sends its photo id as `<name>.id`. */
+function ShopPhoto({
+  name,
+  purpose,
+  label,
+  photo,
+  helper,
+}: {
+  name: "logo" | "banner";
+  purpose: UploadPurpose;
+  label: string;
+  photo: Photo;
+  helper: string;
+}) {
+  const [id, setId] = useState(photo.id);
+  const error = useFieldError(`${name}.id`);
+  return (
+    <fieldset className="grid gap-5 rounded-md border border-line p-4 sm:grid-cols-2">
+      <legend className="px-1 font-semibold">{label}</legend>
+      <div>
+        <PhotoUpload
+          purpose={purpose}
+          label={label}
+          name={`${name}.id`}
+          value={id}
+          onChange={setId}
+          invalid={Boolean(error)}
+          wide={name === "banner"}
+        />
+        <p className="mt-2 text-sm text-ink-soft">{helper}</p>
+        <FieldError error={error} />
+      </div>
+      <FormInput label="Description" name={`${name}.alt`} required maxLength={160} defaultValue={photo.alt} />
+    </fieldset>
+  );
+}
 
 /** FR-2b: the seller's own shop profile. The server finds the shop by owner, never from this form. */
 export function ShopProfileForm({ shop }: { shop: Shop }) {
@@ -65,30 +103,14 @@ export function ShopProfileForm({ shop }: { shop: Shop }) {
           defaultValue={shop.returnPolicy}
         />
       </div>
-      <fieldset className="grid gap-5 rounded-md border border-line p-4 sm:grid-cols-2">
-        <legend className="px-1 font-semibold">Logo</legend>
-        <FormInput
-          label="Photo link"
-          name="logo.url"
-          type="url"
-          required
-          defaultValue={photoUrl(shop.logo.id)}
-          helper="https://images.unsplash.com/photo-…"
-        />
-        <FormInput label="Description" name="logo.alt" required maxLength={160} defaultValue={shop.logo.alt} />
-      </fieldset>
-      <fieldset className="grid gap-5 rounded-md border border-line p-4 sm:grid-cols-2">
-        <legend className="px-1 font-semibold">Banner</legend>
-        <FormInput
-          label="Photo link"
-          name="banner.url"
-          type="url"
-          required
-          defaultValue={photoUrl(shop.banner.id)}
-          helper="A wide photo of your workshop or work."
-        />
-        <FormInput label="Description" name="banner.alt" required maxLength={160} defaultValue={shop.banner.alt} />
-      </fieldset>
+      <ShopPhoto name="logo" purpose="SHOP_LOGO" label="Logo" photo={shop.logo} helper="A square photo works best." />
+      <ShopPhoto
+        name="banner"
+        purpose="SHOP_BANNER"
+        label="Banner"
+        photo={shop.banner}
+        helper="A wide photo of your workshop or work."
+      />
     </ActionForm>
   );
 }

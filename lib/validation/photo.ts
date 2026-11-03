@@ -1,20 +1,16 @@
 import { z } from "zod";
+import { UNSPLASH_ID, UPLOAD_ID } from "@/lib/photos";
 
-// Until real uploads exist (SEC-07), photos are links to the image CDN the site already trusts.
-// Only https://images.unsplash.com/photo-… addresses are accepted, so no other host can be embedded.
-const CDN_PHOTO = /^https:\/\/images\.unsplash\.com\/photo-([A-Za-z0-9-]{6,80})(?:[?#].*)?$/;
+// B09: forms send photo ids, never addresses. An id is an upload (upl_…), or an Unsplash id that was already saved
+// on the item before (seed data). Services decide whether this person may use it (SEC-A2, assertPhotosUsable).
 
-export function photoIdFromUrl(url: string): string | undefined {
-  return CDN_PHOTO.exec(url.trim())?.[1];
-}
-
-export const photoUrl = z
-  .string({ error: "Paste a photo link." })
+export const photoId = z
+  .string({ error: "Add a photo." })
   .trim()
-  .refine((u) => Boolean(photoIdFromUrl(u)), "Use a photo link that starts with https://images.unsplash.com/photo-");
+  .refine((id) => UPLOAD_ID.test(id) || UNSPLASH_ID.test(id), "Add a photo.");
 
 export const photoInput = z.object({
-  url: photoUrl,
+  id: photoId,
   alt: z
     .string()
     .trim()

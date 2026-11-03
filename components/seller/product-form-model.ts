@@ -6,7 +6,8 @@ export interface Row<T> {
   key: number;
   value: T;
 }
-export type ImageRow = { url: string; alt: string };
+/** B09: `id` is the photo id (an upload, or a photo the item already had). */
+export type ImageRow = { id: string; alt: string };
 export type VariantRow = { label: string; price: string; compareAt: string; stock: string };
 export type CustomRow = {
   label: string;
@@ -37,11 +38,7 @@ export function toInitial(p?: Product) {
     care: p?.care ?? "",
     isHeritage: p?.isHeritage ?? false,
     isEcoFriendly: p?.isEcoFriendly ?? false,
-    images: rows<ImageRow>(
-      p?.images.map((i) => ({ url: `https://images.unsplash.com/photo-${i.id}`, alt: i.alt })) ?? [
-        { url: "", alt: "" },
-      ],
-    ),
+    images: rows<ImageRow>(p?.images.map((i) => ({ id: i.id, alt: i.alt })) ?? [{ id: "", alt: "" }]),
     variants: rows<VariantRow>(
       p?.variants.map((v) => ({
         label: v.label,

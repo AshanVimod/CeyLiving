@@ -40,6 +40,21 @@ enum ApplicationStatus {
   WITHDRAWN
 }
 
+/// B09 (backend plan 11.1): what an upload is for. Only an upload of the matching purpose can be attached.
+enum UploadPurpose {
+  PRODUCT_IMAGE
+  SHOP_LOGO
+  SHOP_BANNER
+  APPLICATION_PHOTO
+}
+
+/// B09: PENDING until image.process checks and converts it (READY) or refuses it (REJECTED).
+enum UploadStatus {
+  PENDING
+  READY
+  REJECTED
+}
+
 enum BusinessType {
   INDIVIDUAL
   REGISTERED_BUSINESS
@@ -211,6 +226,7 @@ model User {
   twoFactor           TwoFactor?
   passkeys            Passkey[]
   refundsCreated      Refund[]
+  uploads             Upload[]
 
   @@index([role])
   /// B06 (users.liftExpiredMutes): finds mutes that have run out without reading every user.
@@ -346,7 +362,10 @@ model SellerApplication {
   addressDistrict   String            @map("address_district")
   addressPostalCode String?           @map("address_postal_code")
   story             String
+  /// B09: no longer written; kept for the previous app version and dropped in a later contract step.
   workPhotoUrls     String[]          @map("work_photo_urls")
+  /// B09: 3 to 6 photo ids (upl_… uploads, or Unsplash ids from before B09), in order.
+  workPhotoIds      String[]          @default([]) @map("work_photo_ids")
   socialUrl         String?           @map("social_url")
   acceptedTermsAt   DateTime          @map("accepted_terms_at") @db.Timestamptz(3)
   status            ApplicationStatus
@@ -914,4 +933,30 @@ model HelpfulVote {
   @@id([userId, targetType, targetId])
   @@index([targetType, targetId])
   @@map("helpful_votes")
+}
+
+/// B09 (SEC-07, backend plan 11.1): a photo someone uploaded. The id (upl_…) is also the photo id stored on products,
+/// shops and applications. CHECKs in the migration: declared type JPEG/PNG/WebP, 1 byte to 8 MB, READY has its size
+/// and times, REJECTED has a reason.
+model Upload {
+  id           String        @id
+  ownerId      String        @map("owner_id")
+  /// u/<userId>/<uuid>: the original in the private bucket.
+  storageKey   String        @unique @map("storage_key")
+  purpose      UploadPurpose
+  contentType  String        @map("content_type")
+  sizeBytes    Int           @map("size_bytes")
+  status       UploadStatus  @default(PENDING)
+  rejectReason String?       @map("reject_reason")
+  width        Int?
+  height       Int?
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  confirmedAt  DateTime?     @map("confirmed_at") @db.Timestamptz(3)
+  processedAt  DateTime?     @map("processed_at") @db.Timestamptz(3)
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+
+  @@index([ownerId, createdAt])
+  @@index([createdAt], map: "uploads_pending_created_at_idx", where: raw("status = 'PENDING'::\"UploadStatus\""))
+  @@map("uploads")
 }

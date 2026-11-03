@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { categories } from "@/lib/data/categories";
 import type { BusinessType, SellerApplication } from "@/lib/types";
+import { UPLOAD_LIMITS } from "@/lib/config";
 import { MAX_APPLICATION_CATEGORIES } from "@/lib/validation/application";
 import { FormInput, useFieldErrorUnder } from "../forms/action-form";
+import { PhotoUpload } from "./photo-upload";
 
 // Field groups of the shop application form (FR-2a), kept apart so each file stays small (CS-02).
 
@@ -122,30 +124,32 @@ export function CategoryFields({ initial }: { initial: string[] }) {
   );
 }
 
+/** B09: 3 to 6 uploaded photos. They stay private: only you and the CeyLiving team can see them. */
 export function PhotoFields({ initial }: { initial: string[] }) {
-  const error = useFieldErrorUnder("workPhotoUrls");
+  const error = useFieldErrorUnder("workPhotoIds");
+  const [ids, setIds] = useState(() =>
+    Array.from({ length: UPLOAD_LIMITS.applicationMax }, (_, i) => initial[i] ?? ""),
+  );
   return (
     <fieldset>
       <legend className="mb-1.5 text-[0.95rem] font-medium">
         Photos of your work <span className="text-lacquer">*</span>
       </legend>
       <p id="photos-help" className="mb-3 text-sm text-ink-soft">
-        3 to 6 photo links starting with https://images.unsplash.com/photo-. Photo uploads arrive with real storage.
+        {UPLOAD_LIMITS.applicationMin} to {UPLOAD_LIMITS.applicationMax} photos. Only you and the CeyLiving team can see
+        them.
       </p>
-      <div className="grid gap-3">
-        {Array.from({ length: 6 }, (_, i) => (
-          <label key={i} className="flex items-center gap-3 text-sm">
-            <span className="w-16 shrink-0 text-ink-soft">Photo {i + 1}</span>
-            <input
-              name="workPhotoUrls"
-              type="url"
-              inputMode="url"
-              defaultValue={initial[i] ?? ""}
-              aria-describedby="photos-help"
-              aria-invalid={Boolean(error)}
-              className="h-11 w-full rounded-md border border-line bg-paper-raised px-3 focus:border-forest focus:outline-none aria-[invalid=true]:border-lacquer"
-            />
-          </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {ids.map((id, i) => (
+          <PhotoUpload
+            key={i}
+            purpose="APPLICATION_PHOTO"
+            label={`Photo ${i + 1}`}
+            name="workPhotoIds"
+            value={id}
+            onChange={(next) => setIds((list) => list.map((old, j) => (j === i ? next : old)))}
+            invalid={Boolean(error)}
+          />
         ))}
       </div>
       <FieldError error={error} />

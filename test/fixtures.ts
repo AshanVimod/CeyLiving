@@ -2,9 +2,10 @@ import { applicationSchema } from "@/lib/validation/application";
 import { productSchema } from "@/lib/validation/product";
 import { shopSchema } from "@/lib/validation/shop";
 
-const PHOTO = "https://images.unsplash.com/photo-1786468539104-e03f3ae580ea";
+/** A seed photo id (the seed application has it). Services accept it only where it is already saved (B09). */
+const PHOTO = "1786468539104-e03f3ae580ea";
 
-export const validApplication = () =>
+export const validApplication = (overrides: Record<string, unknown> = {}) =>
   applicationSchema.parse({
     applicantName: "Nimali Perera",
     phone: "0771112233",
@@ -14,8 +15,9 @@ export const validApplication = () =>
     categorySlugs: ["home-decor", "eco-friendly"],
     address: { line1: "12 Temple Road", city: "Kelaniya", district: "Gampaha", postalCode: "11600" },
     story: "I build planters and lamps by hand from Kelani river clay, fired in a small wood kiln behind our house.",
-    workPhotoUrls: [PHOTO, PHOTO, PHOTO],
+    workPhotoIds: [PHOTO, "1759523121247-76be6b3490b2", "1788296817269-8df0458ab799"],
     acceptTerms: "on",
+    ...overrides,
   });
 
 export const validShop = (overrides: Record<string, unknown> = {}) =>
@@ -28,8 +30,8 @@ export const validShop = (overrides: Record<string, unknown> = {}) =>
     quote: "",
     dispatchDays: "Ships in 3 to 5 days",
     returnPolicy: "Returns accepted within 14 days if unused.",
-    logo: { url: PHOTO, alt: "Lacquered bowl" },
-    banner: { url: PHOTO, alt: "Workshop shelves" },
+    logo: { id: PHOTO, alt: "Lacquered bowl" },
+    banner: { id: PHOTO, alt: "Workshop shelves" },
     ...overrides,
   });
 
@@ -48,7 +50,7 @@ export const productInput = (overrides: Record<string, unknown> = {}, mode: "dra
     care: "Wipe with a dry cloth.",
     isHeritage: true,
     isEcoFriendly: false,
-    images: [{ url: PHOTO, alt: "Red and yellow lacquered box" }],
+    images: [{ id: PHOTO, alt: "Red and yellow lacquered box" }],
     variants: [{ label: "One size", price: "3500", stock: 4 }],
     customization: [],
     ...overrides,

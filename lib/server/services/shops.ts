@@ -1,7 +1,6 @@
 import "server-only";
 import { TEXT_LIMITS } from "@/lib/config";
 import type { Shop, ShopStatus } from "@/lib/types";
-import { photoIdFromUrl } from "@/lib/validation/photo";
 import type { PayoutInput, ShopDecisionInput, ShopInput } from "@/lib/validation/shop";
 import { db, withTx, type Tx } from "../db/tx";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
@@ -17,6 +16,7 @@ import {
 import { sellerOrdersOfShop } from "../repositories/commerce";
 import { addNotification, updateUser } from "../repositories/people";
 import { assertTransition, audit, staleStatus } from "./shared";
+import { assertPhotosUsable } from "./uploads";
 
 // Feature spec 8.2: shop status flow.
 const FLOW: Partial<Record<ShopStatus, readonly ShopStatus[]>> = {
@@ -68,6 +68,16 @@ export async function updateShop(actor: Actor, input: ShopInput): Promise<Shop> 
     if (input.slug !== shop.slug && (await findShopBySlug(tx, input.slug))) {
       throw new ValidationError("That web address is taken.", { slug: "That web address is taken. Choose another." });
     }
+    // SEC-A2 (B09): the current logo and banner stay; new ones must be this seller's finished uploads.
+    await assertPhotosUsable(
+      tx,
+      actor,
+      [
+        { field: "logo.id", id: input.logo.id, purpose: "SHOP_LOGO" },
+        { field: "banner.id", id: input.banner.id, purpose: "SHOP_BANNER" },
+      ],
+      [shop.logo.id, shop.banner.id].filter(Boolean),
+    );
     if (input.slug !== shop.slug) await moveProductsToShopSlug(tx, shop.slug, input.slug);
     await updateShopRow(tx, shop.id, {
       name: input.name,
@@ -78,8 +88,8 @@ export async function updateShop(actor: Actor, input: ShopInput): Promise<Shop> 
       quote: input.quote ?? "",
       dispatchDays: input.dispatchDays,
       returnPolicy: input.returnPolicy,
-      logo: { id: photoIdFromUrl(input.logo.url)!, alt: input.logo.alt },
-      banner: { id: photoIdFromUrl(input.banner.url)!, alt: input.banner.alt },
+      logo: { id: input.logo.id, alt: input.logo.alt },
+      banner: { id: input.banner.id, alt: input.banner.alt },
       updatedAt: new Date().toISOString(),
     });
     await activateIfReady(tx, shop.id);

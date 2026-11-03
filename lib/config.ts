@@ -51,6 +51,8 @@ export const RATE_LIMITS = {
   vote: { max: 60, windowMs: HOUR_MS },
   // Build spec 9.1: checkout is limited to 10 a minute per user.
   checkout: { max: 10, windowMs: 60_000 },
+  // B09 (backend plan 11.1): upload addresses, 30 an hour per user.
+  upload: { max: 30, windowMs: HOUR_MS },
 } as const;
 
 export const TEXT_LIMITS = {
@@ -68,6 +70,19 @@ export const TEXT_LIMITS = {
 } as const;
 
 /** RULE-P1 / RULE-P3 */
+/** SEC-07: what an upload may be. The worker checks the real file against the same limits. */
+export const UPLOAD_LIMITS = {
+  types: ["image/jpeg", "image/png", "image/webp"] as const,
+  maxBytes: 8 * 1024 * 1024,
+  /** Shortest and longest side, in pixels. */
+  minSide: 300,
+  maxSide: 12_000,
+  maxPixels: 40_000_000,
+  /** Photos of their work an applicant adds (feature spec 4.2). */
+  applicationMin: 3,
+  applicationMax: 6,
+};
+
 export const PRODUCT_LIMITS = {
   titleMin: 5,
   titleMax: 120,

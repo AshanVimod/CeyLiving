@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { TEXT_LIMITS } from "../config";
+import { TEXT_LIMITS, UPLOAD_LIMITS } from "../config";
 import { categories } from "../data/categories";
 import { district, httpsUrl, optionalText, phone, reason, text } from "./common";
-import { photoUrl } from "./photo";
+import { photoId } from "./photo";
 
 const categorySlugs = categories.map((c) => c.slug) as [string, ...string[]];
 
@@ -36,10 +36,15 @@ export const applicationSchema = z
       .transform((list) => [...new Set(list)]),
     address: shopAddressSchema,
     story: text("your story", TEXT_LIMITS.storyMin, TEXT_LIMITS.storyMax),
-    workPhotoUrls: z
+    workPhotoIds: z
       .array(z.string())
-      .transform((list) => list.map((u) => u.trim()).filter(Boolean))
-      .pipe(z.array(photoUrl).min(3, "Add at least 3 photos of your work.").max(6, "Add at most 6 photos.")),
+      .transform((list) => [...new Set(list.map((u) => u.trim()).filter(Boolean))])
+      .pipe(
+        z
+          .array(photoId)
+          .min(UPLOAD_LIMITS.applicationMin, `Add at least ${UPLOAD_LIMITS.applicationMin} photos of your work.`)
+          .max(UPLOAD_LIMITS.applicationMax, `Add at most ${UPLOAD_LIMITS.applicationMax} photos.`),
+      ),
     socialUrl: z
       .string()
       .optional()

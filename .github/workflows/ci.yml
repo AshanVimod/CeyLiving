@@ -45,6 +45,14 @@ jobs:
       # B05b (AU-06): the build runs as production, which needs Turnstile keys; these placeholders never reach Cloudflare.
       TURNSTILE_SITE_KEY: ci-build-only-site-key
       TURNSTILE_SECRET_KEY: ci-build-only-not-a-secret
+      # B09 (SEC-07): production stores uploads in R2. Placeholders: the build never calls R2.
+      STORAGE_DRIVER: r2
+      R2_ACCOUNT_ID: 00000000000000000000000000000000
+      R2_ACCESS_KEY_ID: ci-build-only-access-key
+      R2_SECRET_ACCESS_KEY: ci-build-only-not-a-secret
+      R2_UPLOAD_BUCKET: ci-build-uploads
+      R2_PUBLIC_BUCKET: ci-build-images
+      NEXT_PUBLIC_IMAGE_BASE_URL: https://img.ci.invalid
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

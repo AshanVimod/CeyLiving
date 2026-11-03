@@ -27,6 +27,17 @@ export const PAYHERE_DEV_KEYS = {
   merchantSecret: "ceyliving-dev-only-payhere-merchant-secret",
 };
 
+/** B09: the local storage driver's dev-only route for processed photos (app/dev-uploads). */
+export const DEV_IMAGE_BASE_URL = "/dev-uploads";
+
+const R2_KEYS = [
+  "R2_ACCOUNT_ID",
+  "R2_ACCESS_KEY_ID",
+  "R2_SECRET_ACCESS_KEY",
+  "R2_UPLOAD_BUCKET",
+  "R2_PUBLIC_BUCKET",
+] as const;
+
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -74,6 +85,37 @@ export const envSchema = z
     // B08: where PayHere sends payment notifications. Default: SITE_URL + /api/payments/payhere/notify. In
     // development, a public tunnel's address (PayHere can't reach localhost).
     PAYHERE_NOTIFY_URL: z.url({ protocol: /^https?$/, error: "must be an http:// or https:// address" }).optional(),
+    // B09 (SEC-07, backend plan 11.1): where uploaded photos are kept. `local` (default) writes to .data/uploads/
+    // and serves them through dev-only routes; production must use `r2`.
+    STORAGE_DRIVER: z.enum(["local", "r2"]).default("local"),
+    // B09: where the local driver keeps files. Default .data/uploads (git-ignored). Tests use a temporary folder.
+    LOCAL_UPLOADS_DIR: z.string().min(1).optional(),
+    // B09: Cloudflare R2 (account id, an API token's S3 keys, and two buckets). R2_UPLOAD_BUCKET is private and holds
+    // originals (they can carry GPS data) and application photos; R2_PUBLIC_BUCKET holds the processed sizes and is
+    // served at NEXT_PUBLIC_IMAGE_BASE_URL. All required when STORAGE_DRIVER=r2.
+    R2_ACCOUNT_ID: z
+      .string()
+      .regex(/^[a-f0-9]{32}$/, { error: "must be the 32-character Cloudflare account id" })
+      .optional(),
+    R2_ACCESS_KEY_ID: z.string().min(1).max(200).optional(),
+    R2_SECRET_ACCESS_KEY: z.string().min(1).max(200).optional(),
+    R2_UPLOAD_BUCKET: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, { error: "must be an R2 bucket name" })
+      .optional(),
+    R2_PUBLIC_BUCKET: z
+      .string()
+      .regex(/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/, { error: "must be an R2 bucket name" })
+      .optional(),
+    // B09 (SEC-07): where processed photos are served from, e.g. https://img.ceyliving.lk. Read by browser code too
+    // (inlined at build time). Default /dev-uploads, the dev-only route of the local driver. No trailing slash.
+    NEXT_PUBLIC_IMAGE_BASE_URL: z
+      .string()
+      .regex(/^(https?:\/\/[^/\s]+|\/[a-z0-9-]+)(\/[a-z0-9-]+)*\/?$/i, {
+        error: "must be an http(s):// address or a path like /dev-uploads",
+      })
+      .default(DEV_IMAGE_BASE_URL)
+      .transform((url) => url.replace(/\/+$/, "")),
     // OPS-01: log level. Default: info, or silent under NODE_ENV=test (see lib/server/observability/logger.ts).
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).optional(),
     // FR-2c: the site's public address, used for absolute links in sitemap.xml and robots.txt. No trailing slash.
@@ -117,6 +159,28 @@ export const envSchema = z
         code: "custom",
         path: ["PAYHERE_APP_SECRET"],
         message: "set both PAYHERE_APP_ID and PAYHERE_APP_SECRET, or neither",
+      });
+    }
+    if (env.NODE_ENV === "production" && env.STORAGE_DRIVER === "local") {
+      ctx.addIssue({ code: "custom", path: ["STORAGE_DRIVER"], message: "must be r2 in production (B09)" });
+    }
+    if (env.STORAGE_DRIVER === "r2") {
+      for (const key of R2_KEYS) {
+        if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: "is required when STORAGE_DRIVER=r2" });
+      }
+      if (!/^https?:\/\//.test(env.NEXT_PUBLIC_IMAGE_BASE_URL)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["NEXT_PUBLIC_IMAGE_BASE_URL"],
+          message: "must be the public bucket's address when STORAGE_DRIVER=r2",
+        });
+      }
+    }
+    if (env.NODE_ENV === "production" && !env.NEXT_PUBLIC_IMAGE_BASE_URL.startsWith("https://")) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["NEXT_PUBLIC_IMAGE_BASE_URL"],
+        message: "must be an https:// address in production (SEC-07)",
       });
     }
     if (env.NODE_ENV === "production" && !env.DATABASE_URL) {

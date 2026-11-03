@@ -2,6 +2,7 @@
 
 import { PRODUCT_LIMITS as L } from "@/lib/config";
 import { PlusIcon } from "../ui/icons";
+import { PhotoUpload } from "./photo-upload";
 import { FieldError, input, smallButton } from "./product-form-fields";
 import type { CustomRow, ImageRow, Row, VariantRow } from "./product-form-model";
 
@@ -14,28 +15,26 @@ interface RowsProps<T> {
   onAdd: () => void;
 }
 
-/** Photos: 1 to 8 links, each with a description. */
+/** Photos: 1 to 8 uploads, each with a description (B09). */
 export function PhotoRows({ items, onChange, onRemove, onAdd }: RowsProps<ImageRow>) {
   return (
     <fieldset className="rounded-md border border-line p-4">
       <legend className="px-1 font-semibold">Photos (1 to {L.maxImages})</legend>
       <p className="mb-3 text-sm text-ink-soft">
-        Links starting with https://images.unsplash.com/photo-. The first photo is the main one. Describe each photo for
-        screen readers.
+        The first photo is the main one. Describe each photo for screen readers.
       </p>
       <FieldError name="images" />
       <ul className="space-y-3">
         {items.map((r, i) => (
           <li key={r.key} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-start">
             <div>
-              <input
-                aria-label={`Photo ${i + 1} link`}
-                name={`images.${i}.url`}
-                className={input}
-                value={r.value.url}
-                onChange={(e) => onChange(r.key, { url: e.target.value })}
+              <PhotoUpload
+                purpose="PRODUCT_IMAGE"
+                label={`Photo ${i + 1}`}
+                value={r.value.id}
+                onChange={(id) => onChange(r.key, { id })}
               />
-              <FieldError name={`images.${i}.url`} />
+              <FieldError name={`images.${i}.id`} />
             </div>
             <div>
               <input

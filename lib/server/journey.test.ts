@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { db as readDb } from "@/lib/server/db/tx";
 import { productInput, validApplication, validShop } from "@/test/fixtures";
+import { applicationPhotos, productPhotos, shopPhotos } from "@/test/uploads";
 import { changeData, freshUser, readAll, user, withTestDatabase } from "@/test/db";
 import { getPublicProduct, getPublicShop } from "./catalogue";
 import { findShopByOwner } from "./repositories/catalogue";
@@ -69,15 +70,22 @@ describe("C13 full journey", () => {
     const admin = user("user_admin");
 
     // A customer applies and an admin approves: role SELLER, shop DRAFT.
-    await submitApplication(user("user_customer"), validApplication());
+    await submitApplication(user("user_customer"), validApplication(await applicationPhotos("user_customer")));
     const application = (await readAll()).applications.find((a) => a.userId === "user_customer")!;
     await decideApplication(admin, { decision: "approve", applicationId: application.id });
     const seller = await freshUser("user_customer");
     expect(seller.role).toBe("SELLER");
 
     // The new seller sets up the shop and posts an item; it waits for approval (RULE-P2).
-    await updateShop(seller, validShop({ name: "Kelani Clay Studio", slug: "kelani-clay-studio" }));
-    const item = await saveProduct(seller, productInput({ title: "Kelani clay planter" }), "submit");
+    await updateShop(
+      seller,
+      validShop({ name: "Kelani Clay Studio", slug: "kelani-clay-studio", ...(await shopPhotos(seller.id)) }),
+    );
+    const item = await saveProduct(
+      seller,
+      productInput({ title: "Kelani clay planter", ...(await productPhotos(seller.id)) }),
+      "submit",
+    );
     expect(item.status).toBe("PENDING_REVIEW");
     await savePayoutDetails(seller, { bankName: "Sampath Bank", accountNumber: "1029384756" });
     expect((await findShopByOwner(readDb, seller.id))!.status).toBe("ACTIVE");

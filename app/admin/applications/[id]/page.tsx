@@ -10,7 +10,7 @@ import { getCategory } from "@/lib/data/categories";
 import { formatDate } from "@/lib/format";
 import { requireRole } from "@/lib/server/auth";
 import { findApplicationById, findUserById } from "@/lib/server/repositories/people";
-import { photoIdFromUrl } from "@/lib/validation/photo";
+import { applicationPhotoUrl } from "@/lib/photos";
 
 export const metadata = { title: "Application" };
 
@@ -78,22 +78,18 @@ async function Application({ params }: { params: PageProps<"/admin/applications/
           Work photos
         </h2>
         <ul className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {app.workPhotoUrls.map((url, i) => {
-            const photoId = photoIdFromUrl(url);
-            return (
-              <li key={`${url}-${i}`} className="relative aspect-square overflow-hidden rounded-md bg-sage">
-                {photoId ? (
-                  <Image
-                    src={`https://images.unsplash.com/photo-${photoId}`}
-                    alt={`Work photo ${i + 1} from ${app.shopName}`}
-                    fill
-                    sizes="200px"
-                    className="object-cover"
-                  />
-                ) : null}
-              </li>
-            );
-          })}
+          {/* B09: private photos; app/uploads/private lets admins and the applicant see them. */}
+          {app.workPhotoIds.map((photoId, i) => (
+            <li key={`${photoId}-${i}`} className="relative aspect-square overflow-hidden rounded-md bg-sage">
+              <Image
+                src={applicationPhotoUrl(photoId)}
+                alt={`Work photo ${i + 1} from ${app.shopName}`}
+                fill
+                sizes="200px"
+                className="object-cover"
+              />
+            </li>
+          ))}
         </ul>
       </section>
       {app.adminNote ? (

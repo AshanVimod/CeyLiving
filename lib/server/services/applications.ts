@@ -19,6 +19,7 @@ import {
   updateUser,
 } from "../repositories/people";
 import { assertRateLimit, assertTransition, audit, slugify, staleStatus, uniqueSlug } from "./shared";
+import { assertPhotosUsable } from "./uploads";
 
 // Feature spec 8.1: seller application status flow.
 const FLOW: Partial<Record<ApplicationStatus, readonly ApplicationStatus[]>> = {
@@ -27,10 +28,6 @@ const FLOW: Partial<Record<ApplicationStatus, readonly ApplicationStatus[]>> = {
 };
 
 const OPEN: ApplicationStatus[] = ["PENDING", "NEEDS_CHANGES"];
-const toPhoto = (url: string, alt: string) => ({
-  id: url.replace("https://images.unsplash.com/photo-", "").split(/[?#]/)[0]!,
-  alt,
-});
 
 async function notifyAdmins(tx: Tx, title: string, href: string) {
   for (const id of await listAdminIds(tx)) await addNotification(tx, id, "application.submitted", title, href);
@@ -61,6 +58,13 @@ export async function submitApplication(
       );
     }
     await assertRateLimit(tx, actor.id, "application", now);
+    // SEC-A2 (B09): photos already on the application being edited stay; new ones must be this person's uploads.
+    await assertPhotosUsable(
+      tx,
+      actor,
+      input.workPhotoIds.map((id, i) => ({ field: `workPhotoIds.${i}`, id, purpose: "APPLICATION_PHOTO" as const })),
+      open?.workPhotoIds,
+    );
     const fields = {
       applicantName: input.applicantName,
       phone: input.phone,
@@ -71,7 +75,7 @@ export async function submitApplication(
       categorySlugs: input.categorySlugs,
       address: input.address,
       story: input.story,
-      workPhotoUrls: input.workPhotoUrls,
+      workPhotoIds: input.workPhotoIds,
       socialUrl: input.socialUrl,
       acceptedTermsAt: now.toISOString(),
       updatedAt: now.toISOString(),
@@ -125,7 +129,8 @@ function shopFromApplication(app: SellerApplication, ownerName: string, taken: S
     quote: "",
     since: now.getFullYear(),
     isVerified: false,
-    logo: toPhoto(app.workPhotoUrls[0] ?? "", `${app.shopName} logo`),
+    // Application photos stay private (B09), so the seller adds a logo and banner before the shop can go live.
+    logo: { id: "", alt: "" },
     banner: { id: "", alt: "" },
     dispatchDays: "",
     returnPolicy: "",

@@ -5,6 +5,7 @@ import { productSchema } from "@/lib/validation/product";
 import { shopSchema } from "@/lib/validation/shop";
 import { productInput, validShop } from "@/test/fixtures";
 import { readAll, freshUser, user, withTestDatabase } from "@/test/db";
+import { productPhotos, shopPhotos } from "@/test/uploads";
 import { getPublicProduct, getPublicShop, queryCatalogue } from "../catalogue";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../errors";
 import { assertShopOwner } from "../permissions";
@@ -28,7 +29,10 @@ describe("shops", () => {
 
   it("RULE-S1 edits always apply to the seller's own shop", async () => {
     const before = (await findShopByOwner(readDb, "user_owner_galle-beeralu-studio"))!.name;
-    await updateShop(user("user_seller"), validShop({ name: "Renamed Masks", slug: "ambalangoda-mask-house" }));
+    await updateShop(
+      user("user_seller"),
+      validShop({ name: "Renamed Masks", slug: "ambalangoda-mask-house", ...(await shopPhotos("user_seller")) }),
+    );
     expect((await findShopByOwner(readDb, "user_seller"))!.name).toBe("Renamed Masks");
     expect((await findShopByOwner(readDb, "user_owner_galle-beeralu-studio"))!.name).toBe(before);
   });
@@ -47,9 +51,9 @@ describe("shops", () => {
 
   it("RULE-S3 a draft shop goes ACTIVE only when the checklist is complete", async () => {
     const seller = await approvedApplicant();
-    await updateShop(seller, validShop());
+    await updateShop(seller, validShop(await shopPhotos(seller.id)));
     expect((await findShopByOwner(readDb, seller.id))!.status).toBe("DRAFT");
-    await saveProduct(seller, productInput(), "submit");
+    await saveProduct(seller, productInput(await productPhotos(seller.id)), "submit");
     expect((await findShopByOwner(readDb, seller.id))!.status).toBe("DRAFT");
     await savePayoutDetails(seller, { bankName: "Bank of Ceylon", accountNumber: "12345678" });
     const shop = (await findShopByOwner(readDb, seller.id))!;
@@ -140,18 +144,27 @@ describe("items", () => {
     const seller = await approvedApplicant();
     const ids: string[] = [];
     for (let i = 1; i <= 3; i++) {
-      const p = await saveProduct(seller, productInput({ title: `Lacquered box number ${i}` }), "submit");
+      const input = productInput({ title: `Lacquered box number ${i}`, ...(await productPhotos(seller.id)) });
+      const p = await saveProduct(seller, input, "submit");
       expect(p.status).toBe("PENDING_REVIEW");
       ids.push(p.id);
     }
     for (const id of ids) await decideProduct(user("user_admin"), { decision: "approve", productId: id });
-    const fourth = await saveProduct(seller, productInput({ title: "Lacquered box number four" }), "submit");
+    const fourth = await saveProduct(
+      seller,
+      productInput({ title: "Lacquered box number four", ...(await productPhotos(seller.id)) }),
+      "submit",
+    );
     expect(fourth.status).toBe("ACTIVE");
   });
 
   it("FR-9 an approved item appears on the shop page and in search", async () => {
     const seller = user("user_seller");
-    const p = await saveProduct(seller, productInput({ title: "Kolam drummer mask" }), "submit");
+    const p = await saveProduct(
+      seller,
+      productInput({ title: "Kolam drummer mask", ...(await productPhotos(seller.id)) }),
+      "submit",
+    );
     expect(p.status).toBe("ACTIVE"); // shop already has 5 approved items
     expect((await queryCatalogue({ q: "drummer" })).items.map((x) => x.slug)).toContain(p.slug);
   });
@@ -166,7 +179,7 @@ describe("items", () => {
 
   it("FR-9 reject needs a reason and notifies the seller; removed items can't be edited", async () => {
     const seller = await approvedApplicant();
-    const p = await saveProduct(seller, productInput(), "submit");
+    const p = await saveProduct(seller, productInput(await productPhotos(seller.id)), "submit");
     await decideProduct(user("user_admin"), {
       decision: "remove",
       productId: p.id,

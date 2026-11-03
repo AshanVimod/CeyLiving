@@ -79,7 +79,7 @@ export function ApplicationForm({
           defaultValue={existing?.story}
           helper="50 to 1,000 characters. How you learned your craft, what you make and how."
         />
-        <PhotoFields initial={existing?.workPhotoUrls ?? []} />
+        <PhotoFields initial={existing?.workPhotoIds ?? []} />
         <FormInput
           label="Social media or website"
           name="socialUrl"
