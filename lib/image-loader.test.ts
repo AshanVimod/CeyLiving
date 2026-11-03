@@ -1,10 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import imageLoader from "./image-loader";
 import { applicationPhotoUrl, photoUrl } from "./photos";
 
 const id = "upl_3f1c2b9a-1d2e-4f50-8a6b-0c9d8e7f6a5b";
 
 describe("image loader", () => {
+  // The default image address (the local driver's route), whatever the environment running the tests sets.
+  beforeEach(() => vi.stubEnv("NEXT_PUBLIC_IMAGE_BASE_URL", ""));
+  afterEach(() => vi.unstubAllEnvs());
+
   it("SEC-07 B09 serves uploaded photos at the smallest made width that covers the slot", () => {
     const src = photoUrl(id);
     expect(src).toBe(`/dev-uploads/i/${id}/1600.webp`);

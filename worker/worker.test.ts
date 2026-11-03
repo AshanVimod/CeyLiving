@@ -89,6 +89,8 @@ describe("the worker (JOB-02, JOB-04, JOB-05, JOB-07)", () => {
     const input = { targetType: "QUESTION" as const, targetId: "q_naga_size", reason: "Offensive or abusive" as const };
     for (const id of ["user_muted", "user_applicant", "user_seller"]) await reportContent(user(id), input);
     await until(async () => (await readAll()).questions.find((q) => q.id === "q_naga_size")!.status === "HIDDEN");
+    // pg-boss marks the job completed just after the handler's transaction commits, so wait for that too.
+    await until(async () => (await jobStates("reports.autoHide"))[0] === "completed");
     expect(await jobStates("reports.autoHide")).toEqual(["completed"]);
   });
 
