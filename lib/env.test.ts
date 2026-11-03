@@ -29,6 +29,8 @@ const PROD = {
   TURNSTILE_SITE_KEY: SITE_KEY,
   TURNSTILE_SECRET_KEY: TURNSTILE_SECRET,
   CACHE_REFRESH_SECRET: "r".repeat(40),
+  PAYHERE_MERCHANT_ID: "1211149",
+  PAYHERE_MERCHANT_SECRET: "p".repeat(40),
 };
 
 describe("lib/env", () => {
@@ -49,6 +51,7 @@ describe("lib/env", () => {
       EMAIL_FROM: "CeyLiving <no-reply@ceyliving.lk>",
       SITE_URL: "http://localhost:3000",
       WORKER_CONCURRENCY: 2,
+      PAYHERE_MODE: "sandbox",
     });
   });
 
@@ -130,6 +133,15 @@ describe("lib/env", () => {
     expect(message).not.toMatch(/\byes\b/);
   });
 
+  it("B08 PAY-02 production needs the PayHere merchant ID and secret; the API key comes as a pair", () => {
+    expect(problems(() => parseEnv({ ...PROD, PAYHERE_MERCHANT_SECRET: undefined }))).toEqual([
+      "PAYHERE_MERCHANT_SECRET: is required in production (B08)",
+    ]);
+    expect(problems(() => parseEnv({ PAYHERE_APP_ID: "app" }))).toEqual([
+      "PAYHERE_APP_SECRET: set both PAYHERE_APP_ID and PAYHERE_APP_SECRET, or neither",
+    ]);
+  });
+
   it("12.3 an empty value counts as not set", () => {
     expect(parseEnv({ NODE_ENV: "development", ENABLE_DEMO_LOGIN: "", DATABASE_URL: "", SMTP_URL: "" })).toEqual({
       NODE_ENV: "development",
@@ -137,6 +149,7 @@ describe("lib/env", () => {
       EMAIL_FROM: "CeyLiving <no-reply@ceyliving.lk>",
       SITE_URL: "http://localhost:3000",
       WORKER_CONCURRENCY: 2,
+      PAYHERE_MODE: "sandbox",
     });
   });
 

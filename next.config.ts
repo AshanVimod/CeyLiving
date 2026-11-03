@@ -6,6 +6,8 @@ const isDev = process.env.NODE_ENV === "development";
 // so scripts allow 'unsafe-inline' for Next's inline bootstrap; everything else is locked to this site and the image CDN.
 // B05b (AU-06): Cloudflare Turnstile loads its script and its check (an iframe) from challenges.cloudflare.com.
 const turnstile = "https://challenges.cloudflare.com";
+// B08: the pay page posts a form to PayHere's checkout (sandbox or live, read at build time like the rest of this).
+const payhere = process.env.PAYHERE_MODE === "live" ? "https://www.payhere.lk" : "https://sandbox.payhere.lk";
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' ${turnstile}${isDev ? " 'unsafe-eval'" : ""}`,
@@ -16,7 +18,7 @@ const contentSecurityPolicy = [
   `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
   "object-src 'none'",
   "base-uri 'self'",
-  "form-action 'self'",
+  `form-action 'self' ${payhere}`,
   "frame-ancestors 'none'",
   ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ");

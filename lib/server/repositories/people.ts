@@ -183,6 +183,12 @@ export async function addAuditEntry(tx: Tx, entry: Omit<AuditLogEntry, "id" | "c
   });
 }
 
+/** The newest audit entry with this action (e.g. the last reconciliation report). */
+export async function latestAuditEntry(tx: Tx, action: string): Promise<AuditLogEntry | undefined> {
+  const row = await clientOf(tx).auditLogEntry.findFirst({ where: { action }, orderBy: [...newestFirst] });
+  return row ? toAuditEntry(row) : undefined;
+}
+
 export async function listAuditLog(tx: Tx): Promise<AuditLogEntry[]> {
   const rows = await clientOf(tx).auditLogEntry.findMany({ orderBy: [...newestFirst] });
   return rows.map(toAuditEntry);

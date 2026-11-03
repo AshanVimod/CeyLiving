@@ -57,7 +57,7 @@ async function shopId(slug: string): Promise<string> {
 /** What B08's payment confirmation will do: PENDING -> PAID with a conditional update (PAY-04, DB-06). */
 const markPaid = (orderId: string) =>
   migratorClient()
-    .$executeRaw`UPDATE orders SET payment_status = 'PAID' WHERE id = ${orderId} AND payment_status = 'PENDING'`;
+    .$executeRaw`UPDATE orders SET payment_status = 'PAID', paid_at = now() WHERE id = ${orderId} AND payment_status = 'PENDING'`;
 
 describe("placeOrder (BR-04, BR-05, BR-06, BR-16)", () => {
   it("BR-06 two checkouts at once for the last item: one order, one clear sold-out message", async () => {
@@ -294,7 +294,7 @@ describe("orders.expireUnpaid (BR-06)", () => {
     const paymentMayCommit = new Promise<void>((resolve) => (finishPayment = resolve));
     const payment = migratorClient().$transaction(async (tx) => {
       const paid =
-        await tx.$executeRaw`UPDATE orders SET payment_status = 'PAID' WHERE id = ${order.id} AND payment_status = 'PENDING'`;
+        await tx.$executeRaw`UPDATE orders SET payment_status = 'PAID', paid_at = now() WHERE id = ${order.id} AND payment_status = 'PENDING'`;
       paymentHoldsLock();
       await paymentMayCommit;
       return paid;

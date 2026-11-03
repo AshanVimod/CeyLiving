@@ -176,6 +176,7 @@ function buildOrder(spec: OrderSpec) {
     placedAt: spec.placedAt,
     // Seeded orders are paid ones; only checkout makes PENDING orders (B07).
     paymentStatus: "PAID",
+    paidAt: spec.placedAt,
   };
   const sellerOrder: SellerOrder = {
     id: `so_${n}`,

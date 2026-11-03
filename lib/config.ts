@@ -7,6 +7,10 @@ export const PAGE_SIZE = 12;
 export const MAX_CART_QUANTITY = 20;
 /** BR-06: an unpaid order is cancelled and its stock returned this long after checkout. */
 export const PAYMENT_WINDOW_MINUTES = 30;
+/** BR-08: a maker must accept a paid order within this many days, or it is cancelled (set when the order is paid). */
+export const SELLER_ACCEPT_DEADLINE_DAYS = 3;
+/** B08: the result page re-reads a pending payment this often, for at most this long (backend plan 9.1 step 7). */
+export const PAYMENT_RESULT_POLL = { everyMs: 2_000, forMs: 20_000 } as const;
 
 export const PRICE_CHIPS = [
   { label: "Under LKR 2,500", minPrice: undefined, maxPrice: 250000 },

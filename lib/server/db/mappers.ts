@@ -10,9 +10,11 @@ import type {
   Notification,
   Order,
   OrderItem,
+  Payment,
   Payout,
   Photo,
   Product,
+  Refund,
   ProductAnswer,
   ProductQuestion,
   ProductVariant,
@@ -200,6 +202,8 @@ export function toShop(row: Row.Shop): Shop {
     status: row.status,
     statusReason: opt(row.statusReason),
     payoutAccountMasked: opt(row.payoutAccountMasked),
+    payoutHoldReason: opt(row.payoutHoldReason),
+    payoutHeldAt: optIso(row.payoutHeldAt),
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
   };
@@ -209,7 +213,7 @@ export function toShop(row: Row.Shop): Shop {
 export function shopColumns(shop: Partial<Shop>): Record<string, unknown> {
   const { logo, banner, portrait } = shop;
   return {
-    ...without(withDates(shop, ["createdAt", "updatedAt"]), ["logo", "banner", "portrait"]),
+    ...without(withDates(shop, ["createdAt", "updatedAt", "payoutHeldAt"]), ["logo", "banner", "portrait"]),
     ...(logo && { logoPhotoId: logo.id, logoAlt: logo.alt }),
     ...(banner && { bannerPhotoId: banner.id, bannerAlt: banner.alt }),
     ...("portrait" in shop && { portraitPhotoId: portrait?.id ?? null, portraitAlt: portrait?.alt ?? null }),
@@ -388,11 +392,12 @@ export function toOrder(row: Row.Order): Order {
     placedAt: iso(row.placedAt),
     paymentStatus: row.paymentStatus,
     expiresAt: optIso(row.expiresAt),
+    paidAt: optIso(row.paidAt),
   };
 }
 
 /** The columns for an Order (or a patch of one). The shipping address is a JSON snapshot taken at checkout. */
-export const orderColumns = (order: Partial<Order>) => withDates(order, ["placedAt", "expiresAt"]);
+export const orderColumns = (order: Partial<Order>) => withDates(order, ["placedAt", "expiresAt", "paidAt"]);
 
 export function toSellerOrder(row: Row.SellerOrder): SellerOrder {
   return {
@@ -494,5 +499,45 @@ export function customRequestColumns(request: Partial<CustomRequest>): Record<st
       quoteMessage: quote?.message ?? null,
       quotedAt: quote ? new Date(quote.quotedAt) : null,
     }),
+  };
+}
+
+// ---------- Payments (B08) ----------
+
+export function toPayment(row: Row.Payment): Payment {
+  return {
+    id: row.id,
+    orderId: row.orderId,
+    provider: row.provider as Payment["provider"],
+    providerPaymentId: row.providerPaymentId,
+    amountCents: row.amountCents,
+    currency: row.currency,
+    status: row.status,
+    statusCode: row.statusCode,
+    method: opt(row.method),
+    needsRefundReason: opt(row.needsRefundReason),
+    refundedCents: row.refundedCents,
+    verifiedAt: iso(row.verifiedAt),
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  };
+}
+
+export function toRefund(row: Row.Refund): Refund {
+  return {
+    id: row.id,
+    paymentId: row.paymentId,
+    sellerOrderId: opt(row.sellerOrderId),
+    amountCents: row.amountCents,
+    clawbackCents: row.clawbackCents,
+    reason: row.reason,
+    method: row.method,
+    status: row.status,
+    providerRef: opt(row.providerRef),
+    failure: opt(row.failure),
+    createdById: row.createdById,
+    createdAt: iso(row.createdAt),
+    settledAt: optIso(row.settledAt),
+    deductedPayoutId: opt(row.deductedPayoutId),
   };
 }

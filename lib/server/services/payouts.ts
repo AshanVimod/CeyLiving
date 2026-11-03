@@ -14,6 +14,7 @@ import {
   unpaidCompletedSellerOrders,
   updatePayout,
 } from "../repositories/commerce";
+import { markClawbacksDeducted, undeductedClawbacksOfShop } from "../repositories/payments";
 import { addNotification, newId } from "../repositories/people";
 import { audit, JOB_BATCH_SIZE, WORKER } from "./shared";
 
@@ -35,7 +36,7 @@ async function payableOrders(tx: Tx, shopId: string, now: Date): Promise<SellerO
   );
 }
 
-function buildPayout(shop: Shop, orders: SellerOrder[], now: Date): Payout {
+function buildPayout(shop: Shop, orders: SellerOrder[], refundsCents: number, now: Date): Payout {
   const grossCents = orders.reduce((s, so) => s + so.subtotalCents + so.shippingCents, 0);
   const commissionCents = orders.reduce((s, so) => s + commissionFor(so), 0);
   const periodStart = orders.map((so) => so.completedAt!).sort()[0]!;
@@ -47,8 +48,8 @@ function buildPayout(shop: Shop, orders: SellerOrder[], now: Date): Payout {
     sellerOrderIds: orders.map((so) => so.id),
     grossCents,
     commissionCents,
-    refundsCents: 0,
-    netCents: grossCents - commissionCents,
+    refundsCents,
+    netCents: grossCents - commissionCents - refundsCents,
     status: "SCHEDULED",
     createdAt: now.toISOString(),
   };
@@ -64,13 +65,24 @@ async function payoutForShop(by: Actor | typeof WORKER, shopId: string, now: Dat
   try {
     return await withTx(async (tx) => {
       const shop = await findShopById(tx, shopId);
-      if (!shop?.payoutAccountMasked) return undefined;
+      // PAY-05: a chargeback holds the shop's payouts until an admin releases them.
+      if (!shop?.payoutAccountMasked || shop.payoutHoldReason) return undefined;
       const orders = await payableOrders(tx, shop.id, now);
       if (!orders.length) return undefined;
-      const payout = await insertPayout(tx, buildPayout(shop, orders, now));
+      const clawbacks = takeClawbacks(
+        await undeductedClawbacksOfShop(tx, shop.id),
+        orders.reduce((s, so) => s + so.subtotalCents + so.shippingCents - commissionFor(so), 0),
+      );
+      const refundsCents = clawbacks.reduce((s, r) => s + r.clawbackCents, 0);
+      const payout = await insertPayout(tx, buildPayout(shop, orders, refundsCents, now));
       await setPayoutOnSellerOrders(
         tx,
         orders.map((so) => so.id),
+        payout.id,
+      );
+      await markClawbacksDeducted(
+        tx,
+        clawbacks.map((r) => r.id),
         payout.id,
       );
       await addNotification(tx, shop.ownerId, "payout.scheduled", "A new payout statement is ready", "/seller/payouts");
@@ -84,6 +96,21 @@ async function payoutForShop(by: Actor | typeof WORKER, shopId: string, now: Dat
     if (error instanceof ConflictError) return undefined;
     throw error;
   }
+}
+
+/**
+ * BR-18: refunds of orders the shop was already paid for come off its next payout, oldest first, as long as the
+ * payout stays at or above zero. The rest wait for a later payout.
+ */
+function takeClawbacks<R extends { clawbackCents: number }>(owed: R[], earnedCents: number): R[] {
+  const taken: R[] = [];
+  let left = earnedCents;
+  for (const refund of owed) {
+    if (refund.clawbackCents > left) break;
+    taken.push(refund);
+    left -= refund.clawbackCents;
+  }
+  return taken;
 }
 
 /**
@@ -122,6 +149,10 @@ export async function markPayoutPaid(
   return withTx(async (tx) => {
     const payout = await findPayout(tx, payoutId);
     if (!payout) throw new NotFoundError("Payout not found.");
+    const held = await findShopById(tx, payout.shopId);
+    if (held?.payoutHoldReason) {
+      throw new ConflictError(`This shop’s payouts are on hold: ${held.payoutHoldReason}. Release the hold first.`);
+    }
     // DB-06: only a SCHEDULED payout can be marked paid, so a double click can't record two transfers.
     const paid = await updatePayout(
       tx,

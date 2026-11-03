@@ -14,7 +14,11 @@ export type ContentStatus = "VISIBLE" | "HIDDEN" | "DELETED";
 export type SellerOrderStatus =
   "PENDING_PAYMENT" | "NEW" | "ACCEPTED" | "IN_PROGRESS" | "DISPATCHED" | "COMPLETED" | "CANCELLED" | "REFUNDED";
 /** B07: PENDING until paid (B08); EXPIRED when not paid in time (BR-06). */
-export type PaymentStatus = "PENDING" | "PAID" | "EXPIRED";
+export type PaymentStatus = "PENDING" | "PAID" | "EXPIRED" | "REFUNDED" | "PARTIALLY_REFUNDED";
+/** B08 (PAY-05): PayHere's status for one payment. */
+export type ProviderPaymentStatus = "SUCCESS" | "PENDING" | "CANCELLED" | "FAILED" | "CHARGEDBACK";
+export type RefundStatus = "PENDING" | "SUCCEEDED" | "FAILED";
+export type RefundMethod = "PAYHERE" | "MANUAL";
 export type ReportStatus = "OPEN" | "RESOLVED" | "DISMISSED";
 export type PostingRestriction = "NONE" | "MUTED" | "BANNED";
 export type ReportTargetType = "PRODUCT" | "SHOP" | "REVIEW" | "QUESTION" | "ANSWER";
@@ -111,6 +115,9 @@ export interface Shop {
   statusReason?: string;
   /** Masked bank account, e.g. "•••• 4821". Set from the seller's payout details. */
   payoutAccountMasked?: string;
+  /** B08 (PAY-05): a chargeback holds the shop's payouts until an admin releases them. */
+  payoutHoldReason?: string;
+  payoutHeldAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -189,6 +196,8 @@ export interface Order {
   paymentStatus: PaymentStatus;
   /** BR-06: when an unpaid order is cancelled and its stock returned. Only orders placed through checkout have one. */
   expiresAt?: string;
+  /** B08: when the verified payment notification marked it PAID. */
+  paidAt?: string;
 }
 
 export interface SellerOrder {
@@ -318,6 +327,44 @@ export interface Payout {
   paidAt?: string;
   reference?: string;
   createdAt: string;
+}
+
+/** B08 (PAY-03, PAY-04): one PayHere payment, from its verified notification. Never holds card details (PAY-01). */
+export interface Payment {
+  id: string;
+  orderId: string;
+  provider: "PAYHERE";
+  providerPaymentId: string;
+  amountCents: number;
+  currency: string;
+  status: ProviderPaymentStatus;
+  statusCode: number;
+  method?: string;
+  /** PAY-06: why this money can't go to its order; an admin refunds it. */
+  needsRefundReason?: string;
+  refundedCents: number;
+  verifiedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** B08 (PAY-07, BR-18): money given back by an admin, for one seller order or a whole unusable payment. */
+export interface Refund {
+  id: string;
+  paymentId: string;
+  sellerOrderId?: string;
+  amountCents: number;
+  /** What the seller gives back from a later payout: their net share if they were already paid for it, else 0. */
+  clawbackCents: number;
+  reason: string;
+  method: RefundMethod;
+  status: RefundStatus;
+  providerRef?: string;
+  failure?: string;
+  createdById: string;
+  createdAt: string;
+  settledAt?: string;
+  deductedPayoutId?: string;
 }
 
 /** FR-14: a customer asks a maker for something made to measure; the maker quotes or declines. */

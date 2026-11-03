@@ -18,6 +18,15 @@ export const TURNSTILE_TEST_KEYS = {
   secretKey: "1x0000000000000000000000000000000AA",
 };
 
+/**
+ * B08: stand-in PayHere merchant details for development and tests. They match no PayHere account, so only the
+ * dev-only "Simulate payment" button can pay with them; production refuses them.
+ */
+export const PAYHERE_DEV_KEYS = {
+  merchantId: "1200000",
+  merchantSecret: "ceyliving-dev-only-payhere-merchant-secret",
+};
+
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -48,6 +57,23 @@ export const envSchema = z
       .url({ protocol: /^https?$/, error: "must be an http:// or https:// address" })
       .optional()
       .transform((url) => url?.replace(/\/+$/, "")),
+    // B08 (PAY-02): PayHere merchant details (PayHere account > Integrations). The secret is per domain and stays on
+    // the server: it never reaches client code, logs or error messages. Required in production; elsewhere they
+    // default to PAYHERE_DEV_KEYS, which only the dev "Simulate payment" button can use.
+    PAYHERE_MERCHANT_ID: z
+      .string()
+      .regex(/^\d{1,20}$/, { error: "must be the numeric merchant ID" })
+      .optional(),
+    PAYHERE_MERCHANT_SECRET: z.string().min(8).max(200).optional(),
+    // B08: sandbox (default) sends customers to sandbox.payhere.lk; live to www.payhere.lk.
+    PAYHERE_MODE: z.enum(["sandbox", "live"]).default("sandbox"),
+    // B08 (PAY-07, PAY-08): optional Merchant API key (Settings > API Keys) for refunds through PayHere and the daily
+    // reconciliation. Without them, refunds are recorded by hand and reconciliation is skipped.
+    PAYHERE_APP_ID: z.string().min(1).max(200).optional(),
+    PAYHERE_APP_SECRET: z.string().min(1).max(200).optional(),
+    // B08: where PayHere sends payment notifications. Default: SITE_URL + /api/payments/payhere/notify. In
+    // development, a public tunnel's address (PayHere can't reach localhost).
+    PAYHERE_NOTIFY_URL: z.url({ protocol: /^https?$/, error: "must be an http:// or https:// address" }).optional(),
     // OPS-01: log level. Default: info, or silent under NODE_ENV=test (see lib/server/observability/logger.ts).
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).optional(),
     // FR-2c: the site's public address, used for absolute links in sitemap.xml and robots.txt. No trailing slash.
@@ -78,6 +104,20 @@ export const envSchema = z
       else if (Object.values(TURNSTILE_TEST_KEYS).includes(env[key])) {
         ctx.addIssue({ code: "custom", path: [key], message: "must not be a Cloudflare test key in production" });
       }
+    }
+    for (const key of ["PAYHERE_MERCHANT_ID", "PAYHERE_MERCHANT_SECRET"] as const) {
+      if (env.NODE_ENV !== "production") continue;
+      if (!env[key]) ctx.addIssue({ code: "custom", path: [key], message: "is required in production (B08)" });
+      else if (Object.values(PAYHERE_DEV_KEYS).includes(env[key])) {
+        ctx.addIssue({ code: "custom", path: [key], message: "must not be the development stand-in in production" });
+      }
+    }
+    if (Boolean(env.PAYHERE_APP_ID) !== Boolean(env.PAYHERE_APP_SECRET)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["PAYHERE_APP_SECRET"],
+        message: "set both PAYHERE_APP_ID and PAYHERE_APP_SECRET, or neither",
+      });
     }
     if (env.NODE_ENV === "production" && !env.DATABASE_URL) {
       ctx.addIssue({ code: "custom", path: ["DATABASE_URL"], message: "is required in production (DB-10)" });

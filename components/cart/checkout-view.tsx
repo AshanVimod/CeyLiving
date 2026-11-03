@@ -41,7 +41,8 @@ export function CheckoutView({ customer }: { customer: CheckoutCustomer }) {
     if (!state) return;
     if (state.ok && "orderNumber" in state && state.orderNumber) {
       removeLines(submitted.current);
-      router.replace(`/account/orders/${state.orderNumber}`);
+      // B08: straight on to PayHere (the pay page sends its form once); the order page offers "Pay now" later.
+      router.replace(`/checkout/pay/${state.orderNumber}?go=1`);
       return;
     }
     statusRef.current?.focus();

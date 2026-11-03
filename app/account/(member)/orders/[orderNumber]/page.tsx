@@ -47,9 +47,22 @@ async function OrderDetail({ params }: { params: PageProps<"/account/orders/[ord
       />
       <div className="space-y-6">
         {order.paymentStatus === "PENDING" ? (
-          <p role="status" className="rounded-md bg-turmeric-soft px-4 py-3">
-            Awaiting payment. Online payment is being switched on; until then this order is held for you until{" "}
-            {formatTime(order.expiresAt!)} and then cancelled, and nothing is charged.
+          <div role="status" className="rounded-md bg-turmeric-soft px-4 py-3">
+            <p>
+              Awaiting payment. This order is held for you until {formatTime(order.expiresAt!)}; if it isn’t paid by
+              then it is cancelled and nothing is charged.
+            </p>
+            <Link
+              href={`/checkout/pay/${order.orderNumber}`}
+              className="mt-3 inline-flex h-11 items-center rounded-full bg-forest px-6 font-semibold text-paper hover:bg-forest-deep"
+            >
+              Pay now
+            </Link>
+          </div>
+        ) : null}
+        {order.paymentStatus === "REFUNDED" || order.paymentStatus === "PARTIALLY_REFUNDED" ? (
+          <p role="status" className="rounded-md bg-sage px-4 py-3">
+            {order.paymentStatus === "REFUNDED" ? "This order was refunded." : "Part of this order was refunded."}
           </p>
         ) : null}
         {sellerOrders.map(({ sellerOrder, items }) => {

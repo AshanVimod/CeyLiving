@@ -257,8 +257,8 @@ describe("maintenance.cleanup", () => {
   });
 });
 
-describe("stubs until B08 to B10", () => {
-  it("JOB-03 email.send, image.process and payments.reconcile change nothing", async () => {
+describe("stubs until B09 and B10, and reconciliation without the PayHere API", () => {
+  it("JOB-03 PAY-08 email.send, image.process and payments.reconcile (no Merchant API key) change nothing", async () => {
     const before = await readAll();
     for (let run = 0; run < 2; run++) {
       await runJobNow("email.send", { template: "order.paid", to: "user_customer", data: {} });
