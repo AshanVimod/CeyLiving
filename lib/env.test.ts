@@ -119,7 +119,7 @@ describe("lib/env", () => {
   });
 
   it("B10 the worker sends through Resend in production; the web app needs no email keys", () => {
-    const worker = { ...PROD, EMAIL_DRIVER: "resend", RESEND_API_KEY: "re_live_abcdefgh123" };
+    const worker = { ...PROD, EMAIL_DRIVER: "resend", RESEND_API_KEY: "re_xxxxxxxxxxxx" };
     expect(() => assertEmailConfig(parseEnv(worker))).not.toThrow();
     // The web app's environment has no email keys at all, and still starts.
     expect(() => parseEnv({ ...PROD, SMTP_URL: undefined })).not.toThrow();

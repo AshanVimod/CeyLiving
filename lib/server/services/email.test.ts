@@ -38,6 +38,9 @@ const admin = () => user("user_admin");
 const seller = () => user("user_seller");
 const RATA = "shop_rata-studio";
 const MINUTE = 60_000;
+/** Fake Resend keys: right shape, obviously not real (and nothing a secret scanner mistakes for one). */
+const FAKE_KEY = "re_xxxxxxxxxxxx";
+const OTHER_FAKE_KEY = "re_yyyyyyyyyyyy";
 
 beforeEach(() => {
   vi.stubEnv("EMAIL_DRIVER", "smtp");
@@ -270,7 +273,7 @@ describe("JOB-03 no duplicates", () => {
     try {
       await withTx((tx) => queueEmail(tx, "order.accepted", { userId: "user_customer", key: "so_3", data: accepted }));
       const [row] = await deliveries();
-      const real = resendDriver("re_test_key_123456", resend.url);
+      const real = resendDriver(FAKE_KEY, resend.url);
       let crash = true;
       const crashingAfterSend: EmailDriver = {
         name: "resend",
@@ -321,10 +324,10 @@ describe("JOB-04 retries, final failures and alerts", () => {
   it("JOB-04 an address Resend refuses fails at once, without retrying; a 500 is retried", async () => {
     const resend = await resendStub((n) => (n === 1 ? { status: 422, name: "validation_error" } : { status: 500 }));
     vi.stubEnv("EMAIL_DRIVER", "resend");
-    vi.stubEnv("RESEND_API_KEY", "re_test_key_123456");
+    vi.stubEnv("RESEND_API_KEY", FAKE_KEY);
     try {
       const refused = await queueOne("so_422");
-      await deliverEmail(refused.deliveryId, { driver: resendDriver("re_test_key_123456", resend.url) });
+      await deliverEmail(refused.deliveryId, { driver: resendDriver(FAKE_KEY, resend.url) });
       expect((await deliveries())[0]).toMatchObject({
         status: "FAILED",
         lastError: "resend_422_validation_error",
@@ -335,7 +338,7 @@ describe("JOB-04 retries, final failures and alerts", () => {
         queueEmail(tx, "order.accepted", { userId: "user_customer", key: "so_500", data: accepted }),
       );
       const second = (await deliveries()).find((d) => d.status === "QUEUED")!;
-      await expect(deliverEmail(second.id, { driver: resendDriver("re_test_key_123456", resend.url) })).rejects.toThrow(
+      await expect(deliverEmail(second.id, { driver: resendDriver(FAKE_KEY, resend.url) })).rejects.toThrow(
         "Email not sent (resend_500)",
       );
     } finally {
@@ -357,11 +360,11 @@ describe("JOB-04 retries, final failures and alerts", () => {
         queueEmail(tx, "order.accepted", { userId: "user_customer", key: "so_key", data: accepted }),
       );
       const row = (await deliveries()).find((d) => d.status === "QUEUED")!;
-      const error = await deliverEmail(row.id, { driver: resendDriver("re_secret_value_999", resend.url) }).catch(
+      const error = await deliverEmail(row.id, { driver: resendDriver(OTHER_FAKE_KEY, resend.url) }).catch(
         (e: Error) => e,
       );
       expect(String((error as Error).message)).toBe("Email not sent (resend_401_missing_api_key)");
-      expect(JSON.stringify(await deliveries())).not.toContain("re_secret_value_999");
+      expect(JSON.stringify(await deliveries())).not.toContain(OTHER_FAKE_KEY);
     } finally {
       await resend.close();
     }

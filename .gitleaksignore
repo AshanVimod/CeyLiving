@@ -1,0 +1,4 @@
+# Gitleaks findings that are not secrets (CI runs `gitleaks git`, which scans every commit).
+# B10 (d36c3a6): fake Resend keys in tests; later commits use obviously fake values instead.
+d36c3a6e9f474fb1d9bc03a889a5398ba584f637:lib/env.test.ts:generic-api-key:122
+d36c3a6e9f474fb1d9bc03a889a5398ba584f637:lib/server/services/email.test.ts:generic-api-key:324
