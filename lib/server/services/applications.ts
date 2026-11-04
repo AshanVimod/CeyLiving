@@ -3,6 +3,7 @@ import { REAPPLY_WAIT_DAYS } from "@/lib/config";
 import type { ApplicationStatus, SellerApplication, Shop } from "@/lib/types";
 import type { ApplicationInput, DecisionInput } from "@/lib/validation/application";
 import { withTx, type Tx } from "../db/tx";
+import { queueEmail } from "../email/queue";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
 import { assertEmailVerified, assertRole, type Actor } from "../permissions";
 import { insertShop, shopSlugs } from "../repositories/catalogue";
@@ -189,6 +190,12 @@ export async function decideApplication(
         to === "REJECTED" ? "Your seller application was not approved" : "Changes requested on your seller application";
       await addNotification(tx, app.userId, `application.${to.toLowerCase()}`, title, "/account");
     }
+    // B10: one email per decision; "changes requested" twice is two decisions, so the time is in the key.
+    await queueEmail(tx, "application.decision", {
+      userId: app.userId,
+      key: `${app.id}:${now.toISOString()}`,
+      data: { decision: to, reason: input.decision === "approve" ? undefined : input.reason || undefined },
+    });
     await audit(tx, actor, `application.${to.toLowerCase()}`, "APPLICATION", app.id, {
       reason: input.decision === "approve" ? undefined : input.reason,
       before,

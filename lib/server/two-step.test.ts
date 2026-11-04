@@ -3,11 +3,11 @@ import { base32 } from "@better-auth/utils/base32";
 import { createOTP } from "@better-auth/utils/otp";
 import { hashPassword } from "better-auth/crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Email } from "@/lib/server/email/send";
 import { getSession } from "@/lib/session";
 import { TURNSTILE_TEST_KEYS } from "@/lib/env";
 import { endRequest, jar, SESSION_COOKIE, signInAs, signOutLocally, startRequest, testIp } from "@/test/auth";
 import { readAll, user, withTestDatabase } from "@/test/db";
+import { emailCapture } from "@/test/email";
 
 // B05b: two-step sign-in, passkey rules, Turnstile and admin session limits, against the test database with real
 // Better Auth sessions. Cloudflare and the breached-password service are stubbed: nothing leaves the machine.
@@ -25,8 +25,8 @@ vi.mock("next/navigation", () => ({
     if (error instanceof Error && error.message.startsWith("redirect:")) throw error;
   },
 }));
-const sent = vi.hoisted(() => [] as Email[]);
-vi.mock("@/lib/server/email/send", () => ({ sendEmail: async (email: Email) => void sent.push(email) }));
+// B10: sign-in emails are queued; mail() delivers them the way the worker does, into `sent`.
+const { sent, mail } = emailCapture();
 
 const { forgotPasswordAction, registerAction, signInAction } = await import("./actions/auth");
 const { confirmAppSetupAction, newRecoveryCodesAction, startAppSetupAction, turnOffAppAction, verifyTwoStepAction } =
@@ -332,7 +332,7 @@ describe("AU-06 Turnstile, checked on the server", () => {
       });
     }
     expect((await readAll()).users.some((u) => u.email === "robot@example.lk")).toBe(false);
-    expect(sent).toHaveLength(0);
+    expect(await mail()).toHaveLength(0);
     // The token was checked with Cloudflare, using the server's secret and the visitor's IP.
     expect(siteverify.calls).toHaveLength(1);
     expect(Object.fromEntries(siteverify.calls[0]!)).toEqual({
@@ -342,17 +342,17 @@ describe("AU-06 Turnstile, checked on the server", () => {
     });
 
     expect(await register("person@example.lk", HUMAN)).toMatchObject({ ok: true });
-    expect(sent.map((e) => e.to)).toEqual(["person@example.lk"]);
+    expect((await mail()).map((e) => e.to)).toEqual(["person@example.lk"]);
   });
 
   it("a password reset request is refused without a valid token", async () => {
     const email = user("user_customer").email;
     expect(await forgotPasswordAction(null, form({ email }))).toMatchObject({ ok: false });
-    expect(sent).toHaveLength(0);
+    expect(await mail()).toHaveLength(0);
     expect(await forgotPasswordAction(null, form({ email, "cf-turnstile-response": HUMAN }))).toMatchObject({
       ok: true,
     });
-    expect(sent).toHaveLength(1);
+    expect(await mail()).toHaveLength(1);
   });
 
   it("if Cloudflare can't be reached, the check fails closed", async () => {
@@ -410,7 +410,7 @@ describe("AU-06 Turnstile, checked on the server", () => {
     expect((await post("/sign-in/email", { email, password: GOOD }, "forged-token")).status).toBe(403);
     expect((await post("/sign-up/email", { name: "Bot", email: "bot@example.lk", password: GOOD })).status).toBe(400);
     expect((await post("/request-password-reset", { email })).status).toBe(400);
-    expect(sent).toHaveLength(0);
+    expect(await mail()).toHaveLength(0);
     expect((await post("/sign-in/email", { email, password: GOOD }, HUMAN)).status).toBe(200);
   });
 });

@@ -1,10 +1,11 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Email } from "@/lib/server/email/send";
 import { getSession } from "@/lib/session";
 import { jar, nextHeaders, SESSION_COOKIE, signInAs, signOutLocally, testIp } from "@/test/auth";
-import { freshUser, readAll, user, withTestDatabase } from "@/test/db";
+import type { OutgoingEmail } from "@/lib/server/email/drivers";
+import { freshUser, migratorClient, readAll, user, withTestDatabase } from "@/test/db";
+import { emailCapture, queuedDeliveries } from "@/test/email";
 
 // B05a: real sign-in with Better Auth, against the test database. Emails are captured instead of sent, and the
 // breached-password service and Cloudflare Turnstile are stubbed, so nothing leaves the machine. Forms carry a
@@ -20,8 +21,8 @@ vi.mock("next/navigation", () => ({
     if (error instanceof Error && error.message.startsWith("redirect:")) throw error;
   },
 }));
-const sent = vi.hoisted(() => [] as Email[]);
-vi.mock("@/lib/server/email/send", () => ({ sendEmail: async (email: Email) => void sent.push(email) }));
+// B10: sign-in emails are queued; mail() delivers them the way the worker does, into `sent`.
+const { sent, mail } = emailCapture();
 
 const { forgotPasswordAction, registerAction, resetPasswordAction, signInAction, changePasswordAction } =
   await import("./actions/auth");
@@ -83,7 +84,7 @@ async function openLink(url: string): Promise<Response> {
   return response;
 }
 
-const linkIn = (email: Email) => email.text.match(/https?:\/\/\S+/)![0];
+const linkIn = (email: OutgoingEmail) => email.text.match(/https?:\/\/\S+/)![0];
 const caught = async (promise: Promise<unknown>) => promise.then(() => undefined).catch((e: Error) => e);
 
 async function register(email: string, password = GOOD) {
@@ -94,14 +95,14 @@ describe("AU-01 / AU-07 sign up, confirm, sign in", () => {
   it("signs up, confirms the email through its link, and is signed in as a customer", async () => {
     const result = await register("Nimali@Example.LK");
     expect(result).toMatchObject({ ok: true, message: expect.stringContaining("Check nimali@example.lk") });
-    expect(sent).toHaveLength(1);
+    expect(await mail()).toHaveLength(1);
     expect(sent[0]).toMatchObject({ to: "nimali@example.lk", subject: "Confirm your email for CeyLiving" });
 
     const created = (await readAll()).users.find((u) => u.email === "nimali@example.lk")!;
     expect(created).toMatchObject({ role: "CUSTOMER", emailVerified: false, postingRestriction: "NONE" });
     expect(created.id).toMatch(/^user_/);
 
-    const response = await openLink(linkIn(sent[0]!));
+    const response = await openLink(linkIn((await mail())[0]!));
     expect(response.status).toBe(302);
     expect(jar.has(SESSION_COOKIE)).toBe(true);
     expect((await getSession())?.user).toMatchObject({ id: created.id, emailVerified: true });
@@ -141,7 +142,7 @@ describe("AU-01 / AU-07 sign up, confirm, sign in", () => {
 
   it("a confirmation link signs in once; opened again it confirms nothing new and signs no one in", async () => {
     await register("once@example.lk");
-    const link = linkIn(sent[0]!);
+    const link = linkIn((await mail())[0]!);
     await openLink(link);
     expect(jar.has(SESSION_COOKIE)).toBe(true);
     signOutLocally();
@@ -157,10 +158,11 @@ describe("AU-01 / AU-07 sign up, confirm, sign in", () => {
 describe("AU-01 an unconfirmed account can browse but not post or sell", () => {
   it("signing in unconfirmed sends a fresh link and starts no session; posting is refused", async () => {
     await register("unconfirmed@example.lk");
+    await mail(); // the sign-up email
     sent.length = 0;
     const result = await signInAction(null, form({ email: "unconfirmed@example.lk", password: GOOD }));
     expect(result).toMatchObject({ ok: false, message: "Confirm your email first: we’ve sent you a new link." });
-    expect(sent).toHaveLength(1);
+    expect(await mail()).toHaveLength(1);
     expect(jar.has(SESSION_COOKIE)).toBe(false);
 
     const unconfirmed = (await readAll()).users.find((u) => u.email === "unconfirmed@example.lk")!;
@@ -172,7 +174,7 @@ describe("AU-01 an unconfirmed account can browse but not post or sell", () => {
 describe("AU-07 sign-in never reveals whether an email has an account", () => {
   it("a wrong password and an unknown email get the same message", async () => {
     await register("known@example.lk");
-    await openLink(linkIn(sent[0]!));
+    await openLink(linkIn((await mail())[0]!));
     signOutLocally();
     const wrong = await signInAction(null, form({ email: "known@example.lk", password: "not-the-password" }));
     const unknown = await signInAction(null, form({ email: "nobody@example.lk", password: "not-the-password" }));
@@ -182,14 +184,18 @@ describe("AU-07 sign-in never reveals whether an email has an account", () => {
 
   it("asking to reset an unknown email answers the same and sends nothing", async () => {
     const unknown = await forgotPasswordAction(null, form({ email: "nobody@example.lk" }));
+    expect(await queuedDeliveries()).toEqual([]);
     const known = await forgotPasswordAction(null, form({ email: user("user_customer").email }));
     expect(unknown).toEqual(known);
-    expect(sent.map((e) => e.to)).toEqual([user("user_customer").email]);
+    // B10: the request only queued the email (nothing was sent while it ran); the worker sends it.
+    expect(sent).toEqual([]);
+    expect((await queuedDeliveries()).map((d) => [d.template, d.userId])).toEqual([["auth.reset", "user_customer"]]);
+    expect((await mail()).map((e) => e.to)).toEqual([user("user_customer").email]);
   });
 
   it("signs in with the right password and lands on the page it came from", async () => {
     await register("lands@example.lk");
-    await openLink(linkIn(sent[0]!));
+    await openLink(linkIn((await mail())[0]!));
     signOutLocally();
     const err = await caught(
       signInAction(null, form({ email: "lands@example.lk", password: GOOD, next: "/account/orders" })),
@@ -207,7 +213,7 @@ describe("AU-04 passwords and sessions", () => {
   it("an existing account with no password sets one through the reset link, and the link works once", async () => {
     const customer = user("user_customer"); // created before B05a: no password yet
     await forgotPasswordAction(null, form({ email: customer.email }));
-    const resetLink = linkIn(sent[0]!);
+    const resetLink = linkIn((await mail())[0]!);
     const landing = await openLink(resetLink);
     const token = new URL(landing.headers.get("location")!, "http://localhost:3000").searchParams.get("token")!;
     expect(token).toBeTruthy();
@@ -230,9 +236,25 @@ describe("AU-04 passwords and sessions", () => {
     });
   });
 
+  it("AU-04 a reset link stops working after 1 hour", async () => {
+    const customer = user("user_customer");
+    await forgotPasswordAction(null, form({ email: customer.email }));
+    const landing = await openLink(linkIn((await mail())[0]!));
+    const token = new URL(landing.headers.get("location")!, "http://localhost:3000").searchParams.get("token")!;
+    // An hour and a minute later (the token's expiry, moved back instead of waiting).
+    await migratorClient().verification.updateMany({
+      where: { identifier: { contains: token } },
+      data: { expiresAt: new Date(Date.now() - 60_000) },
+    });
+    expect(await resetPasswordAction(null, form({ token, password: GOOD }))).toMatchObject({
+      ok: false,
+      message: expect.stringContaining("expired or was already used"),
+    });
+  });
+
   it("changing the password ends every other session and keeps this one", async () => {
     await register("change@example.lk");
-    await openLink(linkIn(sent[0]!));
+    await openLink(linkIn((await mail())[0]!));
     const me = (await getSession())!.user;
     const thisBrowser = jar.get(SESSION_COOKIE)!;
     const elsewhere = await signInAs(me.id);
@@ -284,7 +306,7 @@ describe("AU-04 passwords and sessions", () => {
 describe("AU-11 a deleted account can't sign in", () => {
   it("deleting ends its sessions and removes its password; signing in again fails like a wrong password", async () => {
     await register("leaving@example.lk");
-    await openLink(linkIn(sent[0]!));
+    await openLink(linkIn((await mail())[0]!));
     const me = (await getSession())!.user;
     await deleteMyAccount(me);
     expect(await getSession()).toBeNull();

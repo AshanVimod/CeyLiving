@@ -1,4 +1,4 @@
-import { getEnv } from "@/lib/env";
+import { assertEmailConfig, getEnv } from "@/lib/env";
 import { disconnectAppClient } from "@/lib/server/db/tx";
 import { createLogger } from "@/lib/server/observability/logger";
 import { startWorker } from "./worker";
@@ -12,6 +12,16 @@ async function main() {
   const env = getEnv();
   if (!env.DATABASE_URL)
     throw new Error("DATABASE_URL is not set: see .env.example (DB-10: connect as ceyliving_app).");
+  // B10: the worker is the only process that sends email; production must send through Resend.
+  assertEmailConfig(env);
+  log.info(
+    {
+      driver: env.EMAIL_DRIVER,
+      transport: env.EMAIL_DRIVER === "resend" ? Boolean(env.RESEND_API_KEY) : Boolean(env.SMTP_URL),
+      senderDomain: env.EMAIL_FROM.match(/@([^>\s]+)/)?.[1],
+    },
+    "email.config",
+  );
   const worker = await startWorker({ connectionString: env.DATABASE_URL, log, concurrency: env.WORKER_CONCURRENCY });
 
   // JOB-07: on SIGTERM (Docker, deploys) or Ctrl+C, stop taking jobs and let running ones finish (up to 30 seconds).

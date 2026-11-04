@@ -8,12 +8,14 @@ import {
   reportResolutionSchema,
   restrictionSchema,
 } from "@/lib/validation/content";
+import { emailRetrySchema } from "@/lib/validation/more";
 import { productDecisionSchema } from "@/lib/validation/product";
 import { shopDecisionSchema } from "@/lib/validation/shop";
 import { requireActor } from "../auth";
 import { refreshEverything } from "./refresh";
 import { formToObject, parseInput, runAction } from "../run-action";
 import { decideApplication } from "../services/applications";
+import { retryEmail } from "../services/email-admin";
 import { moderateContent, officialReply, resolveReport, restrictUser } from "../services/moderation";
 import { decideProduct } from "../services/products";
 import { decideShop } from "../services/shops";
@@ -94,5 +96,16 @@ export async function resolveReportAction(_: ActionState, form: FormData): Promi
     await resolveReport(await requireActor(), parseInput(reportResolutionSchema, formToObject(form)));
     refreshAll();
     return { ok: true, message: "Report closed." };
+  });
+}
+
+/** B10: queue a stuck email again (/admin/emails). The service checks it is stuck and still worth sending. */
+export async function retryEmailAction(_: ActionState, form: FormData): Promise<ActionResult> {
+  return runAction(async () => {
+    const actor = await requireActor();
+    const input = parseInput(emailRetrySchema, formToObject(form));
+    await retryEmail(actor, input.deliveryId);
+    refreshAll();
+    return { ok: true, message: "Queued again. The worker sends it within a minute." };
   });
 }

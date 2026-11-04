@@ -71,6 +71,7 @@ describe("the worker (JOB-02, JOB-04, JOB-05, JOB-07)", () => {
     const schedules = await a!.boss.getSchedules();
     expect(schedules.map((s) => s.name).sort()).toEqual([
       "customRequests.expire",
+      "email.watch",
       "maintenance.cleanup",
       "orders.autoCancelUnaccepted",
       "orders.autoComplete",

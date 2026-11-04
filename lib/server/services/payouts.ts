@@ -4,6 +4,7 @@ import type { Payout, SellerOrder, Shop } from "@/lib/types";
 import { ConflictError, NotFoundError } from "../errors";
 import { assertRole, shopOfSeller, type Actor } from "../permissions";
 import { db, withTx, type Tx } from "../db/tx";
+import { queueEmail } from "../email/queue";
 import { findShopById } from "../repositories/catalogue";
 import {
   findPayout,
@@ -162,7 +163,7 @@ export async function markPayoutPaid(
     );
     if (!paid) throw new ConflictError("Only scheduled payouts can be marked paid.");
     const shop = await findShopById(tx, payout.shopId);
-    if (shop)
+    if (shop) {
       await addNotification(
         tx,
         shop.ownerId,
@@ -170,6 +171,12 @@ export async function markPayoutPaid(
         "Your payout has been sent to your bank",
         "/seller/payouts",
       );
+      await queueEmail(tx, "payout.paid", {
+        userId: shop.ownerId,
+        key: payout.id,
+        data: { netCents: paid.netCents, periodStart: paid.periodStart, periodEnd: paid.periodEnd },
+      });
+    }
     await audit(tx, actor, "payout.paid", "PAYOUT", payout.id, { reason: `Bank reference ${reference}` });
     return paid;
   });

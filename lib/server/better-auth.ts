@@ -1,5 +1,5 @@
 import "server-only";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { passkey } from "@better-auth/passkey";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
@@ -14,8 +14,7 @@ import { getEnv, turnstileKeys } from "@/lib/env";
 import type { PrismaClient } from "./db/generated/client";
 import { appPrisma } from "./db/tx";
 import { DEMO_ACCOUNTS } from "./demo-accounts";
-import { resetPasswordMessage, verifyEmailMessage } from "./email/auth-emails";
-import { sendEmail } from "./email/send";
+import { queueEmail } from "./email/queue";
 import { deleteOtherSessionsOf, findUserById, hasSecondStep, newId } from "./repositories/people";
 import { db, withTx } from "./db/tx";
 import { isProductionRuntime } from "./runtime";
@@ -123,6 +122,16 @@ const demoSignIn = () => ({
   },
 });
 
+/**
+ * B10: the sign-in emails are queued, never sent inside the request (backend plan 11.2), so a registered address
+ * answers as fast as an unknown one (AU-07). The worker sends them. The key is a hash of the link: each new link is
+ * one email, and the link itself is never logged.
+ */
+async function queueSignInEmail(template: "auth.verify" | "auth.reset", userId: string, url: string): Promise<void> {
+  const key = createHash("sha256").update(url).digest("hex").slice(0, 32);
+  await withTx((tx) => queueEmail(tx, template, { userId, key, data: { url } }));
+}
+
 function createAuth(prisma: PrismaClient) {
   const env = getEnv();
   const production = env.NODE_ENV === "production";
@@ -151,14 +160,14 @@ function createAuth(prisma: PrismaClient) {
       autoSignIn: false,
       revokeSessionsOnPasswordReset: true, // AU-04
       resetPasswordTokenExpiresIn: 60 * MINUTE,
-      sendResetPassword: async ({ user, url }) => sendEmail(resetPasswordMessage(user.email, url)),
+      sendResetPassword: async ({ user, url }) => queueSignInEmail("auth.reset", user.id, url),
     },
     emailVerification: {
       sendOnSignUp: true,
       sendOnSignIn: true, // signing in unverified sends a fresh link
       autoSignInAfterVerification: true,
       expiresIn: 60 * MINUTE,
-      sendVerificationEmail: async ({ user, url }) => sendEmail(verifyEmailMessage(user.email, url)),
+      sendVerificationEmail: async ({ user, url }) => queueSignInEmail("auth.verify", user.id, url),
     },
     session: {
       expiresIn: SESSION_IDLE_SECONDS,

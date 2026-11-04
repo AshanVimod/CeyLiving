@@ -2,13 +2,17 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { PageTitle } from "@/components/account/area-shell";
 import { requireRole } from "@/lib/server/auth";
+import { WorkerStatus } from "@/components/admin/worker-status";
 import { adminCounts } from "@/lib/server/services/admin-stats";
+import { emailOverview } from "@/lib/server/services/email-admin";
 
 export const metadata = { title: "Dashboard" };
 
 async function Dashboard() {
-  await requireRole(["ADMIN"], "/admin");
+  const actor = await requireRole(["ADMIN"], "/admin");
   const c = await adminCounts();
+  const now = new Date();
+  const emails = await emailOverview(actor, now);
   const tiles = [
     { label: "Applications waiting", value: c.pendingApplications, href: "/admin/applications" },
     { label: "Items waiting for approval", value: c.pendingProducts, href: "/admin/products" },
@@ -20,6 +24,7 @@ async function Dashboard() {
       href: "/admin/moderation?filter=hidden",
     },
     { label: "New shops this week", value: c.newShopsThisWeek, href: "/admin/sellers" },
+    { label: "Emails needing attention", value: emails.items.length, href: "/admin/emails" },
   ];
   return (
     <>
@@ -27,6 +32,7 @@ async function Dashboard() {
         title="Dashboard"
         description="What needs a decision. Every action you take is recorded in the audit log."
       />
+      {emails.health.workerSilent && <WorkerStatus health={emails.health} now={now.getTime()} />}
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {tiles.map((t) => (
           <li key={t.label}>

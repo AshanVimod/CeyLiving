@@ -55,6 +55,14 @@ enum UploadStatus {
   REJECTED
 }
 
+/// B10: where an email stands. Only QUEUED rows still hold the address (account.deleted) and the template data.
+enum EmailStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED
+}
+
 enum BusinessType {
   INDIVIDUAL
   REGISTERED_BUSINESS
@@ -227,6 +235,7 @@ model User {
   passkeys            Passkey[]
   refundsCreated      Refund[]
   uploads             Upload[]
+  emailDeliveries     EmailDelivery[]
 
   @@index([role])
   /// B06 (users.liftExpiredMutes): finds mutes that have run out without reading every user.
@@ -959,4 +968,35 @@ model Upload {
   @@index([ownerId, createdAt])
   @@index([createdAt], map: "uploads_pending_created_at_idx", where: raw("status = 'PENDING'::\"UploadStatus\""))
   @@map("uploads")
+}
+
+/// B10 (backend plan 11.2): one row per email. The unique dedupe key makes an event queued twice send once (JOB-03),
+/// and email.send records the provider's message id here. The address and template data are cleared once the row
+/// leaves QUEUED (a CHECK in the migration enforces it).
+model EmailDelivery {
+  id                String      @id
+  /// <template>:<what it is about>, e.g. order.dispatched:so_123.
+  dedupeKey         String      @unique @map("dedupe_key")
+  template          String
+  userId            String      @map("user_id")
+  /// Only for account.deleted: the address as it was before the account was anonymised.
+  toAddress         String?     @map("to_address")
+  data              Json?
+  status            EmailStatus @default(QUEUED)
+  provider          String?
+  providerMessageId String?     @map("provider_message_id")
+  attempts          Int         @default(0)
+  /// A short code (e.g. resend_422, smtp_550), never the provider's message.
+  lastError         String?     @map("last_error")
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  lastAttemptAt     DateTime?   @map("last_attempt_at") @db.Timestamptz(3)
+  sentAt            DateTime?   @map("sent_at") @db.Timestamptz(3)
+  /// email.watch told the admins about this row (each problem alerts once).
+  alertedAt         DateTime?   @map("alerted_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([createdAt], map: "email_deliveries_queued_created_at_idx", where: raw("status = 'QUEUED'::\"EmailStatus\""))
+  @@map("email_deliveries")
 }

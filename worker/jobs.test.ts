@@ -257,11 +257,11 @@ describe("maintenance.cleanup", () => {
   });
 });
 
-describe("stubs until B09 and B10, and reconciliation without the PayHere API", () => {
-  it("JOB-03 PAY-08 email.send, image.process and payments.reconcile (no Merchant API key) change nothing", async () => {
+describe("jobs for missing rows, and reconciliation without the PayHere API", () => {
+  it("JOB-03 PAY-08 email.send and image.process for unknown ids, and payments.reconcile (no Merchant API key), change nothing", async () => {
     const before = await readAll();
     for (let run = 0; run < 2; run++) {
-      await runJobNow("email.send", { template: "order.paid", to: "user_customer", data: {} });
+      await runJobNow("email.send", { deliveryId: "eml_missing" });
       await runJobNow("image.process", { uploadId: "upload_x" });
       await runJobNow("payments.reconcile");
     }

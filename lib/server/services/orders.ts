@@ -3,6 +3,7 @@ import { AUTO_COMPLETE_DAYS, BUYER_DATA_VISIBLE_DAYS, PAYMENT_WINDOW_MINUTES } f
 import type { Order, SellerOrder, SellerOrderStatus } from "@/lib/types";
 import type { OrderTransitionInput } from "@/lib/validation/order";
 import { db, withTx, type Tx } from "../db/tx";
+import { queueEmail } from "../email/queue";
 import { NotFoundError } from "../errors";
 import { shopOfSeller, type Actor } from "../permissions";
 import { findShopById, releaseStock } from "../repositories/catalogue";
@@ -84,6 +85,24 @@ export async function transitionSellerOrder(
       `Your order ${order.orderNumber} from ${shop.name} ${MESSAGES[input.to]}`,
       `/account/orders/${order.orderNumber}`,
     );
+    // B10: the customer is emailed when the maker accepts and when it is sent (with courier and tracking).
+    if (input.to === "ACCEPTED")
+      await queueEmail(tx, "order.accepted", {
+        userId: order.customerId,
+        key: so.id,
+        data: { orderNumber: order.orderNumber, shopName: shop.name },
+      });
+    if (input.to === "DISPATCHED" && updated.courierName)
+      await queueEmail(tx, "order.dispatched", {
+        userId: order.customerId,
+        key: so.id,
+        data: {
+          orderNumber: order.orderNumber,
+          shopName: shop.name,
+          courierName: updated.courierName,
+          trackingRef: updated.trackingRef || undefined,
+        },
+      });
     return updated;
   });
 }
@@ -103,7 +122,7 @@ export async function confirmDelivery(actor: Actor, sellerOrderId: string, now =
     );
     if (!updated) throw staleStatus("order");
     const shop = await findShopById(tx, so.shopId);
-    if (shop)
+    if (shop) {
       await addNotification(
         tx,
         shop.ownerId,
@@ -111,6 +130,13 @@ export async function confirmDelivery(actor: Actor, sellerOrderId: string, now =
         `${order.orderNumber} was delivered`,
         `/seller/orders/${so.id}`,
       );
+      // B10: the review invitation. Keyed by seller order, so it goes once even if the auto-complete job races this.
+      await queueEmail(tx, "order.delivered", {
+        userId: order.customerId,
+        key: so.id,
+        data: { orderNumber: order.orderNumber, shopName: shop.name, automatic: false },
+      });
+    }
   });
 }
 
@@ -210,6 +236,14 @@ export async function autoCompleteDispatchedOrders(now = new Date()): Promise<nu
           };
         }),
       );
+      for (const so of completed) {
+        const p = parties.get(so.id)!;
+        await queueEmail(tx, "order.delivered", {
+          userId: p.customerId,
+          key: so.id,
+          data: { orderNumber: p.orderNumber, shopName: p.shopName, automatic: true },
+        });
+      }
       return completed.length;
     }),
   );

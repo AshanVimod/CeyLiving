@@ -49,10 +49,18 @@ export const envSchema = z
     DATABASE_MIGRATION_URL: z.url({ protocol: /^postgres(ql)?$/, error: "must be a postgresql:// address" }).optional(),
     // B05a (AU-03): signs session cookies and email tokens. At least 32 characters; required in production.
     BETTER_AUTH_SECRET: z.string().min(32, { error: "must be at least 32 characters" }).optional(),
-    // B05a: where verification and password-reset emails go (smtp:// or smtps://). Required in production; locally
-    // `npm run setup` points it at Mailpit. B10 moves email to the provider and the background worker.
+    // B10: how the worker sends email. `smtp` (default) sends to SMTP_URL: Mailpit locally, so nothing leaves the
+    // computer. `resend` sends through Resend's API with RESEND_API_KEY; the worker requires it in production
+    // (assertEmailConfig). The web app never sends email, so it needs neither.
+    EMAIL_DRIVER: z.enum(["smtp", "resend"]).default("smtp"),
+    // B05a/B10: Mailpit's SMTP address in development (`npm run setup` sets smtp://127.0.0.1:1025).
     SMTP_URL: z.url({ protocol: /^smtps?$/, error: "must be an smtp:// or smtps:// address" }).optional(),
-    EMAIL_FROM: z.string().min(3).default("CeyLiving <no-reply@ceyliving.lk>"),
+    // B10: a Resend API key (send-only, limited to the sending domain). Worker only; never in logs or errors.
+    RESEND_API_KEY: z
+      .string()
+      .regex(/^re_[A-Za-z0-9_]{8,200}$/, { error: "must be a Resend API key (re_…)" })
+      .optional(),
+    EMAIL_FROM: z.string().min(3).max(200).default("CeyLiving <no-reply@ceyliving.lk>"),
     // B05b (AU-06): Cloudflare Turnstile. Required in production; elsewhere they default to Cloudflare's published
     // test keys (TURNSTILE_TEST_KEYS), which always pass and never identify a real site.
     TURNSTILE_SITE_KEY: z.string().min(1).max(100).optional(),
@@ -132,10 +140,8 @@ export const envSchema = z
         message: "must not be true when NODE_ENV=production (AU-09)",
       });
     }
-    for (const key of ["BETTER_AUTH_SECRET", "SMTP_URL"] as const) {
-      if (env.NODE_ENV === "production" && !env[key]) {
-        ctx.addIssue({ code: "custom", path: [key], message: "is required in production (B05a)" });
-      }
+    if (env.NODE_ENV === "production" && !env.BETTER_AUTH_SECRET) {
+      ctx.addIssue({ code: "custom", path: ["BETTER_AUTH_SECRET"], message: "is required in production (B05a)" });
     }
     if (env.NODE_ENV === "production" && !env.CACHE_REFRESH_SECRET) {
       ctx.addIssue({ code: "custom", path: ["CACHE_REFRESH_SECRET"], message: "is required in production (B07)" });
@@ -230,6 +236,26 @@ export function parseEnv<S extends z.ZodType = typeof envSchema>(source: Source,
 /** Reads process.env on every call (no cache), so tests that stub variables see the change. */
 export function getEnv(): Env {
   return parseEnv(process.env);
+}
+
+/** The sender address domains production refuses (B10): they can't be verified with Resend. */
+const TEST_SENDER = /@(localhost|example\.(com|org|net)|[^>\s]*\.(invalid|test|local|localhost))>?\s*$/i;
+
+/**
+ * B10: called when the worker starts, the only process that sends email. Production must send through Resend with
+ * a key and a real sender; the web app doesn't send and doesn't need these. Outside production, Mailpit (smtp) is the
+ * default and Resend is used only when chosen. Lists problems by key, never values.
+ */
+export function assertEmailConfig(env: Env = getEnv()): void {
+  const problems: string[] = [];
+  if (env.EMAIL_DRIVER === "resend" && !env.RESEND_API_KEY) {
+    problems.push("RESEND_API_KEY: is required when EMAIL_DRIVER=resend");
+  }
+  if (env.NODE_ENV === "production") {
+    if (env.EMAIL_DRIVER !== "resend") problems.push("EMAIL_DRIVER: must be resend in production (B10)");
+    if (TEST_SENDER.test(env.EMAIL_FROM)) problems.push("EMAIL_FROM: must be an address on a real domain");
+  }
+  if (problems.length) throw new EnvError(problems);
 }
 
 /** Called once at server start (instrumentation.ts): a bad environment stops the app with a clear message. */

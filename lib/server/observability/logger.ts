@@ -42,6 +42,11 @@ const REDACTED_KEYS = [
   "line1",
   "line2",
   "postalCode",
+  // B10: an email's recipient and content (only ever by mistake: email jobs log ids and outcomes)
+  "to",
+  "toAddress",
+  "html",
+  "text",
 ];
 
 // Pino's "*" matches exactly one level, so each depth is listed. Bracket notation copes with "set-cookie".

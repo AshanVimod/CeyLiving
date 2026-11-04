@@ -11,9 +11,11 @@ const empty = z.object({}).strict();
 const id = z.string().min(3).max(100);
 
 export const JOBS = {
-  "email.send": {
-    payload: z.object({ template: z.string().min(1).max(60), to: id, data: z.record(z.string(), z.unknown()) }),
-  },
+  // B10: sends one email_deliveries row. The row holds the template and data; the payload only its id, so the job
+  // table never holds an address or a sign-in link.
+  "email.send": { payload: z.object({ deliveryId: id }) },
+  // B10: tells the admins about failed and stuck emails (each once).
+  "email.watch": { payload: empty, cron: "*/15 * * * *" },
   "image.process": { payload: z.object({ uploadId: id }) },
   "orders.expireUnpaid": { payload: z.object({ orderId: id }) },
   // B07: asks the web app to drop its cached catalogue after stock came back. One queued at a time (singletonKey).

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { EnvError, envSchema, getEnv, parseEnv, TURNSTILE_TEST_KEYS, turnstileKeys } from "./env";
+import { assertEmailConfig, EnvError, envSchema, getEnv, parseEnv, TURNSTILE_TEST_KEYS, turnstileKeys } from "./env";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -55,6 +55,7 @@ describe("lib/env", () => {
     expect(parseEnv(PROD)).toEqual({
       ...PROD,
       ENABLE_DEMO_LOGIN: false,
+      EMAIL_DRIVER: "smtp",
       EMAIL_FROM: "CeyLiving <no-reply@ceyliving.lk>",
       SITE_URL: "http://localhost:3000",
       WORKER_CONCURRENCY: 2,
@@ -105,10 +106,9 @@ describe("lib/env", () => {
     expect(turnstileKeys(parseEnv(PROD))).toEqual({ siteKey: SITE_KEY, secretKey: TURNSTILE_SECRET });
   });
 
-  it("B05a production needs a session secret of 32+ characters and an SMTP server for sign-in emails", () => {
+  it("B05a production needs a session secret of 32+ characters; SMTP_URL must be an SMTP address", () => {
     expect(problems(() => parseEnv({ ...PROD, BETTER_AUTH_SECRET: undefined, SMTP_URL: undefined }))).toEqual([
       "BETTER_AUTH_SECRET: is required in production (B05a)",
-      "SMTP_URL: is required in production (B05a)",
     ]);
     expect(problems(() => parseEnv({ BETTER_AUTH_SECRET: "too-short" }))).toEqual([
       "BETTER_AUTH_SECRET: must be at least 32 characters",
@@ -116,6 +116,30 @@ describe("lib/env", () => {
     expect(problems(() => parseEnv({ SMTP_URL: "https://mail.example.net" }))).toEqual([
       "SMTP_URL: must be an smtp:// or smtps:// address",
     ]);
+  });
+
+  it("B10 the worker sends through Resend in production; the web app needs no email keys", () => {
+    const worker = { ...PROD, EMAIL_DRIVER: "resend", RESEND_API_KEY: "re_live_abcdefgh123" };
+    expect(() => assertEmailConfig(parseEnv(worker))).not.toThrow();
+    // The web app's environment has no email keys at all, and still starts.
+    expect(() => parseEnv({ ...PROD, SMTP_URL: undefined })).not.toThrow();
+    expect(problems(() => assertEmailConfig(parseEnv({ ...PROD })))).toEqual([
+      "EMAIL_DRIVER: must be resend in production (B10)",
+    ]);
+    expect(problems(() => assertEmailConfig(parseEnv({ ...PROD, EMAIL_DRIVER: "resend" })))).toEqual([
+      "RESEND_API_KEY: is required when EMAIL_DRIVER=resend",
+    ]);
+    expect(problems(() => parseEnv({ RESEND_API_KEY: "sk_not_resend" }))).toEqual([
+      "RESEND_API_KEY: must be a Resend API key (re_…)",
+    ]);
+    for (const from of ["CeyLiving <no-reply@example.com>", "dev@localhost", "CeyLiving <x@shop.invalid>"])
+      expect(problems(() => assertEmailConfig(parseEnv({ ...worker, EMAIL_FROM: from })))).toEqual([
+        "EMAIL_FROM: must be an address on a real domain",
+      ]);
+    // Outside production Mailpit is the default, and Resend is used only when chosen.
+    expect(() => assertEmailConfig(parseEnv({ NODE_ENV: "development" }))).not.toThrow();
+    const message = new EnvError(problems(() => parseEnv({ RESEND_API_KEY: "re_bad key!" }))).message;
+    expect(message).not.toContain("bad key");
   });
 
   it("B06 WORKER_CONCURRENCY is a whole number from 1 to 20", () => {
@@ -153,6 +177,7 @@ describe("lib/env", () => {
     expect(parseEnv({ NODE_ENV: "development", ENABLE_DEMO_LOGIN: "", DATABASE_URL: "", SMTP_URL: "" })).toEqual({
       NODE_ENV: "development",
       ENABLE_DEMO_LOGIN: false,
+      EMAIL_DRIVER: "smtp",
       EMAIL_FROM: "CeyLiving <no-reply@ceyliving.lk>",
       SITE_URL: "http://localhost:3000",
       WORKER_CONCURRENCY: 2,

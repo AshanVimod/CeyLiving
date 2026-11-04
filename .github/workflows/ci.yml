@@ -66,9 +66,9 @@ jobs:
         # The build runs as production, which refuses to start without these. Build-only placeholders, set on this
         # step only: the tests (npm run check) keep their own test values and the local storage driver.
         env:
-          # B05a: production builds check these at start-up. Build-only values: no email is sent and no session made in CI.
+          # B05a: production builds check this at start-up. A build-only value: no session is made in CI. (B10: the
+          # email settings belong to the worker, which CI doesn't run, so none are set here.)
           BETTER_AUTH_SECRET: ci-build-only-${{ github.run_id }}-${{ github.run_attempt }}-not-a-secret
-          SMTP_URL: smtp://127.0.0.1:1025
           # B05b (AU-06): the build runs as production, which needs Turnstile keys; these placeholders never reach Cloudflare.
           TURNSTILE_SITE_KEY: ci-build-only-site-key
           TURNSTILE_SECRET_KEY: ci-build-only-not-a-secret

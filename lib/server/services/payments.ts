@@ -5,6 +5,7 @@ import { getEnv, type Env } from "@/lib/env";
 import { formatLkr } from "@/lib/format";
 import type { Order, Payment, ProviderPaymentStatus, Refund, RefundMethod, SellerOrder } from "@/lib/types";
 import { db, withTx, type Tx } from "../db/tx";
+import { queueEmail } from "../email/queue";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import {
   checkoutForm,
@@ -242,7 +243,28 @@ async function paymentSucceeded(
       href: `/seller/orders/${so.id}`,
     })),
   ]);
-  // Emails for these arrive with B10 (email.send), enqueued next to these notifications.
+  // B10: the customer's receipt and each maker's "new paid order". Queueing never throws, so a payment PayHere
+  // confirmed is always recorded, email or not.
+  await queueEmail(tx, "order.placed", {
+    userId: order.customerId,
+    key: order.id,
+    data: {
+      orderNumber: order.orderNumber,
+      totalCents: order.totalCents,
+      shopNames: [...new Set(opened.map((so) => parties.get(so.id)!.shopName))],
+    },
+  });
+  for (const so of opened)
+    await queueEmail(tx, "order.new", {
+      userId: parties.get(so.id)!.shopOwnerId,
+      key: so.id,
+      data: {
+        orderNumber: order.orderNumber,
+        sellerOrderId: so.id,
+        subtotalCents: so.subtotalCents,
+        acceptDays: SELLER_ACCEPT_DEADLINE_DAYS,
+      },
+    });
   return { result: "paid", orderNumber: order.orderNumber };
 }
 

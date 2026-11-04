@@ -65,3 +65,6 @@ export type CustomRequestInput = Loose<z.infer<typeof customRequestSchema>>;
 export type QuoteInput = Loose<z.infer<typeof quoteSchema>>;
 export type RoleChangeInput = z.infer<typeof roleChangeSchema>;
 export type VoteInput = z.infer<typeof voteSchema>;
+
+/** B10: an admin sends a stuck email again. Only the id comes from the browser; the service decides if it may. */
+export const emailRetrySchema = z.object({ deliveryId: id });

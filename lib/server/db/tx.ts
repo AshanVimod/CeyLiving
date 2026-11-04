@@ -115,3 +115,22 @@ export function writableClientOf(tx: Tx): Client {
   if (!handle.writable) throw new Error("Writes need a transaction: wrap them in withTx (BE-03).");
   return handle.client;
 }
+
+/**
+ * Runs `fn` inside a savepoint of the open transaction `tx`. If `fn` throws, only its own writes are undone and the
+ * transaction stays usable, so the caller can carry on and commit (B10: an email that can't be queued never undoes
+ * the order or payment it is about).
+ */
+export async function withSavepoint<T>(tx: Tx, name: string, fn: () => Promise<T>): Promise<T> {
+  if (!/^[a-z_]{1,40}$/.test(name)) throw new Error(`Bad savepoint name: ${name}`);
+  const client = writableClientOf(tx);
+  await client.$executeRawUnsafe(`SAVEPOINT ${name}`);
+  try {
+    const result = await fn();
+    await client.$executeRawUnsafe(`RELEASE SAVEPOINT ${name}`);
+    return result;
+  } catch (error) {
+    await client.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT ${name}`);
+    throw error;
+  }
+}

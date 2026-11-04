@@ -1,5 +1,6 @@
 import "server-only";
 import { db, withTx, type Tx } from "../db/tx";
+import { queueEmail } from "../email/queue";
 import { ConflictError, ForbiddenError } from "../errors";
 import type { Actor } from "../permissions";
 import { findShopByOwner, listShops } from "../repositories/catalogue";
@@ -124,6 +125,8 @@ export async function deleteMyAccount(actor: Actor, now = new Date()): Promise<v
     if ((await sellerOrdersOfCustomer(tx, user.id)).some((so) => OPEN_ORDER.includes(so.status))) {
       throw new ConflictError("You have orders on their way. You can delete your account once they’ve been delivered.");
     }
+    // B10 (FR-17): the goodbye email goes to the address the account had; it is cleared from the row once sent.
+    await queueEmail(tx, "account.deleted", { userId: user.id, key: user.id, data: {}, toAddress: user.email });
     await deleteSignInDataOf(tx, user.id); // AU-11: no password and no session survive deletion
     await updateUser(tx, user.id, {
       name: FORMER,

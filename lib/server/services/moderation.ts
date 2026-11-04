@@ -9,6 +9,7 @@ import type {
   RestrictionInput,
 } from "@/lib/validation/content";
 import { withTx, type Tx } from "../db/tx";
+import { queueEmail } from "../email/queue";
 import { ConflictError, ForbiddenError, NotFoundError } from "../errors";
 import { assertRole, type Actor } from "../permissions";
 import { findProductById, findShopById } from "../repositories/catalogue";
@@ -97,6 +98,11 @@ export async function autoHideReportedContent(targetType: ContentType, targetId:
     const reason = `Hidden automatically after ${open} reports, waiting for review.`;
     await updateContent(tx, targetType, targetId, { status: "HIDDEN", statusReason: reason });
     await audit(tx, WORKER, "content.auto_hidden", targetType, targetId, { reason: `${reason} (reports.autoHide)` });
+    await queueEmail(tx, "content.hidden", {
+      userId: content.authorId,
+      key: `auto:${targetType}:${targetId}:${new Date().toISOString()}`,
+      data: { action: "auto", kind: targetType },
+    });
     return true;
   });
 }
@@ -149,6 +155,16 @@ export async function moderateContent(actor: Actor, input: ModerationInput): Pro
         `A moderator ${to === "HIDDEN" ? "hid" : "deleted"} one of your posts`,
         "/account/questions",
       );
+      // B10: hide, restore and hide again is two emails, so the time is in the key.
+      await queueEmail(tx, "content.hidden", {
+        userId: content.authorId,
+        key: `${input.action}:${input.targetType}:${content.id}:${new Date().toISOString()}`,
+        data: {
+          action: input.action === "delete" ? "delete" : "hide",
+          kind: input.targetType,
+          reason: input.reason || undefined,
+        },
+      });
     }
     await audit(tx, actor, `content.${input.action}`, input.targetType, content.id, {
       reason: input.reason || undefined,
