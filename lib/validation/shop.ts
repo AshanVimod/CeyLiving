@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { SHOP_SLUG, TEXT_LIMITS } from "../config";
-import { district, optionalText, reason, text } from "./common";
+import { district, id, optionalText, reason, text } from "./common";
 import { photoInput } from "./photo";
 
 /** RULE-S2: lowercase letters, numbers and hyphens, 3–60 characters, not a reserved word. */
@@ -32,7 +32,9 @@ export const shopSchema = z.object({
 export type ShopInput = z.infer<typeof shopSchema>;
 
 export const payoutSchema = z.object({
+  accountName: text("the account holder’s name", 3, 80),
   bankName: text("the bank name", 3, 60),
+  branch: text("the branch", 2, 60),
   accountNumber: z
     .string()
     .transform((s) => s.replace(/[\s-]/g, ""))
@@ -40,6 +42,14 @@ export const payoutSchema = z.object({
 });
 
 export type PayoutInput = z.infer<typeof payoutSchema>;
+
+/** B11: an admin asks to see one payout's bank details. The password is checked on the server every time. */
+export const payoutRevealSchema = z.object({
+  payoutId: id,
+  password: z.string({ error: "Enter your password." }).min(1, "Enter your password.").max(128),
+});
+
+export type PayoutRevealInput = z.infer<typeof payoutRevealSchema>;
 
 export const shopDecisionSchema = z.discriminatedUnion("decision", [
   z.object({

@@ -1,9 +1,6 @@
 import type { Shop } from "../types";
 
-export type ShopSeed = Omit<
-  Shop,
-  "id" | "ownerId" | "status" | "statusReason" | "payoutAccountMasked" | "createdAt" | "updatedAt"
->;
+export type ShopSeed = Omit<Shop, "id" | "ownerId" | "status" | "statusReason" | "createdAt" | "updatedAt">;
 
 // Demo shops, used only by the demo data (prisma/seed-data.ts). Names and stories are illustrative.
 export const shopSeeds: ShopSeed[] = [

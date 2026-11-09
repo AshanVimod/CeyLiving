@@ -506,6 +506,7 @@ model Shop {
   returnPolicy        String                   @map("return_policy")
   status              ShopStatus
   statusReason        String?                  @map("status_reason")
+  /// Replaced by ShopPayoutAccount (B11). Still written so an older app version works after a rollback; nothing reads it.
   payoutAccountMasked String?                  @map("payout_account_masked")
   /// B08 (PAY-05): set by a chargeback; while set, no payout is made or marked paid. An admin releases it (audited).
   payoutHoldReason    String?                  @map("payout_hold_reason")
@@ -522,6 +523,7 @@ model Shop {
   questions      ProductQuestion[]
   payouts        Payout[]
   customRequests CustomRequest[]
+  payoutAccount  ShopPayoutAccount?
 
   /// RULE-S1: one open shop per owner (a closed shop's owner may open another later).
   @@unique([ownerId], map: "shops_one_open_per_owner", where: raw("status <> 'CLOSED'"))
@@ -529,6 +531,25 @@ model Shop {
   @@index([status])
   @@index([searchVector], map: "shops_search_vector_idx", type: Gin)
   @@map("shops")
+}
+
+/// B11 (12.4, G-09): the bank details for a shop's transfers. The account number is stored only encrypted (CHECK in the
+/// migration); only the reveal and the re-encrypt script ever select it.
+model ShopPayoutAccount {
+  shopId           String    @id @map("shop_id")
+  bankName         String    @map("bank_name")
+  branch           String
+  accountName      String    @map("account_name")
+  accountNumberEnc String    @map("account_number_enc")
+  accountLast4     String    @map("account_last4")
+  /// Set the first time a transfer to this account is recorded; cleared when the account is replaced.
+  verifiedAt       DateTime? @map("verified_at") @db.Timestamptz(3)
+  createdAt        DateTime  @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @map("updated_at") @db.Timestamptz(3)
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Restrict)
+
+  @@map("shop_payout_accounts")
 }
 
 model Product {

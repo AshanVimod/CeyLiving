@@ -40,3 +40,8 @@ export function formatTime(iso: string): string {
 export function auditActorName(actorId: string | undefined, userNames: ReadonlyMap<string, string>): string {
   return actorId ? (userNames.get(actorId) ?? actorId) : "CeyLiving (scheduled job)";
 }
+
+/** B11: how a payout account is shown everywhere: the bank and the last four digits. */
+export function payoutAccountLabel(account: { bankName: string; accountLast4: string }): string {
+  return `${account.bankName} •••• ${account.accountLast4}`;
+}

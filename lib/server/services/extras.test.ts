@@ -31,7 +31,7 @@ describe("FR-13 payouts (BR-10, BR-11)", () => {
 
   it("BR-11 pays orders only after the hold, once each, and skips shops without payout details", async () => {
     await changeData((db) => {
-      db.shops.find((s) => s.id === RATA)!.payoutAccountMasked = undefined;
+      db.payoutAccounts = db.payoutAccounts.filter((a) => a.shopId !== RATA);
     });
     const created = await generatePayouts(user("user_admin"));
     const db = await readAll();

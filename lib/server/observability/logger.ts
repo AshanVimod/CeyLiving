@@ -32,6 +32,18 @@ const REDACTED_KEYS = [
   "accountNumber",
   "account_number",
   "payoutAccountMasked",
+  // B11 (12.4): bank details and the keys that protect them (only ever by mistake: this code logs ids and outcomes)
+  "accountNumberEnc",
+  "account_number_enc",
+  "accountName",
+  "account_name",
+  "accountLast4",
+  "account_last4",
+  "bankName",
+  "bank_name",
+  "branch",
+  "FIELD_ENCRYPTION_KEY",
+  "FIELD_ENCRYPTION_PREVIOUS_KEYS",
   // Contact details and addresses
   "email",
   "phone",

@@ -32,6 +32,8 @@ export const EMAILS = {
   /** Delivered (by the customer, or BR-17 after 7 days) and an invitation to review (RULE-R1). */
   "order.delivered": z.object({ orderNumber, shopName, automatic: z.boolean() }),
   "payout.paid": z.object({ netCents: z.number().int(), periodStart: z.iso.datetime(), periodEnd: z.iso.datetime() }),
+  /** B11: the seller's bank account was replaced. Deliberately carries no bank details. */
+  "payout.account_changed": z.object({ changedAt: z.iso.datetime() }),
   "content.hidden": z.object({
     action: z.enum(["hide", "delete", "auto"]),
     kind: z.enum(["REVIEW", "QUESTION", "ANSWER"]),
@@ -60,6 +62,7 @@ export const EMAIL_LABELS: Record<EmailTemplate, string> = {
   "order.dispatched": "Order dispatched",
   "order.delivered": "Delivered, review invitation",
   "payout.paid": "Payout sent",
+  "payout.account_changed": "Payout bank account changed",
   "content.hidden": "Post hidden or removed",
   "account.deleted": "Account deleted",
 };

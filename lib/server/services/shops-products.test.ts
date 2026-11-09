@@ -10,9 +10,11 @@ import { getPublicProduct, getPublicShop, queryCatalogue } from "../catalogue";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../errors";
 import { assertShopOwner } from "../permissions";
 import { findShopByOwner } from "../repositories/catalogue";
+import { findPayoutAccount } from "../repositories/payout-accounts";
 import { decideApplication } from "./applications";
+import { savePayoutDetails } from "./payout-accounts";
 import { archiveProduct, decideProduct, saveProduct } from "./products";
-import { decideShop, savePayoutDetails, updateShop } from "./shops";
+import { decideShop, updateShop } from "./shops";
 
 withTestDatabase();
 
@@ -55,10 +57,15 @@ describe("shops", () => {
     expect((await findShopByOwner(readDb, seller.id))!.status).toBe("DRAFT");
     await saveProduct(seller, productInput(await productPhotos(seller.id)), "submit");
     expect((await findShopByOwner(readDb, seller.id))!.status).toBe("DRAFT");
-    await savePayoutDetails(seller, { bankName: "Bank of Ceylon", accountNumber: "12345678" });
+    await savePayoutDetails(seller, {
+      accountName: "A Test Seller",
+      bankName: "Bank of Ceylon",
+      branch: "Kandy",
+      accountNumber: "12345678",
+    });
     const shop = (await findShopByOwner(readDb, seller.id))!;
     expect(shop.status).toBe("ACTIVE");
-    expect(shop.payoutAccountMasked).toBe("Bank of Ceylon •••• 5678");
+    expect((await findPayoutAccount(readDb, shop.id))!.accountLast4).toBe("5678");
   });
 
   it("FR-4 suspend hides the shop at once and writes an audit row; reinstate brings it back", async () => {

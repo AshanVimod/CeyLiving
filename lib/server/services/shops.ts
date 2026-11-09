@@ -1,7 +1,7 @@
 import "server-only";
 import { TEXT_LIMITS } from "@/lib/config";
 import type { Shop, ShopStatus } from "@/lib/types";
-import type { PayoutInput, ShopDecisionInput, ShopInput } from "@/lib/validation/shop";
+import type { ShopDecisionInput, ShopInput } from "@/lib/validation/shop";
 import { db, withTx, type Tx } from "../db/tx";
 import { ConflictError, NotFoundError, ValidationError } from "../errors";
 import { assertRole, shopOfSeller, type Actor } from "../permissions";
@@ -14,6 +14,7 @@ import {
   updateShop as updateShopRow,
 } from "../repositories/catalogue";
 import { sellerOrdersOfShop } from "../repositories/commerce";
+import { hasPayoutAccount } from "../repositories/payout-accounts";
 import { addNotification, updateUser } from "../repositories/people";
 import { assertTransition, audit, staleStatus } from "./shared";
 import { assertPhotosUsable } from "./uploads";
@@ -45,7 +46,7 @@ export async function shopChecklist(shop: Shop, tx: Tx = db): Promise<Checklist>
       shop.story.length >= TEXT_LIMITS.storyMin &&
       Boolean(shop.district && shop.dispatchDays && shop.returnPolicy),
     firstItem: products.some((p) => p.status === "ACTIVE" || p.status === "PENDING_REVIEW"),
-    payoutAdded: Boolean(shop.payoutAccountMasked),
+    payoutAdded: await hasPayoutAccount(tx, shop.id),
   };
 }
 
@@ -94,18 +95,6 @@ export async function updateShop(actor: Actor, input: ShopInput): Promise<Shop> 
     });
     await activateIfReady(tx, shop.id);
     return (await findShopById(tx, shop.id))!;
-  });
-}
-
-/** FR-13: only the last four digits are kept; full bank details belong in the payment provider. */
-export async function savePayoutDetails(actor: Actor, input: PayoutInput): Promise<void> {
-  await withTx(async (tx) => {
-    const shop = await shopOfSeller(actor, tx);
-    await updateShopRow(tx, shop.id, {
-      payoutAccountMasked: `${input.bankName} •••• ${input.accountNumber.slice(-4)}`,
-      updatedAt: new Date().toISOString(),
-    });
-    await activateIfReady(tx, shop.id);
   });
 }
 

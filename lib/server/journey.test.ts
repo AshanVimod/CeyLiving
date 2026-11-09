@@ -12,7 +12,8 @@ import { confirmDelivery, transitionSellerOrder } from "./services/orders";
 import { decideProduct, saveProduct } from "./services/products";
 import { answerQuestion, askQuestion } from "./services/questions";
 import { createReview, reviewEligibility } from "./services/reviews";
-import { savePayoutDetails, updateShop } from "./services/shops";
+import { savePayoutDetails } from "./services/payout-accounts";
+import { updateShop } from "./services/shops";
 import { SHIPPING_FEE_PER_SHOP_CENTS } from "@/lib/config";
 
 withTestDatabase();
@@ -87,7 +88,12 @@ describe("C13 full journey", () => {
       "submit",
     );
     expect(item.status).toBe("PENDING_REVIEW");
-    await savePayoutDetails(seller, { bankName: "Sampath Bank", accountNumber: "1029384756" });
+    await savePayoutDetails(seller, {
+      accountName: "A Test Seller",
+      bankName: "Sampath Bank",
+      branch: "Kandy",
+      accountNumber: "1029384756",
+    });
     expect((await findShopByOwner(readDb, seller.id))!.status).toBe("ACTIVE");
     expect(await getPublicProduct(item.slug)).toBeUndefined();
 

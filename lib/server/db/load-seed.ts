@@ -76,6 +76,11 @@ export async function loadStoreData(
       await tx.rateEvent.createMany({ data: data.rateEvents.map((e) => ({ ...e, at: new Date(e.at) })) });
 
       await tx.shop.createMany({ data: rows<typeof tx.shop>(data.shops.map(shopColumns)) });
+      await tx.shopPayoutAccount.createMany({
+        data: rows<typeof tx.shopPayoutAccount>(
+          data.payoutAccounts.map((a) => withDates(a, ["verifiedAt", "createdAt", "updatedAt"])),
+        ),
+      });
       await tx.product.createMany({
         data: rows<typeof tx.product>(
           data.products.map((p) => ({ ...productColumns(p), shopId: shopIdOf.get(p.shopSlug) })),

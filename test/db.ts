@@ -142,6 +142,12 @@ export async function readAll(): Promise<SeedData> {
     users: (await c.user.findMany({ orderBy: [...byCreated] })).map(toUser),
     applications: (await c.sellerApplication.findMany({ orderBy: [...byCreated] })).map(toApplication),
     shops: (await c.shop.findMany({ orderBy: [...byCreated] })).map(toShop),
+    payoutAccounts: (await c.shopPayoutAccount.findMany({ orderBy: { shopId: "asc" } })).map((row) => ({
+      ...row,
+      verifiedAt: row.verifiedAt?.toISOString(),
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    })),
     products: (await c.product.findMany({ include: productInclude, orderBy: [...byCreated] })).map(toProduct),
     orders: (await c.order.findMany({ orderBy: [{ placedAt: "asc" }, { id: "asc" }] })).map(toOrder),
     sellerOrders: (await c.sellerOrder.findMany({ orderBy: { id: "asc" } })).map(toSellerOrder),

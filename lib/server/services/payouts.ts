@@ -15,6 +15,7 @@ import {
   unpaidCompletedSellerOrders,
   updatePayout,
 } from "../repositories/commerce";
+import { findPayoutAccount, hasPayoutAccount, markPayoutAccountVerified } from "../repositories/payout-accounts";
 import { markClawbacksDeducted, undeductedClawbacksOfShop } from "../repositories/payments";
 import { addNotification, newId } from "../repositories/people";
 import { audit, JOB_BATCH_SIZE, WORKER } from "./shared";
@@ -67,7 +68,7 @@ async function payoutForShop(by: Actor | typeof WORKER, shopId: string, now: Dat
     return await withTx(async (tx) => {
       const shop = await findShopById(tx, shopId);
       // PAY-05: a chargeback holds the shop's payouts until an admin releases them.
-      if (!shop?.payoutAccountMasked || shop.payoutHoldReason) return undefined;
+      if (!shop || shop.payoutHoldReason || !(await hasPayoutAccount(tx, shop.id))) return undefined;
       const orders = await payableOrders(tx, shop.id, now);
       if (!orders.length) return undefined;
       const clawbacks = takeClawbacks(
@@ -162,6 +163,7 @@ export async function markPayoutPaid(
       { from: "SCHEDULED" },
     );
     if (!paid) throw new ConflictError("Only scheduled payouts can be marked paid.");
+    await markPayoutAccountVerified(tx, payout.shopId, now); // B11: the first transfer to this account has been made
     const shop = await findShopById(tx, payout.shopId);
     if (shop) {
       await addNotification(
@@ -193,5 +195,6 @@ export async function sellerPayoutSummary(actor: Actor, now = new Date(), tx: Tx
   }));
   const onHold = upcoming.filter((u) => u.payableFrom.getTime() > now.getTime());
   const ready = upcoming.filter((u) => u.payableFrom.getTime() <= now.getTime());
-  return { shop, payouts, onHold, ready, rateBps: COMMISSION_RATE_BPS };
+  const account = await findPayoutAccount(tx, shop.id);
+  return { shop, account, payouts, onHold, ready, rateBps: COMMISSION_RATE_BPS };
 }

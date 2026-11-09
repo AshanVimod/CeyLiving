@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ActionResult, ActionState } from "@/lib/action-result";
+import { payoutRevealSchema } from "@/lib/validation/shop";
 import {
   customRequestSchema,
   declineRequestSchema,
@@ -17,6 +18,7 @@ import {
 import { requireActor } from "../auth";
 import { getAuth } from "../better-auth";
 import { refreshEverything } from "./refresh";
+import { requestLogger } from "../observability/logger";
 import { formToObject, parseInput, runAction } from "../run-action";
 import { changeRole, toggleHelpful } from "../services/community-extras";
 import {
@@ -26,9 +28,29 @@ import {
   respondToQuote,
 } from "../services/custom-requests";
 import { generatePayouts, markPayoutPaid } from "../services/payouts";
+import { revealPayoutAccount, type RevealedPayoutAccount } from "../services/payout-accounts";
 import { deleteMyAccount } from "../services/privacy";
 
 // FR-13, FR-14, FR-16, FR-17, FR-19. Same shape as every action: who → validate → service → refresh.
+
+export type PayoutRevealResult = ActionResult & { account?: RevealedPayoutAccount };
+
+/**
+ * B11 (12.4): the admin's "reveal for payout". The details exist only in this response: no page holds them, and this
+ * action refreshes nothing. The service checks the role and the password and writes the audit row before returning.
+ */
+export async function revealPayoutAccountAction(_: ActionState, form: FormData): Promise<PayoutRevealResult> {
+  return runAction<PayoutRevealResult>(async () => {
+    const actor = await requireActor();
+    const input = parseInput(payoutRevealSchema, formToObject(form));
+    const account = await revealPayoutAccount(actor, input);
+    requestLogger(new Headers(await headers())).log.info(
+      { actorId: actor.id, payoutId: input.payoutId },
+      "payout_account.revealed",
+    );
+    return { ok: true, account };
+  });
+}
 
 export async function createCustomRequestAction(_: ActionState, form: FormData): Promise<ActionResult> {
   return runAction(async () => {

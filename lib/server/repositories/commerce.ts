@@ -399,6 +399,16 @@ export async function listPayouts(tx: Tx): Promise<Payout[]> {
   return rows.map(toPayout);
 }
 
+/** FR-17: delivered orders not yet in a statement, or a statement not yet paid. */
+export async function isMoneyOwedToShop(tx: Tx, shopId: string): Promise<boolean> {
+  const client = clientOf(tx);
+  const [unpaidOrder, openPayout] = await Promise.all([
+    client.sellerOrder.findFirst({ where: { shopId, status: "COMPLETED", payoutId: null }, select: { id: true } }),
+    client.payout.findFirst({ where: { shopId, status: "SCHEDULED" }, select: { id: true } }),
+  ]);
+  return Boolean(unpaidOrder || openPayout);
+}
+
 export async function findPayout(tx: Tx, id: string): Promise<Payout | undefined> {
   const row = await clientOf(tx).payout.findUnique({ where: { id }, include: payoutInclude });
   return row ? toPayout(row) : undefined;

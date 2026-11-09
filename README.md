@@ -56,6 +56,8 @@ A pre-commit hook (Husky + lint-staged) runs Prettier and `eslint --fix` on stag
 | `TURNSTILE_SECRET_KEY`                                      | Cloudflare Turnstile secret key                       | Used only on the server, to ask Cloudflare whether a token is valid. Same rules as the site key.                                                                                                                                                     |
 | `CACHE_REFRESH_SECRET`                                      | 32+ random characters                                 | Shared by the site and the worker: the worker uses it to ask the site to refresh its cached catalogue after stock comes back (B07). Required in production; `npm run setup` adds a local one. Without it (development only) that refresh is skipped. |
 | `INTERNAL_APP_URL`                                          | `http://…` address (default `SITE_URL`)               | Where the worker reaches the site, e.g. `http://web:3000` inside Docker (B07).                                                                                                                                                                       |
+| `FIELD_ENCRYPTION_KEY`                                      | 32 random bytes, base64 (`openssl rand -base64 32`)   | B11 (12.4). Encrypts sellers' bank account numbers. Required when the site starts in production. The worker doesn't need it and shouldn't have it. Never in the source, the database, logs or GitHub. Keep a secure offline copy.                    |
+| `FIELD_ENCRYPTION_PREVIOUS_KEYS`                            | Older keys, comma-separated (at most 5)               | B11. Only during a key rotation: used to decrypt, never to encrypt.                                                                                                                                                                                  |
 | `PAYHERE_MERCHANT_ID`                                       | PayHere merchant ID (digits)                          | B08. Required in production. Unset in development and tests, a stand-in is used that only the dev "Simulate payment" button can pay with; production refuses it.                                                                                     |
 | `PAYHERE_MERCHANT_SECRET`                                   | The merchant secret for this domain                   | B08 (PAY-02). Signs the checkout form and checks PayHere's notifications. Server only: it never reaches the browser, logs or error messages. Required in production. Never commit it.                                                                |
 | `PAYHERE_MODE`                                              | `sandbox` (default) or `live`                         | Which PayHere the customer is sent to. Also read at build time (the CSP's `form-action`), so build with the same value.                                                                                                                              |
@@ -227,6 +229,24 @@ Every email is sent by the worker's `email.send` job, never inside a request (ba
 - **Templates:** `lib/server/email/templates.ts`, typed functions with an `html` helper that escapes every value, each with a plain-text version. They are plain functions, not React: the worker runs with React's server-components build, where `react-dom/server` can't be loaded.
 - **Development:** `npm run dev` runs the worker; open http://localhost:8025 (Mailpit) to read every email. Without the worker, emails wait in the queue.
 - **Production (Resend):** before launch, verify the sending domain in Resend with SPF, DKIM and DMARC (11.2), create a send-only API key limited to that domain, and give it to the worker only. Bounces and complaints (Resend webhooks) aren't handled yet.
+
+## Bank details (B11)
+
+Sellers' account numbers are encrypted with AES-256-GCM before they're stored (`lib/server/crypto/field-encryption.ts`), and a database check refuses anything that isn't encrypted. Bank, branch, holder name and last four digits stay readable, so the pages never need the key.
+
+- **Who sees what:** sellers see the last four digits of their own account, and can replace it but never read it back. Admins see the bank and last four in the payouts list. The full number needs **Show bank details** on one scheduled payout that isn't on hold, plus the admin's password every time. The worker can't reach it (a test walks its imports).
+- **Audit:** a reveal writes `payout_account.revealed` in the same transaction as the read, and nothing is shown unless it commits. Failed attempts write `payout_account.reveal_failed` with a reason code. Five failed attempts (wrong password or refused role) lock the reveal for 15 minutes, and an admin can make 60 reveals an hour. Saving or replacing details writes `payout_account.saved`, and a replacement also notifies and emails the seller.
+- **An admin needs a password.** An account with none (for example a demo account) is told to set one with "Forgot password".
+- **Wrong key:** the reveal is refused, the failure is audited, and nothing is shown. Masked details, statements and marking paid keep working, because they don't decrypt. `npm run payouts:reencrypt -- --check` finds rows that can't be read.
+- **Keep the key safe.** Store it in the server's secret store, never with the database or its backups, and keep a secure offline copy. Without it, stored numbers can't be read and sellers have to enter them again.
+- **Account deletion and export (FR-17):** export shows the last four digits only. Deletion removes the details of the person's closed shops, and waits while a payout is still owed.
+
+**Rotating the key** (planned, or at once after a suspected leak):
+
+1. Run `openssl rand -base64 32`. Set the result as `FIELD_ENCRYPTION_KEY`, move the old key to `FIELD_ENCRYPTION_PREVIOUS_KEYS`, and restart the site.
+2. Run `npm run payouts:reencrypt`. It prints counts only, can be stopped and run again, and exits with an error if any row couldn't be read (that row is left alone).
+3. Run `npm run payouts:reencrypt -- --check`, confirm that only the new key is listed, remove the old key from `FIELD_ENCRYPTION_PREVIOUS_KEYS`, and restart.
+4. Keep the retired key offline for 30 days: a restored nightly dump (backend plan 17.4) needs the key it was made with. After a leak, dumps made before the rotation stay readable with the leaked key until they age out, so count them in the breach assessment.
 
 ## Routes
 

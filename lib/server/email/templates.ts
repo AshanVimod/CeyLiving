@@ -245,6 +245,17 @@ const TEMPLATES: { [T in EmailTemplate]: (data: EmailData<T>, ctx: EmailContext)
       text: `${lead}\n\n${timing}`,
     };
   },
+  "payout.account_changed": ({ changedAt }, ctx) => {
+    const lead = `The bank account your CeyLiving payouts go to was changed on ${formatDate(changedAt)}.`;
+    const warning = "If this wasn’t you, contact us straight away and change your password.";
+    return {
+      subject: "Your CeyLiving payout bank account was changed",
+      heading: "Your payout account was changed",
+      body: [html`${lead}`, html`${warning}`],
+      button: { label: "Check your payout details", url: `${ctx.siteUrl}/seller/payouts` },
+      text: `${lead}\n\n${warning}`,
+    };
+  },
   "content.hidden": ({ action, kind, reason }, ctx) => {
     const what = KIND[kind];
     const lead =

@@ -23,6 +23,7 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx --conditions=react-server --env-file-if-exists=.env.local prisma/seed.ts",
     "db:reset": "prisma migrate reset --force && npm run jobs:migrate && npm run db:seed",
+    "payouts:reencrypt": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/payouts-reencrypt.ts",
     "jobs:migrate": "tsx --env-file-if-exists=.env.local worker/migrate-cli.ts"
   },
   "engines": {

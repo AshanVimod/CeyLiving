@@ -1,13 +1,16 @@
 import { Suspense } from "react";
 import { PageTitle } from "@/components/account/area-shell";
 import { PayoutForm, ShopProfileForm } from "@/components/seller/shop-forms";
+import { payoutAccountLabel } from "@/lib/format";
+import { findPayoutAccount } from "@/lib/server/repositories/payout-accounts";
 import { sellerContext } from "@/lib/server/seller-context";
 
 export const metadata = { title: "Shop profile" };
 
 async function ShopProfile() {
-  const { shop } = await sellerContext("/seller/shop");
+  const { shop, db } = await sellerContext("/seller/shop");
   if (shop.status === "CLOSED") return <p className="text-ink-soft">This shop is closed.</p>;
+  const account = await findPayoutAccount(db, shop.id);
   return (
     <>
       <PageTitle title="Shop profile" description="What customers see on your shop page." />
@@ -23,7 +26,9 @@ async function ShopProfile() {
           Payout details
         </h2>
         <p className="mb-5 text-ink-soft">Earnings are paid weekly, 7 days after delivery.</p>
-        <PayoutForm masked={shop.payoutAccountMasked} />
+        <PayoutForm
+          current={account && `${account.accountName}, ${payoutAccountLabel(account)}, ${account.branch} branch`}
+        />
       </section>
     </>
   );

@@ -50,8 +50,9 @@ describe("seed loader and database errors (PostgreSQL only)", () => {
   });
 
   it("SEC-A8 the loader never replaces data in production", async () => {
+    const seed = buildSeed(new Date()); // B11: built first, because the demo data is encrypted with the development key
     vi.stubEnv("NODE_ENV", "production");
-    await expect(loadStoreData(migrator, buildSeed(new Date()), { replace: true })).rejects.toThrow("production");
+    await expect(loadStoreData(migrator, seed, { replace: true })).rejects.toThrow("production");
   });
 
   it("OPS-03 a CHECK refusal stays an unexpected error, never a ConflictError with database text", async () => {

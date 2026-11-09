@@ -2,13 +2,15 @@ import { Suspense } from "react";
 import { EmptyState, PageTitle } from "@/components/account/area-shell";
 import { DataTable, Td } from "@/components/admin/data-table";
 import { GeneratePayoutsButton, MarkPaidButton } from "@/components/admin/payout-actions";
+import { RevealPayoutAccount } from "@/components/admin/payout-reveal";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PAYOUT_HOLD_DAYS } from "@/lib/config";
-import { formatDate, formatLkr } from "@/lib/format";
+import { formatDate, formatLkr, payoutAccountLabel } from "@/lib/format";
 import { requireRole } from "@/lib/server/auth";
 import { db } from "@/lib/server/db/tx";
 import { listShops } from "@/lib/server/repositories/catalogue";
 import { listPayouts } from "@/lib/server/repositories/commerce";
+import { payoutAccountsOfShops } from "@/lib/server/repositories/payout-accounts";
 
 export const metadata = { title: "Payouts" };
 
@@ -17,6 +19,9 @@ async function Payouts() {
   const shops = await listShops(db);
   const payouts = [...(await listPayouts(db))].sort(
     (a, b) => Number(a.status === "PAID") - Number(b.status === "PAID") || b.createdAt.localeCompare(a.createdAt),
+  );
+  const accounts = new Map(
+    (await payoutAccountsOfShops(db, [...new Set(payouts.map((p) => p.shopId))])).map((a) => [a.shopId, a]),
   );
   return (
     <>
@@ -34,11 +39,15 @@ async function Payouts() {
         >
           {payouts.map((p) => {
             const shop = shops.find((s) => s.id === p.shopId);
+            const account = accounts.get(p.shopId);
             return (
               <tr key={p.id}>
                 <Td>
                   <span className="font-semibold">{shop?.name}</span>
-                  <span className="block text-sm text-ink-soft">{shop?.payoutAccountMasked}</span>
+                  <span className="block text-sm text-ink-soft">
+                    {account ? payoutAccountLabel(account) : "Bank details not added"}
+                    {account && !account.verifiedAt ? " · New account" : ""}
+                  </span>
                 </Td>
                 <Td>
                   {formatDate(p.periodStart)} to {formatDate(p.periodEnd)}
@@ -54,7 +63,14 @@ async function Payouts() {
                   {p.reference ? <span className="mt-1 block text-xs text-ink-soft">Ref {p.reference}</span> : null}
                 </Td>
                 <Td>
-                  {p.status === "SCHEDULED" && shop ? <MarkPaidButton payoutId={p.id} shopName={shop.name} /> : null}
+                  {p.status === "SCHEDULED" && shop ? (
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {account && !shop.payoutHoldReason ? (
+                        <RevealPayoutAccount payoutId={p.id} shopName={shop.name} />
+                      ) : null}
+                      <MarkPaidButton payoutId={p.id} shopName={shop.name} />
+                    </div>
+                  ) : null}
                 </Td>
               </tr>
             );

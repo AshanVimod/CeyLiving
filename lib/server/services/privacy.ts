@@ -3,9 +3,11 @@ import { db, withTx, type Tx } from "../db/tx";
 import { queueEmail } from "../email/queue";
 import { ConflictError, ForbiddenError } from "../errors";
 import type { Actor } from "../permissions";
+import { audit } from "./shared";
 import { findShopByOwner, listShops } from "../repositories/catalogue";
 import {
   customRequestsOfCustomer,
+  isMoneyOwedToShop,
   itemsOfSellerOrders,
   listOrdersOfCustomer,
   renameCustomerOnRequests,
@@ -19,6 +21,7 @@ import {
   reportsByReporter,
   reviewsByAuthor,
 } from "../repositories/content";
+import { deletePayoutAccount, payoutAccountsOfOwner } from "../repositories/payout-accounts";
 import {
   addressesOf,
   applicationsOf,
@@ -100,6 +103,15 @@ export async function exportMyData(actor: Actor, tx: Tx = db) {
       createdAt: r.createdAt,
     })),
     sellerApplications: await applicationsOf(tx, actor.id),
+    // B11 (12.4): what we hold, without the account number itself, so a stolen session can't get it from an export.
+    payoutAccounts: (await payoutAccountsOfOwner(tx, actor.id)).map((a) => ({
+      shopId: a.shopId,
+      bankName: a.bankName,
+      branch: a.branch,
+      accountName: a.accountName,
+      accountNumberLast4: a.accountLast4,
+      verifiedAt: a.verifiedAt,
+    })),
     customRequests: await customRequestsOfCustomer(tx, actor.id),
     notifications: (await notificationsOf(tx, actor.id)).map((n) => ({
       title: n.title,
@@ -124,6 +136,17 @@ export async function deleteMyAccount(actor: Actor, now = new Date()): Promise<v
       throw new ConflictError("Close your shop before deleting your account. Contact us to close it.");
     if ((await sellerOrdersOfCustomer(tx, user.id)).some((so) => OPEN_ORDER.includes(so.status))) {
       throw new ConflictError("You have orders on their way. You can delete your account once they’ve been delivered.");
+    }
+    // B11 (FR-17): bank details of closed shops go with the account, but only once nothing is owed to them.
+    const payoutAccounts = await payoutAccountsOfOwner(tx, user.id);
+    for (const account of payoutAccounts) {
+      if (await isMoneyOwedToShop(tx, account.shopId)) {
+        throw new ConflictError("We still owe you a payout. You can delete your account once it’s been paid.");
+      }
+    }
+    for (const account of payoutAccounts) {
+      await deletePayoutAccount(tx, account.shopId);
+      await audit(tx, actor, "payout_account.deleted", "SHOP", account.shopId, { reason: "Account deleted (FR-17)" });
     }
     // B10 (FR-17): the goodbye email goes to the address the account had; it is cleared from the row once sent.
     await queueEmail(tx, "account.deleted", { userId: user.id, key: user.id, data: {}, toAddress: user.email });

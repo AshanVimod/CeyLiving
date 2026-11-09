@@ -1,7 +1,19 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { assertEmailConfig, EnvError, envSchema, getEnv, parseEnv, TURNSTILE_TEST_KEYS, turnstileKeys } from "./env";
+import { randomBytes } from "node:crypto";
+import {
+  assertEmailConfig,
+  assertFieldEncryptionConfig,
+  EnvError,
+  envSchema,
+  FIELD_ENCRYPTION_DEV_KEY,
+  fieldEncryptionKeys,
+  getEnv,
+  parseEnv,
+  TURNSTILE_TEST_KEYS,
+  turnstileKeys,
+} from "./env";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -39,6 +51,66 @@ const PROD = {
   R2_PUBLIC_BUCKET: "ceyliving-images",
   NEXT_PUBLIC_IMAGE_BASE_URL: "https://img.ceyliving.lk",
 };
+
+describe("B11 field encryption key", () => {
+  const randomKey = () => randomBytes(32).toString("base64");
+
+  it("12.3 production refuses a missing FIELD_ENCRYPTION_KEY at web start", () => {
+    const env = parseEnv(PROD);
+    expect(problems(() => assertFieldEncryptionConfig(env))).toEqual([
+      "FIELD_ENCRYPTION_KEY: is required in production (B11)",
+    ]);
+  });
+
+  it("12.3 the worker's environment parses in production without the key", () => {
+    expect(parseEnv(PROD).FIELD_ENCRYPTION_KEY).toBeUndefined();
+  });
+
+  it("12.3 production never falls back to the stand-in", () => {
+    expect(() => fieldEncryptionKeys(parseEnv(PROD))).toThrow(EnvError);
+    expect(fieldEncryptionKeys(parseEnv({ NODE_ENV: "development" })).current).toBe(FIELD_ENCRYPTION_DEV_KEY);
+  });
+
+  it("12.3 production refuses the stand-in and a weak key, in either variable", () => {
+    const zeros = Buffer.alloc(32).toString("base64");
+    for (const key of [FIELD_ENCRYPTION_DEV_KEY, zeros]) {
+      expect(problems(() => parseEnv({ ...PROD, FIELD_ENCRYPTION_KEY: key }))[0]).toContain("FIELD_ENCRYPTION_KEY:");
+      expect(
+        problems(() =>
+          parseEnv({ ...PROD, FIELD_ENCRYPTION_KEY: randomKey(), FIELD_ENCRYPTION_PREVIOUS_KEYS: key }),
+        )[0],
+      ).toContain("FIELD_ENCRYPTION_PREVIOUS_KEYS:");
+    }
+  });
+
+  it("12.3 accepts a random key in production", () => {
+    const key = randomKey();
+    const env = parseEnv({ ...PROD, FIELD_ENCRYPTION_KEY: key });
+    expect(fieldEncryptionKeys(env)).toEqual({ current: key, previous: [] });
+  });
+
+  it("12.3 a malformed or wrong-length key is refused, and the error shows no value", () => {
+    const short = Buffer.alloc(16, "x").toString("base64");
+    for (const bad of [short, "not base64 at all", `${randomKey()}x`]) {
+      const found = problems(() => parseEnv({ FIELD_ENCRYPTION_KEY: bad }));
+      expect(found[0]).toContain("must be 32 random bytes");
+      expect(found.join()).not.toContain(bad);
+    }
+  });
+
+  it("12.3 a previous key equal to the current key is refused", () => {
+    const key = randomKey();
+    expect(problems(() => parseEnv({ FIELD_ENCRYPTION_KEY: key, FIELD_ENCRYPTION_PREVIOUS_KEYS: key }))[0]).toContain(
+      "must not contain the current",
+    );
+  });
+
+  it("12.4 several previous keys are read from one comma-separated value", () => {
+    const [a, b] = [randomKey(), randomKey()];
+    const env = parseEnv({ FIELD_ENCRYPTION_PREVIOUS_KEYS: `${a}, ${b}` });
+    expect(fieldEncryptionKeys(env).previous).toEqual([a, b]);
+  });
+});
 
 describe("lib/env", () => {
   it("AU-09 refuses ENABLE_DEMO_LOGIN=true when NODE_ENV=production", () => {

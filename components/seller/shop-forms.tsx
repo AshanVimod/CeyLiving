@@ -115,25 +115,35 @@ export function ShopProfileForm({ shop }: { shop: Shop }) {
   );
 }
 
-export function PayoutForm({ masked }: { masked?: string }) {
+/** B11: `current` is what may be shown of the saved account. The number itself is never sent back to the browser. */
+export function PayoutForm({ current }: { current?: string }) {
   return (
     <ActionForm
       action={savePayoutAction}
-      submitLabel={masked ? "Replace payout account" : "Save payout details"}
+      submitLabel={current ? "Replace payout account" : "Save payout details"}
       resetOnSuccess
     >
-      {masked ? <p className="text-ink-soft">Current account: {masked}</p> : null}
+      {current ? <p className="text-ink-soft">Current account: {current}</p> : null}
+      <FormInput
+        label="Account holder’s name"
+        name="accountName"
+        required
+        maxLength={80}
+        autoComplete="off"
+        helper="Exactly as your bank has it."
+      />
       <div className="grid gap-5 sm:grid-cols-2">
         <FormInput label="Bank" name="bankName" required maxLength={60} autoComplete="off" />
-        <FormInput
-          label="Account number"
-          name="accountNumber"
-          required
-          inputMode="numeric"
-          autoComplete="off"
-          helper="Only the last four digits are stored here."
-        />
+        <FormInput label="Branch" name="branch" required maxLength={60} autoComplete="off" />
       </div>
+      <FormInput
+        label="Account number"
+        name="accountNumber"
+        required
+        inputMode="numeric"
+        autoComplete="off"
+        helper="Stored encrypted. You’ll see only the last four digits; CeyLiving admins can view the full number only to make a transfer, and each view is logged."
+      />
     </ActionForm>
   );
 }

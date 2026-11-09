@@ -4,7 +4,7 @@ import { PageTitle } from "@/components/account/area-shell";
 import { DataTable, Td } from "@/components/admin/data-table";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PAYOUT_HOLD_DAYS } from "@/lib/config";
-import { formatDate, formatLkr } from "@/lib/format";
+import { formatDate, formatLkr, payoutAccountLabel } from "@/lib/format";
 import { requireRole } from "@/lib/server/auth";
 import { sellerPayoutSummary } from "@/lib/server/services/payouts";
 
@@ -12,7 +12,7 @@ export const metadata = { title: "Payouts" };
 
 async function Payouts() {
   const user = await requireRole(["SELLER"], "/seller/payouts");
-  const { shop, payouts, onHold, ready, rateBps } = await sellerPayoutSummary(user);
+  const { account, payouts, onHold, ready, rateBps } = await sellerPayoutSummary(user);
   const pending = [...ready, ...onHold];
   return (
     <>
@@ -21,9 +21,9 @@ async function Payouts() {
           Payout account
         </h2>
         <p className="mt-1 text-ink-soft">
-          {shop.payoutAccountMasked ?? "Not added yet. Payouts wait until you add one."}{" "}
+          {account ? payoutAccountLabel(account) : "Not added yet. Payouts wait until you add one."}{" "}
           <Link href="/seller/shop#payout" className="font-semibold text-forest underline underline-offset-4">
-            {shop.payoutAccountMasked ? "Change" : "Add payout details"}
+            {account ? "Change" : "Add payout details"}
           </Link>
         </p>
         <p className="mt-2 text-sm text-ink-soft">

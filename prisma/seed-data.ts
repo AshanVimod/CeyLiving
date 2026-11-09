@@ -1,6 +1,8 @@
 import { SHIPPING_FEE_PER_SHOP_CENTS } from "@/lib/config";
 import { productSeeds, type ProductSeed } from "@/lib/data/products";
 import { shopSeeds } from "@/lib/data/shops";
+import { encryptField } from "@/lib/server/crypto/field-encryption";
+import { payoutAccountContext } from "@/lib/server/crypto/contexts";
 import type {
   Address,
   AuditLogEntry,
@@ -20,6 +22,7 @@ import type {
   SellerOrder,
   SellerOrderStatus,
   Shop,
+  StoredPayoutAccount,
   User,
 } from "@/lib/types";
 
@@ -32,6 +35,7 @@ export interface SeedData {
   users: User[];
   applications: SellerApplication[];
   shops: Shop[];
+  payoutAccounts: StoredPayoutAccount[];
   products: Product[];
   orders: Order[];
   sellerOrders: SellerOrder[];
@@ -132,7 +136,6 @@ function seedShops(now: Date): { shops: Shop[]; owners: User[] } {
       ownerId,
       status: suspended ? "SUSPENDED" : "ACTIVE",
       statusReason: suspended ? "Listings used photos that belong to another maker. Under review." : undefined,
-      payoutAccountMasked: "•••• 4821",
       createdAt: iso(now, -300),
       updatedAt: iso(now, -30),
     };
@@ -213,6 +216,17 @@ export function buildSeed(now: Date): SeedData {
     users: [...users, ...owners],
     applications: [],
     shops,
+    payoutAccounts: shops.map((shop) => ({
+      shopId: shop.id,
+      bankName: "Demo Bank",
+      branch: "Demo branch",
+      accountName: shop.ownerName,
+      // Obviously not a real account; every demo shop has the same one.
+      accountNumberEnc: encryptField("000000004821", payoutAccountContext(shop.id)),
+      accountLast4: "4821",
+      createdAt: shop.createdAt,
+      updatedAt: shop.updatedAt,
+    })),
     products,
     orders: [],
     sellerOrders: [],

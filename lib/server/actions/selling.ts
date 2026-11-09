@@ -17,7 +17,8 @@ import { submitApplication, withdrawApplication } from "../services/applications
 import { transitionSellerOrder } from "../services/orders";
 import { archiveProduct, restoreProduct, saveProduct } from "../services/products";
 import { replyToReview } from "../services/reviews";
-import { savePayoutDetails, updateShop } from "../services/shops";
+import { savePayoutDetails } from "../services/payout-accounts";
+import { updateShop } from "../services/shops";
 
 /** Catalogue-wide changes (shop or item visibility) refresh every page. */
 const refreshCatalogue = refreshEverything;
@@ -78,7 +79,7 @@ export async function savePayoutAction(_: ActionState, form: FormData): Promise<
     const actor = await requireActor();
     await savePayoutDetails(actor, parseInput(payoutSchema, formToObject(form)));
     refreshCatalogue();
-    return { ok: true, message: "Payout details saved. Only the last four digits are kept." };
+    return { ok: true, message: "Payout details saved. Your account number is stored encrypted." };
   });
 }
 

@@ -204,7 +204,6 @@ export function toShop(row: Row.Shop): Shop {
     returnPolicy: row.returnPolicy,
     status: row.status,
     statusReason: opt(row.statusReason),
-    payoutAccountMasked: opt(row.payoutAccountMasked),
     payoutHoldReason: opt(row.payoutHoldReason),
     payoutHeldAt: optIso(row.payoutHeldAt),
     createdAt: iso(row.createdAt),

@@ -116,13 +116,29 @@ export interface Shop {
   returnPolicy: string;
   status: ShopStatus;
   statusReason?: string;
-  /** Masked bank account, e.g. "•••• 4821". Set from the seller's payout details. */
-  payoutAccountMasked?: string;
   /** B08 (PAY-05): a chargeback holds the shop's payouts until an admin releases them. */
   payoutHoldReason?: string;
   payoutHeldAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** B11: a shop's bank details as they may be shown. The account number is deliberately not part of this. */
+export interface PayoutAccount {
+  shopId: string;
+  bankName: string;
+  branch: string;
+  accountName: string;
+  accountLast4: string;
+  /** The first transfer to this account has been recorded. */
+  verifiedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** B11: the stored row, with the encrypted account number. Only the reveal and the re-encrypt script load this. */
+export interface StoredPayoutAccount extends PayoutAccount {
+  accountNumberEnc: string;
 }
 
 export interface ProductVariant {

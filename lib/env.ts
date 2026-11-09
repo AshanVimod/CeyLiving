@@ -30,6 +30,26 @@ export const PAYHERE_DEV_KEYS = {
 /** B09: the local storage driver's dev-only route for processed photos (app/dev-uploads). */
 export const DEV_IMAGE_BASE_URL = "/dev-uploads";
 
+/**
+ * B11 (12.4): the stand-in field encryption key for development and tests, built here so no key text is in the source.
+ * Anything encrypted with it is readable by anyone with this code; production refuses it.
+ */
+export const FIELD_ENCRYPTION_DEV_KEY = Buffer.alloc(32, "ceyliving-dev").toString("base64");
+
+/** 32 bytes in standard base64, written the one canonical way. */
+function isFieldKey(value: string): boolean {
+  return /^[A-Za-z0-9+/]{43}=$/.test(value) && Buffer.from(value, "base64").toString("base64") === value;
+}
+
+/** A random 32-byte key has about 30 distinct byte values; repeated text, zeros and the stand-in have only a few. */
+function isWeakFieldKey(value: string): boolean {
+  return new Set(Buffer.from(value, "base64")).size < 16;
+}
+
+const fieldKey = z
+  .string()
+  .refine(isFieldKey, { error: "must be 32 random bytes in base64 (openssl rand -base64 32)" });
+
 const R2_KEYS = [
   "R2_ACCOUNT_ID",
   "R2_ACCESS_KEY_ID",
@@ -61,6 +81,16 @@ export const envSchema = z
       .regex(/^re_[A-Za-z0-9_]{8,200}$/, { error: "must be a Resend API key (re_…)" })
       .optional(),
     EMAIL_FROM: z.string().min(3).max(200).default("CeyLiving <no-reply@ceyliving.lk>"),
+    // B11 (12.4): encrypts sellers' bank account numbers. 32 random bytes, base64. Web app and re-encrypt script only;
+    // the worker never needs it. Required when the web app starts in production (assertFieldEncryptionConfig);
+    // elsewhere it defaults to FIELD_ENCRYPTION_DEV_KEY. Never in logs, errors, the database or its backups.
+    FIELD_ENCRYPTION_KEY: fieldKey.optional(),
+    // B11: older keys, comma-separated, used only to decrypt during a rotation (README, "Bank details").
+    FIELD_ENCRYPTION_PREVIOUS_KEYS: z
+      .string()
+      .transform((list) => list.split(",").map((key) => key.trim()))
+      .pipe(z.array(fieldKey).max(5, { error: "can hold at most 5 keys" }))
+      .optional(),
     // B05b (AU-06): Cloudflare Turnstile. Required in production; elsewhere they default to Cloudflare's published
     // test keys (TURNSTILE_TEST_KEYS), which always pass and never identify a real site.
     TURNSTILE_SITE_KEY: z.string().min(1).max(100).optional(),
@@ -133,6 +163,24 @@ export const envSchema = z
       .transform((url) => url.replace(/\/+$/, "")),
   })
   .superRefine((env, ctx) => {
+    if (env.FIELD_ENCRYPTION_KEY && env.FIELD_ENCRYPTION_PREVIOUS_KEYS?.includes(env.FIELD_ENCRYPTION_KEY)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["FIELD_ENCRYPTION_PREVIOUS_KEYS"],
+        message: "must not contain the current FIELD_ENCRYPTION_KEY",
+      });
+    }
+    if (env.NODE_ENV === "production") {
+      const keys = [
+        ["FIELD_ENCRYPTION_KEY", env.FIELD_ENCRYPTION_KEY],
+        ...(env.FIELD_ENCRYPTION_PREVIOUS_KEYS ?? []).map((key) => ["FIELD_ENCRYPTION_PREVIOUS_KEYS", key] as const),
+      ] as const;
+      for (const [name, key] of keys) {
+        if (key && isWeakFieldKey(key)) {
+          ctx.addIssue({ code: "custom", path: [name], message: "must be randomly generated, not a stand-in (B11)" });
+        }
+      }
+    }
     if (env.NODE_ENV === "production" && env.ENABLE_DEMO_LOGIN) {
       ctx.addIssue({
         code: "custom",
@@ -208,6 +256,17 @@ export function turnstileKeys(env: Env = getEnv()): { siteKey: string; secretKey
   };
 }
 
+/** B11: the field encryption keys in use (the stand-in outside production when none is set). Production never falls back. */
+export function fieldEncryptionKeys(env: Env = getEnv()): { current: string; previous: string[] } {
+  if (env.NODE_ENV === "production" && !env.FIELD_ENCRYPTION_KEY) {
+    throw new EnvError(["FIELD_ENCRYPTION_KEY: is required in production (B11)"]);
+  }
+  return {
+    current: env.FIELD_ENCRYPTION_KEY ?? FIELD_ENCRYPTION_DEV_KEY,
+    previous: env.FIELD_ENCRYPTION_PREVIOUS_KEYS ?? [],
+  };
+}
+
 /** Lists each bad key and why; never the value, so secrets can't reach logs. */
 export class EnvError extends Error {
   constructor(readonly problems: string[]) {
@@ -258,7 +317,15 @@ export function assertEmailConfig(env: Env = getEnv()): void {
   if (problems.length) throw new EnvError(problems);
 }
 
+/**
+ * B11: called when the web app starts and by the re-encrypt script, the only code that uses the key. The worker never
+ * encrypts or decrypts, so it doesn't call this and doesn't hold the key.
+ */
+export function assertFieldEncryptionConfig(env: Env = getEnv()): void {
+  fieldEncryptionKeys(env);
+}
+
 /** Called once at server start (instrumentation.ts): a bad environment stops the app with a clear message. */
 export function assertEnv(): void {
-  getEnv();
+  assertFieldEncryptionConfig(getEnv());
 }

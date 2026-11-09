@@ -51,6 +51,9 @@ export const RATE_LIMITS = {
   vote: { max: 60, windowMs: HOUR_MS },
   // Build spec 9.1: checkout is limited to 10 a minute per user.
   checkout: { max: 10, windowMs: 60_000 },
+  // B11: revealing bank details: per admin, and failed attempts (a wrong password or a refused role) per person.
+  payoutReveal: { max: 60, windowMs: HOUR_MS },
+  payoutRevealFailure: { max: 5, windowMs: 15 * 60_000 },
   // B09 (backend plan 11.1): upload addresses, 30 an hour per user.
   upload: { max: 30, windowMs: HOUR_MS },
 } as const;
