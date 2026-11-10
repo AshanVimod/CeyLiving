@@ -168,6 +168,8 @@ export function toAuditEntry(row: Row.AuditLogEntry): AuditLogEntry {
     before: opt(row.before),
     after: opt(row.after),
     createdAt: iso(row.createdAt),
+    requestId: opt(row.requestId),
+    ipHash: opt(row.ipHash),
   };
 }
 

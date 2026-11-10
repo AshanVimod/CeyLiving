@@ -36,6 +36,9 @@ export const DEV_IMAGE_BASE_URL = "/dev-uploads";
  */
 export const FIELD_ENCRYPTION_DEV_KEY = Buffer.alloc(32, "ceyliving-dev").toString("base64");
 
+/** B12 (12.4): the stand-in IP hash key for development and tests. Production refuses it. */
+export const IP_HASH_DEV_KEY = "ceyliving-local-development-ip-hash-key-not-for-production";
+
 /** 32 bytes in standard base64, written the one canonical way. */
 function isFieldKey(value: string): boolean {
   return /^[A-Za-z0-9+/]{43}=$/.test(value) && Buffer.from(value, "base64").toString("base64") === value;
@@ -85,6 +88,11 @@ export const envSchema = z
     // the worker never needs it. Required when the web app starts in production (assertFieldEncryptionConfig);
     // elsewhere it defaults to FIELD_ENCRYPTION_DEV_KEY. Never in logs, errors, the database or its backups.
     FIELD_ENCRYPTION_KEY: fieldKey.optional(),
+    // B12 (12.4): the key for IP hashes (audit rows, sign-in limits) and Better Auth's stand-in addresses. At least 32
+    // characters (openssl rand -base64 32), its own value: not BETTER_AUTH_SECRET or any other key. Web app only.
+    // Required when the web app starts in production (assertIpHashConfig); elsewhere it defaults to IP_HASH_DEV_KEY.
+    // Changing it starts every IP limit over and stops new audit hashes matching old ones (README, "IP addresses").
+    IP_HASH_KEY: z.string().min(32, { error: "must be at least 32 characters" }).optional(),
     // B11: older keys, comma-separated, used only to decrypt during a rotation (README, "Bank details").
     FIELD_ENCRYPTION_PREVIOUS_KEYS: z
       .string()
@@ -154,6 +162,9 @@ export const envSchema = z
       })
       .default(DEV_IMAGE_BASE_URL)
       .transform((url) => url.replace(/\/+$/, "")),
+    // B12 (OPS-06): your database plan's size limit in MB. The worker alerts at 85%. Optional: without it, the size
+    // check is skipped (connections are still checked).
+    DATABASE_SIZE_LIMIT_MB: z.coerce.number().int().min(1).max(10_000_000).optional(),
     // OPS-01: log level. Default: info, or silent under NODE_ENV=test (see lib/server/observability/logger.ts).
     LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).optional(),
     // FR-2c: the site's public address, used for absolute links in sitemap.xml and robots.txt. No trailing slash.
@@ -179,6 +190,23 @@ export const envSchema = z
         if (key && isWeakFieldKey(key)) {
           ctx.addIssue({ code: "custom", path: [name], message: "must be randomly generated, not a stand-in (B11)" });
         }
+      }
+    }
+    if (env.IP_HASH_KEY) {
+      // 12.4: its own key, so rotating or leaking one secret never touches the other's job.
+      const others = [
+        env.BETTER_AUTH_SECRET,
+        env.CACHE_REFRESH_SECRET,
+        env.FIELD_ENCRYPTION_KEY,
+        ...(env.FIELD_ENCRYPTION_PREVIOUS_KEYS ?? []),
+        env.PAYHERE_MERCHANT_SECRET,
+        env.PAYHERE_APP_SECRET,
+      ];
+      if (others.includes(env.IP_HASH_KEY)) {
+        ctx.addIssue({ code: "custom", path: ["IP_HASH_KEY"], message: "must not reuse another secret's value" });
+      }
+      if (env.NODE_ENV === "production" && env.IP_HASH_KEY === IP_HASH_DEV_KEY) {
+        ctx.addIssue({ code: "custom", path: ["IP_HASH_KEY"], message: "must not be the development stand-in" });
       }
     }
     if (env.NODE_ENV === "production" && env.ENABLE_DEMO_LOGIN) {
@@ -267,6 +295,14 @@ export function fieldEncryptionKeys(env: Env = getEnv()): { current: string; pre
   };
 }
 
+/** B12 (12.4): the IP hash key in use (the stand-in outside production when none is set). Production never falls back. */
+export function ipHashKeyFrom(env: Env = getEnv()): string {
+  if (env.NODE_ENV === "production" && !env.IP_HASH_KEY) {
+    throw new EnvError(["IP_HASH_KEY: is required in production (B12)"]);
+  }
+  return env.IP_HASH_KEY ?? IP_HASH_DEV_KEY;
+}
+
 /** Lists each bad key and why; never the value, so secrets can't reach logs. */
 export class EnvError extends Error {
   constructor(readonly problems: string[]) {
@@ -327,5 +363,14 @@ export function assertFieldEncryptionConfig(env: Env = getEnv()): void {
 
 /** Called once at server start (instrumentation.ts): a bad environment stops the app with a clear message. */
 export function assertEnv(): void {
-  assertFieldEncryptionConfig(getEnv());
+  const env = getEnv();
+  assertFieldEncryptionConfig(env);
+  assertIpHashConfig(env);
+}
+
+/**
+ * B12: called when the web app starts. Only the web app hashes IPs; the worker never does, so it doesn't need the key.
+ */
+export function assertIpHashConfig(env: Env = getEnv()): void {
+  ipHashKeyFrom(env);
 }

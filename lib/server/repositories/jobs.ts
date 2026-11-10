@@ -54,3 +54,23 @@ export async function deliveriesWithPendingJobs(tx: Tx, deliveryIds: string[]): 
   );
   return new Set(rows.map((r) => r.id));
 }
+
+export interface JobStateCount {
+  name: string;
+  state: "created" | "retry" | "active" | "failed";
+  count: number;
+}
+
+/**
+ * OPS-07: jobs waiting, retrying or running now, and jobs that failed since `failedSince`, per queue. pg-boss keeps
+ * finished jobs for 7 days, so a longer look-back would undercount. Grouped in the database: one small result.
+ */
+export async function jobStateCounts(tx: Tx, failedSince: Date): Promise<JobStateCount[]> {
+  const rows = await clientOf(tx).$queryRawUnsafe<{ name: string; state: JobStateCount["state"]; count: bigint }[]>(
+    `SELECT name, state::text AS state, count(*) AS count FROM ${JOB_SCHEMA}.job
+      WHERE state IN ('created', 'retry', 'active') OR (state = 'failed' AND completed_on >= $1)
+      GROUP BY name, state`,
+    failedSince,
+  );
+  return rows.map((r) => ({ name: r.name, state: r.state, count: Number(r.count) }));
+}

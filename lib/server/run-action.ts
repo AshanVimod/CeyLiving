@@ -5,6 +5,8 @@ import type { z } from "zod";
 import type { ActionResult } from "@/lib/action-result";
 import { DomainError, ValidationError } from "./errors";
 import { requestLogger } from "./observability/logger";
+import { requestContextFrom, withRequestContext } from "./observability/request-context";
+import { countEvent } from "./services/ops";
 
 /**
  * Wraps an action body: domain errors become safe messages, unexpected errors are logged
@@ -15,19 +17,22 @@ export async function runAction<R extends ActionResult = ActionResult>(
   body: () => Promise<R | void>,
 ): Promise<R | ActionResult> {
   const started = performance.now();
-  const { requestId, log } = requestLogger(await requestHeaders());
+  const incoming = await requestHeaders();
+  const { requestId, log } = requestLogger(incoming);
   const durationMs = () => Math.round(performance.now() - started);
   try {
-    const result = (await body()) ?? { ok: true };
+    const result = (await withRequestContext(requestContextFrom(incoming, requestId), body)) ?? { ok: true };
     log.debug({ durationMs: durationMs() }, "action.completed");
     return result;
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof DomainError) {
       log.info({ durationMs: durationMs(), code: error.code }, "action.rejected");
+      if (error.code === "FORBIDDEN") await countEvent("permission_denied"); // A09
       return { ok: false, message: error.message, fieldErrors: error.fieldErrors };
     }
     log.error({ err: error, durationMs: durationMs() }, "action.failed");
+    await countEvent("server_error");
     return { ok: false, message: `Something went wrong on our side. Please try again. Reference: ${requestId}` };
   }
 }

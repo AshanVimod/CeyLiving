@@ -179,6 +179,8 @@ export async function addAuditEntry(tx: Tx, entry: Omit<AuditLogEntry, "id" | "c
       before: json(entry.before),
       after: json(entry.after),
       createdAt: new Date(),
+      requestId: entry.requestId,
+      ipHash: entry.ipHash,
     },
   });
 }

@@ -441,6 +441,10 @@ model AuditLogEntry {
   before     Json?
   after      Json?
   createdAt  DateTime @map("created_at") @db.Timestamptz(3)
+  /// OPS-02 (B12): keyed hash of the caller's IP, never the IP. NULL for worker rows and rows written before B12.
+  ipHash     String?  @map("ip_hash")
+  /// OPS-02 (B12): links the row to its log lines and Sentry event. NULL for worker rows and rows before B12.
+  requestId  String?  @map("request_id")
 
   actor User? @relation(fields: [actorId], references: [id], onDelete: Restrict)
 
@@ -1020,4 +1024,37 @@ model EmailDelivery {
   @@index([userId, createdAt])
   @@index([createdAt], map: "email_deliveries_queued_created_at_idx", where: raw("status = 'QUEUED'::\"EmailStatus\""))
   @@map("email_deliveries")
+}
+
+// ---------- Operations (B12; backend plan OPS-05 to OPS-07, A09) ----------
+
+/// A09 / OPS-06: how many events of one kind happened in one 5-minute bucket. Only a kind, a time and a count: no
+/// people, IPs or ids. maintenance.cleanup deletes rows older than 30 days.
+model OpsEventCount {
+  kind        String
+  bucketStart DateTime @map("bucket_start") @db.Timestamptz(3)
+  count       Int
+
+  @@id([kind, bucketStart])
+  @@index([bucketStart])
+  @@map("ops_event_counts")
+}
+
+/// OPS-06: when each kind of alert was last sent, and the count it reported (one per kind per hour, unless it gets
+/// much worse).
+model OpsAlert {
+  kind       String   @id
+  lastSentAt DateTime @map("last_sent_at") @db.Timestamptz(3)
+  lastCount  Int      @map("last_count")
+
+  @@map("ops_alerts")
+}
+
+/// OPS-07: when a recurring task (payouts; the backup from B14) last succeeded or failed.
+model OpsCheckpoint {
+  name         String    @id
+  lastOkAt     DateTime? @map("last_ok_at") @db.Timestamptz(3)
+  lastFailedAt DateTime? @map("last_failed_at") @db.Timestamptz(3)
+
+  @@map("ops_checkpoints")
 }

@@ -41,6 +41,8 @@ export const EMAILS = {
   }),
   /** Sent to the address the account had before it was anonymised (FR-17). */
   "account.deleted": z.object({}),
+  /** B12 (OPS-06): a critical operations alert, to every admin. A label and a count only: no person, IP or id. */
+  "ops.alert": z.object({ label: text(120), measure: text(120), worse: z.boolean() }),
 } as const satisfies Record<string, z.ZodType<object>>;
 
 export type EmailTemplate = keyof typeof EMAILS;
@@ -65,4 +67,5 @@ export const EMAIL_LABELS: Record<EmailTemplate, string> = {
   "payout.account_changed": "Payout bank account changed",
   "content.hidden": "Post hidden or removed",
   "account.deleted": "Account deleted",
+  "ops.alert": "Operations alert (admins)",
 };

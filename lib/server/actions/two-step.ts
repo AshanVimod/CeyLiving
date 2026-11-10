@@ -11,6 +11,7 @@ import { requireActor, safeNextPath } from "../auth";
 import { getAuth } from "../better-auth";
 import { ForbiddenError, ValidationError } from "../errors";
 import { formToObject, parseInput, runAction } from "../run-action";
+import { countEvent } from "../services/ops";
 
 // Two-step sign-in (B05b, AU-02 and AU-04): the second step at sign-in, setting up an authenticator app, recovery
 // codes and removing passkeys. Adding a passkey and signing in with one happen in the browser (WebAuthn), through
@@ -47,6 +48,7 @@ export async function verifyTwoStepAction(_: ActionState, form: FormData): Promi
     } catch (error) {
       const code = codeOf(error);
       if (code === "INVALID_CODE" || code === "INVALID_BACKUP_CODE") {
+        await countEvent("sign_in_failed"); // B12 (OPS-06): a wrong second step counts as a failed sign-in
         throw new ValidationError(WRONG_CODE, { code: WRONG_CODE });
       }
       if (code === "ACCOUNT_TEMPORARILY_LOCKED") {

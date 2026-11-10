@@ -20,6 +20,8 @@ import { withTx } from "../db/tx";
 import { RateLimitError, ValidationError } from "../errors";
 import { countAuthAttempt, peekAuthAttempts } from "../repositories/people";
 import { formToObject, parseInput, runAction } from "../run-action";
+import { clientIp, ipHash } from "../security/ip";
+import { countEvent } from "../services/ops";
 import { TURNSTILE_FIELD, verifyTurnstile } from "../turnstile";
 
 // Sign-in forms (B05a and B05b, AU-01 to AU-07). Each action validates with zod (SEC-A3), counts the attempt per
@@ -29,12 +31,8 @@ import { TURNSTILE_FIELD, verifyTurnstile } from "../turnstile";
 const SAME_ANSWER = "If an account exists for that email, we’ve sent a link. It works once, for 1 hour.";
 const WRONG_DETAILS = "That email and password don’t match an account. Check them and try again.";
 
-/** The visitor's address as Cloudflare (or the proxy in front) reports it; "unknown" counts as one visitor. */
-function clientIp(requestHeaders: Headers): string {
-  return (
-    requestHeaders.get("cf-connecting-ip") ?? requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
-  );
-}
+/** 12.4 (B12): rate-limit keys hold the IP's keyed hash, never the address. "unknown" stays one shared key. */
+const ipKey = (requestHeaders: Headers) => ipHash(clientIp(requestHeaders));
 
 const hashed = (value: string) => createHash("sha256").update(value).digest("hex");
 
@@ -55,7 +53,7 @@ async function requireTurnstile(form: FormData, requestHeaders: Headers): Promis
 
 const failureKeys = (email: string, requestHeaders: Headers) => [
   `ceyliving:sign-in-failed:email:${hashed(email)}`,
-  `ceyliving:sign-in-failed:ip:${clientIp(requestHeaders)}`,
+  `ceyliving:sign-in-failed:ip:${ipKey(requestHeaders)}`,
 ];
 
 /** AU-06: the most failed sign-ins for this email or this IP in the window (`record` counts one more first). */
@@ -80,9 +78,10 @@ async function limitAttempts(kind: string, email: string, requestHeaders: Header
   const now = Date.now();
   const [byEmail, byIp] = await withTx(async (tx) => [
     await countAuthAttempt(tx, `ceyliving:${kind}:email:${hashed(email)}`, windowMs, now),
-    await countAuthAttempt(tx, `ceyliving:${kind}:ip:${clientIp(requestHeaders)}`, windowMs, now),
+    await countAuthAttempt(tx, `ceyliving:${kind}:ip:${ipKey(requestHeaders)}`, windowMs, now),
   ]);
   if (byEmail > AUTH_ATTEMPTS.max || byIp > AUTH_ATTEMPTS.max) {
+    await countEvent("auth_rate_limited"); // B12 (OPS-06)
     throw new RateLimitError("Too many attempts. Wait 15 minutes, then try again.");
   }
 }
@@ -129,6 +128,7 @@ export async function signInAction(_: ActionState, form: FormData): Promise<Acti
       if (!isAPIError(error)) throw error;
       // Wrong details, or a deleted account. The same answer either way (AU-07); from the third failure on, the
       // form shows the Turnstile check for the next try.
+      await countEvent("sign_in_failed"); // B12 (OPS-06): counted for the "many failed sign-ins" alert
       const failures = await signInFailures(input.email, requestHeaders, true);
       return failures >= FAILURES_BEFORE_TURNSTILE
         ? { ok: false, message: WRONG_DETAILS, fieldErrors: TURNSTILE_NEEDED }

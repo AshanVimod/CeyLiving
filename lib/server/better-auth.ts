@@ -18,6 +18,8 @@ import { queueEmail } from "./email/queue";
 import { deleteOtherSessionsOf, findUserById, hasSecondStep, newId } from "./repositories/people";
 import { db, withTx } from "./db/tx";
 import { isProductionRuntime } from "./runtime";
+import { authSecret } from "./security/auth-secret";
+import { RATE_LIMIT_IP_HEADER } from "./security/ip";
 
 // Real sign-in (B05a and B05b, backend plan AU-01 to AU-11). Better Auth owns passwords, sessions, email tokens,
 // authenticator apps and passkeys; our `users` row stays the one source of truth for name, role and restrictions
@@ -132,11 +134,14 @@ async function queueSignInEmail(template: "auth.verify" | "auth.reset", userId: 
   await withTx((tx) => queueEmail(tx, template, { userId, key, data: { url } }));
 }
 
-function createAuth(prisma: PrismaClient) {
+/**
+ * `options.rateLimit` exists for tests only: the app's instance (getAuth) always takes the default, which turns the
+ * limiter off under NODE_ENV=test so other tests don't trip it. The 12.4 tests build their own instance with it on.
+ */
+export function createAuth(prisma: PrismaClient, options: { rateLimit?: boolean } = {}) {
   const env = getEnv();
   const production = env.NODE_ENV === "production";
-  // lib/env.ts requires a real secret in production; this fixed value only ever signs local development cookies.
-  const secret = env.BETTER_AUTH_SECRET ?? "ceyliving-local-development-secret-not-for-production";
+  const secret = authSecret(env);
   return betterAuth({
     appName: "CeyLiving",
     baseURL: env.SITE_URL,
@@ -178,7 +183,7 @@ function createAuth(prisma: PrismaClient) {
     },
     rateLimit: {
       // AU-06: counters live in PostgreSQL, so every app instance shares them.
-      enabled: env.NODE_ENV !== "test",
+      enabled: options.rateLimit ?? env.NODE_ENV !== "test",
       storage: "database",
       modelName: "rateLimit",
       window: MINUTE,
@@ -195,7 +200,10 @@ function createAuth(prisma: PrismaClient) {
     advanced: {
       cookiePrefix: "ceyliving",
       useSecureCookies: production, // AU-03: Secure, and the __Secure- name prefix, in production
-      ipAddress: { ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"] },
+      // 12.4 (B12): Better Auth reads the visitor's IP only from our own header, which the /api/auth route sets to a
+      // keyed stand-in address after removing every proxy header (withRateLimitPseudonym). So its limiter rows, and
+      // anything else it would derive from the IP, never hold the real address. Its counting is unchanged.
+      ipAddress: { ipAddressHeaders: [RATE_LIMIT_IP_HEADER] },
       database: { generateId: ({ model }) => newId(ID_PREFIX[model] ?? model) },
     },
     databaseHooks: {
@@ -211,7 +219,8 @@ function createAuth(prisma: PrismaClient) {
               session.twoStep === true ||
               TWO_STEP_PATHS.has(ctx?.path ?? "") ||
               (current?.userId === session.userId && current.twoStep === true);
-            return { data: { ...session, twoStep } };
+            // 12.4 (B12): the visitor's IP is never stored with the session. Nothing reads it.
+            return { data: { ...session, twoStep, ipAddress: null } };
           },
         },
       },

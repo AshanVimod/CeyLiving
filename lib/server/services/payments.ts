@@ -72,6 +72,7 @@ import {
   listAdminIds,
   newId,
 } from "../repositories/people";
+import { countEvent } from "./ops";
 import { commissionFor } from "./payouts";
 import { audit, JOB_BATCH_SIZE, WORKER } from "./shared";
 
@@ -116,6 +117,7 @@ export async function receivePayHereNotification(
       { event: "security.payment_notification", reason: "invalid", fields: parsed.error.issues.map((i) => i.path[0]) },
       "payment.notification_rejected",
     );
+    await countEvent("payment_signature_failed", now); // B12 (OPS-06)
     return { result: "rejected", reason: "invalid" };
   }
   const notification = parsed.data;
@@ -126,6 +128,7 @@ export async function receivePayHereNotification(
       { event: "security.payment_notification", reason: verified.reason, ...context },
       "payment.notification_rejected",
     );
+    await countEvent("payment_signature_failed", now);
     return { result: "rejected", reason: verified.reason };
   }
   const outcome = await withTx((tx) => applyNotification(tx, notification, log, now));

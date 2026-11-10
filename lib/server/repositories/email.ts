@@ -187,3 +187,20 @@ export async function deleteOldEmailDeliveries(tx: Tx, before: Date, limit: numb
   });
   return count;
 }
+
+/**
+ * OPS-07: emails waiting to go out (the partial QUEUED index), and failed since `failedSince`, in total and for the
+ * ops.alert template (a broken alert channel shows on the Operations card).
+ */
+export async function emailCounts(
+  tx: Tx,
+  failedSince: Date,
+): Promise<{ queued: number; failed: number; failedAlerts: number }> {
+  const client = clientOf(tx);
+  const [queued, failed, failedAlerts] = await Promise.all([
+    client.emailDelivery.count({ where: { status: "QUEUED" } }),
+    client.emailDelivery.count({ where: { status: "FAILED", createdAt: { gte: failedSince } } }),
+    client.emailDelivery.count({ where: { status: "FAILED", template: "ops.alert", createdAt: { gte: failedSince } } }),
+  ]);
+  return { queued, failed, failedAlerts };
+}

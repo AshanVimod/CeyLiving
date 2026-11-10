@@ -2,9 +2,11 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { PageTitle } from "@/components/account/area-shell";
 import { requireRole } from "@/lib/server/auth";
+import { OperationsCard } from "@/components/admin/operations-card";
 import { WorkerStatus } from "@/components/admin/worker-status";
 import { adminCounts } from "@/lib/server/services/admin-stats";
 import { emailOverview } from "@/lib/server/services/email-admin";
+import { operationsOverview } from "@/lib/server/services/ops";
 
 export const metadata = { title: "Dashboard" };
 
@@ -46,8 +48,18 @@ async function Dashboard() {
           </li>
         ))}
       </ul>
+      <Suspense fallback={<div className="skeleton mt-10 h-72 rounded-lg" aria-busy="true" />}>
+        <Operations />
+      </Suspense>
     </>
   );
+}
+
+/** B12 (OPS-07): in its own Suspense, so a slow read never holds up the tiles. */
+async function Operations() {
+  const actor = await requireRole(["ADMIN"], "/admin");
+  const now = new Date();
+  return <OperationsCard ops={await operationsOverview(actor, now)} now={now.getTime()} />;
 }
 
 export default function AdminDashboardPage() {

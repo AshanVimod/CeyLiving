@@ -6,11 +6,13 @@ import { emailSend } from "./email-send";
 import { emailWatch } from "./email-watch";
 import { imageProcess } from "./image-process";
 import { maintenanceCleanup } from "./maintenance-cleanup";
+import { opsWatch } from "./ops-watch";
 import { ordersAutoCancelUnaccepted } from "./orders-auto-cancel-unaccepted";
 import { ordersAutoComplete } from "./orders-auto-complete";
 import { ordersExpireUnpaid } from "./orders-expire-unpaid";
 import { paymentsReconcile } from "./payments-reconcile";
 import { payoutsGenerateWeekly } from "./payouts-generate-weekly";
+import { rateLimitsPrune } from "./rate-limits-prune";
 import { reportsAutoHide } from "./reports-auto-hide";
 import { usersLiftExpiredMutes } from "./users-lift-expired-mutes";
 
@@ -18,6 +20,7 @@ import { usersLiftExpiredMutes } from "./users-lift-expired-mutes";
 export const HANDLERS: { [N in JobName]: JobHandler<N> } = {
   "email.send": emailSend,
   "email.watch": emailWatch,
+  "ops.watch": opsWatch,
   "image.process": imageProcess,
   "orders.expireUnpaid": ordersExpireUnpaid,
   "catalogue.refresh": catalogueRefresh,
@@ -29,4 +32,5 @@ export const HANDLERS: { [N in JobName]: JobHandler<N> } = {
   "users.liftExpiredMutes": usersLiftExpiredMutes,
   "reports.autoHide": reportsAutoHide,
   "maintenance.cleanup": maintenanceCleanup,
+  "rateLimits.prune": rateLimitsPrune,
 };

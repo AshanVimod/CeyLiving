@@ -319,6 +319,10 @@ export interface AuditLogEntry {
   before?: unknown;
   after?: unknown;
   createdAt: string;
+  /** OPS-02 (B12): the request that made the change. Missing for the worker and for rows written before B12. */
+  requestId?: string;
+  /** 12.4 (B12): the caller's IP as a keyed hash, never the IP. Missing for the worker and rows before B12. */
+  ipHash?: string;
 }
 
 export interface Notification {

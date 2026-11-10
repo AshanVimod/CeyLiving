@@ -26,6 +26,7 @@ import {
   storedPayoutAccountsAfter,
 } from "../repositories/payout-accounts";
 import { addNotification, countRateEvents, insertRateEvent } from "../repositories/people";
+import { countEvent } from "./ops";
 import { assertRateLimit, audit, JOB_BATCH_SIZE, WORKER } from "./shared";
 import { activateIfReady } from "./shops";
 
@@ -103,6 +104,7 @@ async function recordFailedReveal(actor: Actor, payoutId: string, error: unknown
   const { reason, counts } = failureOf(error);
   const level = error instanceof FieldEncryptionError || reason === "error" ? "error" : "warn";
   logger[level]({ actorId: actor.id, payoutId, reason }, "payout_account.reveal_failed");
+  await countEvent("payout_reveal_failed", now); // B12 (A09): its own transaction, never throws
   try {
     await withTx(async (tx) => {
       if (counts) await insertRateEvent(tx, { userId: actor.id, kind: "payoutRevealFailure", at: now.toISOString() });
@@ -117,6 +119,7 @@ async function assertNotLocked(actor: Actor, now: Date): Promise<void> {
   const { max, windowMs } = RATE_LIMITS.payoutRevealFailure;
   if ((await countRateEvents(db, actor.id, "payoutRevealFailure", now.getTime() - windowMs)) < max) return;
   logger.warn({ actorId: actor.id }, "payout_account.reveal_locked");
+  await countEvent("payout_reveal_locked", now);
   throw new RateLimitError("Too many failed attempts. Try again in 15 minutes.");
 }
 
@@ -142,7 +145,7 @@ export async function revealPayoutAccount(
   try {
     assertRole(actor, ["ADMIN"]);
     await assertPassword(actor, password); // outside the transaction: hashing is deliberately slow
-    return await withTx(async (tx) => {
+    const revealed = await withTx(async (tx) => {
       const payout = await findPayout(tx, payoutId);
       if (!payout) throw new NotFoundError("Payout not found.");
       if (payout.status !== "SCHEDULED")
@@ -163,6 +166,8 @@ export async function revealPayoutAccount(
       });
       return { accountName: account.accountName, bankName: account.bankName, branch: account.branch, accountNumber };
     });
+    await countEvent("payout_revealed", now); // B12: after the commit, so only reveals that happened count
+    return revealed;
   } catch (error) {
     await recordFailedReveal(actor, payoutId, error, now);
     if (error instanceof FieldEncryptionError) {

@@ -43,8 +43,18 @@ const securityHeaders = [
   ...(isDev ? [] : [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" }]),
 ];
 
+// 12.2 (B12): Server Actions accept only our own host. Next already compares Origin with the request's host; this
+// names SITE_URL's host as well (read at build time), with no wildcards. Elsewhere it is localhost.
+const siteHost = new URL(process.env.SITE_URL || "http://localhost:3000").host;
+
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  experimental: {
+    serverActions: { allowedOrigins: [siteHost], bodySizeLimit: "1mb" },
+    // proxy.ts buffers request bodies up to this size (default 10 MB). Route handlers refuse anything over 1 MB
+    // themselves (withRoute); development keeps room for the local driver's photo uploads (8 MB).
+    proxyClientMaxBodySize: isDev ? "10mb" : "2mb",
+  },
   partialPrefetching: true,
   poweredByHeader: false,
   images: {

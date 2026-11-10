@@ -7,13 +7,21 @@ import { receivePayHereNotification } from "@/lib/server/services/payments";
  * notification that reaches the service gets 200, accepted or not (a rejected one is logged as a security event);
  * only an unexpected failure gets withRoute's 500, so PayHere may send it again.
  */
-export const POST = withRoute("api.payments.payhere.notify", async (request, log) => {
-  let fields: Record<string, unknown> = {};
-  try {
-    fields = Object.fromEntries((await request.formData()).entries());
-  } catch {
-    // Not a form body: the service rejects the empty field set and logs it.
-  }
-  await receivePayHereNotification(fields, log);
-  return new Response(null, { status: 200, headers: { "Cache-Control": "no-store" } });
-});
+export const POST = withRoute(
+  "api.payments.payhere.notify",
+  async (request, log) => {
+    let fields: Record<string, unknown> = {};
+    try {
+      fields = Object.fromEntries((await request.formData()).entries());
+    } catch {
+      // Not a form body: the service rejects the empty field set and logs it.
+    }
+    await receivePayHereNotification(fields, log);
+    return new Response(null, { status: 200, headers: { "Cache-Control": "no-store" } });
+  },
+  {
+    // 12.2: PayHere's servers call this, not a browser: no Origin, no cookies. The md5sig signature is the check.
+    origin: { exempt: "server-to-server, authenticated by the PayHere signature" },
+    bodyLimit: 64 * 1024, // a notification is a few hundred bytes of form fields
+  },
+);

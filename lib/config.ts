@@ -116,3 +116,84 @@ export const AUTO_COMPLETE_DAYS = 7;
 export const CUSTOM_REQUEST_EXPIRY_DAYS = 14;
 
 export const MS = { hour: HOUR_MS, day: DAY_MS } as const;
+
+// ---------- B12: security events and alerts (backend plan OPS-06, A09) ----------
+
+/** A09: every kind of event that is counted. Counts only: no person, IP or id is ever stored with one. */
+export const OPS_EVENT_KINDS = [
+  "server_error",
+  "job_failed",
+  "payment_signature_failed",
+  "sign_in_failed",
+  "auth_rate_limited",
+  "permission_denied",
+  "payout_reveal_failed",
+  "payout_reveal_locked",
+  "payout_revealed",
+  "origin_rejected",
+  "body_too_large",
+] as const;
+export type OpsEventKind = (typeof OPS_EVENT_KINDS)[number];
+
+/** Events are counted in buckets this long; the watcher runs this often too. */
+export const OPS_BUCKET_MS = 5 * 60_000;
+
+/**
+ * OPS-06: when a count becomes an alert. `critical` alerts email every admin and show in the app; `normal` ones only
+ * show in the app. The thresholds are starting guesses for a small launch: tune them here.
+ */
+export const OPS_ALERT_RULES: Record<
+  OpsEventKind,
+  { label: string; threshold: number; windowMs: number; level: "critical" | "normal" }
+> = {
+  server_error: { label: "Server errors", threshold: 20, windowMs: 15 * 60_000, level: "critical" },
+  job_failed: { label: "Background jobs failed", threshold: 1, windowMs: 15 * 60_000, level: "critical" },
+  payment_signature_failed: {
+    label: "Payment notifications with a bad signature",
+    threshold: 3,
+    windowMs: 15 * 60_000,
+    level: "critical",
+  },
+  sign_in_failed: { label: "Failed sign-ins", threshold: 50, windowMs: 15 * 60_000, level: "critical" },
+  payout_reveal_failed: {
+    label: "Failed attempts to show bank details",
+    threshold: 3,
+    windowMs: 15 * 60_000,
+    level: "critical",
+  },
+  payout_reveal_locked: {
+    label: "Bank details locked after wrong passwords",
+    threshold: 1,
+    windowMs: 15 * 60_000,
+    level: "critical",
+  },
+  payout_revealed: { label: "Bank details shown unusually often", threshold: 40, windowMs: HOUR_MS, level: "critical" },
+  auth_rate_limited: { label: "Sign-in limits reached", threshold: 30, windowMs: 15 * 60_000, level: "normal" },
+  permission_denied: {
+    label: "Actions refused for lack of permission",
+    threshold: 30,
+    windowMs: 15 * 60_000,
+    level: "normal",
+  },
+  origin_rejected: {
+    label: "Requests from another site refused",
+    threshold: 20,
+    windowMs: 15 * 60_000,
+    level: "normal",
+  },
+  body_too_large: { label: "Oversized requests refused", threshold: 20, windowMs: 15 * 60_000, level: "normal" },
+};
+
+/** OPS-06: live checks, read each time the watcher runs (critical). */
+export const OPS_LIMIT_RULES = {
+  db_connections: { label: "Database connections nearly used up", percent: 80 },
+  db_size: { label: "Database nearly at its size limit", percent: 85 },
+  disk: { label: "Disk nearly full", percent: 85 },
+  backup: { label: "Backup failed or overdue", overdueMs: 26 * HOUR_MS },
+} as const;
+
+/** OPS-06: one alert per kind in this long, unless it gets OPS_ALERT_ESCALATE_FACTOR times worse. */
+export const OPS_ALERT_QUIET_MS = HOUR_MS;
+export const OPS_ALERT_ESCALATE_FACTOR = 4;
+/** Counters older than this are deleted by maintenance.cleanup. */
+export const OPS_EVENT_RETENTION_DAYS = 30;

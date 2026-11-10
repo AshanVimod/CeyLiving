@@ -16,6 +16,8 @@ export const JOBS = {
   "email.send": { payload: z.object({ deliveryId: id }) },
   // B10: tells the admins about failed and stuck emails (each once).
   "email.watch": { payload: empty, cron: "*/15 * * * *" },
+  // B12 (OPS-06): reads the security event counters and live limits, and alerts the admins.
+  "ops.watch": { payload: empty, cron: "*/5 * * * *" },
   "image.process": { payload: z.object({ uploadId: id }) },
   "orders.expireUnpaid": { payload: z.object({ orderId: id }) },
   // B07: asks the web app to drop its cached catalogue after stock came back. One queued at a time (singletonKey).
@@ -32,6 +34,8 @@ export const JOBS = {
     policy: "short",
   },
   "maintenance.cleanup": { payload: empty, cron: "0 3 * * *" },
+  // B12 (12.4): sign-in limit rows (keyed by IP hashes and stand-ins, still linkable) are deleted an hour after use.
+  "rateLimits.prune": { payload: empty, cron: "25 * * * *" },
 } as const satisfies Record<string, { payload: z.ZodType<object>; cron?: string; policy?: "short" }>;
 
 export type JobName = keyof typeof JOBS;

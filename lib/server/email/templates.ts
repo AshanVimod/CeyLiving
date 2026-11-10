@@ -284,6 +284,18 @@ const TEMPLATES: { [T in EmailTemplate]: (data: EmailData<T>, ctx: EmailContext)
       text: lead,
     };
   },
+  "ops.alert": ({ label, measure, worse }, ctx) => {
+    const lead = `${worse ? "Getting worse since the last alert: " : ""}${label} (${measure}).`;
+    const next =
+      "The Operations card on the admin dashboard shows the details. This alert repeats at most once an hour while it continues.";
+    return {
+      subject: `CeyLiving alert: ${label}`,
+      heading: worse ? "An alert is getting worse" : "Something needs a look",
+      body: [html`${lead}`, html`${next}`],
+      button: { label: "Open the admin dashboard", url: `${ctx.siteUrl}/admin` },
+      text: `${lead}\n\n${next}`,
+    };
+  },
 };
 
 /** Builds the email. `data` must already have passed the template's schema (EMAILS). */

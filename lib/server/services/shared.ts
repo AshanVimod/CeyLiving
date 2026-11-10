@@ -2,6 +2,7 @@ import "server-only";
 import { RATE_LIMITS, SHOP_SLUG } from "@/lib/config";
 import { ConflictError, RateLimitError } from "../errors";
 import type { Tx } from "../db/tx";
+import { currentRequestContext } from "../observability/request-context";
 import { addAuditEntry, countRateEvents, insertRateEvent, pruneRateEvents } from "../repositories/people";
 import type { Actor } from "../permissions";
 
@@ -46,7 +47,17 @@ export async function audit(
   extra: { reason?: string; before?: unknown; after?: unknown } = {},
 ) {
   const actorId = actor === WORKER ? undefined : actor.id;
-  await addAuditEntry(tx, { actorId, action, targetType, targetId, ...extra });
+  // OPS-02: the request behind the change, so the row links to its logs and Sentry event. None in the worker.
+  const context = currentRequestContext();
+  await addAuditEntry(tx, {
+    actorId,
+    action,
+    targetType,
+    targetId,
+    ...extra,
+    requestId: context?.requestId,
+    ipHash: context?.ipHash,
+  });
 }
 
 /** JOB-06: rows a scheduled job changes per transaction. */

@@ -73,10 +73,12 @@ describe("the worker (JOB-02, JOB-04, JOB-05, JOB-07)", () => {
       "customRequests.expire",
       "email.watch",
       "maintenance.cleanup",
+      "ops.watch",
       "orders.autoCancelUnaccepted",
       "orders.autoComplete",
       "payments.reconcile",
       "payouts.generateWeekly",
+      "rateLimits.prune",
       "users.liftExpiredMutes",
     ]);
     expect(schedules.find((s) => s.name === "payouts.generateWeekly")).toMatchObject({

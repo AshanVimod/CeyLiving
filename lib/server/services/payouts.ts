@@ -18,6 +18,7 @@ import {
 import { findPayoutAccount, hasPayoutAccount, markPayoutAccountVerified } from "../repositories/payout-accounts";
 import { markClawbacksDeducted, undeductedClawbacksOfShop } from "../repositories/payments";
 import { addNotification, newId } from "../repositories/people";
+import { recordCheckpoint } from "./ops";
 import { audit, JOB_BATCH_SIZE, WORKER } from "./shared";
 
 const DAY = 86_400_000;
@@ -129,7 +130,10 @@ export async function runPayouts(by: Actor | typeof WORKER, now = new Date()): P
       const payout = await payoutForShop(by, shopId, now);
       if (payout) created.push(payout);
     }
-    if (shopIds.length < JOB_BATCH_SIZE) return created;
+    if (shopIds.length < JOB_BATCH_SIZE) {
+      await recordCheckpoint("payouts", "ok", now); // OPS-07: job history is pruned after 7 days; this isn't
+      return created;
+    }
     after = shopIds.at(-1);
   }
 }
