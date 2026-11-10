@@ -29,10 +29,28 @@ describe("B04b /api/catalogue/page", () => {
 
   it("SEC-A3 ignores server-only filters smuggled into the URL and never returns hidden items", async () => {
     const all = await page("");
-    const smuggled = await page("shop=pol-katu-lanka&slugs=coconut-shell-owl&heritage=false&limit=500");
+    const smuggled = await page("slugs=coconut-shell-owl&heritage=false&limit=500");
     expect(smuggled.items.map((p) => p.slug)).toEqual(all.items.map((p) => p.slug));
     expect(smuggled.items.some((p) => p.shopSlug === "pol-katu-lanka")).toBe(false);
     expect(smuggled.items.length).toBeLessThanOrEqual(12);
+  });
+
+  it("B13 RULE-S4 a shop's next page holds only that shop's public items, in the shop page's order", async () => {
+    const first = await page("shop=ambalangoda-mask-house");
+    expect(first.items.length).toBeGreaterThan(0);
+    expect(first.items.every((p) => p.shopSlug === "ambalangoda-mask-house" && p.status === "ACTIVE")).toBe(true);
+    expect(first.items.length).toBeLessThanOrEqual(12);
+    if (first.next) {
+      const second = await page(`shop=ambalangoda-mask-house&after=${first.next}`);
+      expect(second.items.some((p) => first.items.some((f) => f.slug === p.slug))).toBe(false);
+      expect(second.items.every((p) => p.shopSlug === "ambalangoda-mask-house")).toBe(true);
+    }
+  });
+
+  it("B13 RULE-S4 SEC-A3 a suspended, unknown or badly formed shop gives an empty page, not an error", async () => {
+    for (const shop of ["pol-katu-lanka", "no-such-shop", "%27%3B--", "A".repeat(300)]) {
+      expect(await page(`shop=${shop}`)).toEqual({ items: [], next: null });
+    }
   });
 
   it("a broken cursor gives the first page, not an error", async () => {

@@ -4,7 +4,7 @@ import { db as readDb } from "@/lib/server/db/tx";
 import { productSchema } from "@/lib/validation/product";
 import { shopSchema } from "@/lib/validation/shop";
 import { productInput, validShop } from "@/test/fixtures";
-import { readAll, freshUser, user, withTestDatabase } from "@/test/db";
+import { queuedJobs, readAll, freshUser, user, withTestDatabase } from "@/test/db";
 import { productPhotos, shopPhotos } from "@/test/uploads";
 import { getPublicProduct, getPublicShop, queryCatalogue } from "../catalogue";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "../errors";
@@ -66,6 +66,20 @@ describe("shops", () => {
     const shop = (await findShopByOwner(readDb, seller.id))!;
     expect(shop.status).toBe("ACTIVE");
     expect((await findPayoutAccount(readDb, shop.id))!.accountLast4).toBe("5678");
+  });
+
+  it("BE-09 a shop going live queues one whole-catalogue refresh; the steps before it queue none", async () => {
+    const seller = await approvedApplicant();
+    await updateShop(seller, validShop(await shopPhotos(seller.id)));
+    await saveProduct(seller, productInput(await productPhotos(seller.id)), "submit");
+    expect(await queuedJobs("catalogue.refresh")).toEqual([]);
+    await savePayoutDetails(seller, {
+      accountName: "A Test Seller",
+      bankName: "Bank of Ceylon",
+      branch: "Kandy",
+      accountNumber: "12345678",
+    });
+    expect(await queuedJobs("catalogue.refresh")).toEqual([expect.objectContaining({ singletonKey: "catalogue" })]);
   });
 
   it("FR-4 suspend hides the shop at once and writes an audit row; reinstate brings it back", async () => {

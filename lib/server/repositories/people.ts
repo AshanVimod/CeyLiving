@@ -35,6 +35,13 @@ export async function findUserById(tx: Tx, id: string): Promise<User | undefined
   return row ? toUser(row) : undefined;
 }
 
+/** Display names for several users in one query (B13); unknown IDs are left out. */
+export async function userNamesByIds(tx: Tx, ids: string[]): Promise<Map<string, string>> {
+  if (!ids.length) return new Map();
+  const rows = await clientOf(tx).user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
+  return new Map(rows.map((row) => [row.id, row.name]));
+}
+
 export async function listUsers(tx: Tx): Promise<User[]> {
   const rows = await clientOf(tx).user.findMany({ orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
   return rows.map(toUser);

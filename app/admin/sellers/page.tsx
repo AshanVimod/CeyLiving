@@ -4,10 +4,11 @@ import { EmptyState, PageTitle } from "@/components/account/area-shell";
 import { DataTable, FilterLinks, Td } from "@/components/admin/data-table";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { requireRole } from "@/lib/server/auth";
-import { shopRating } from "@/lib/server/catalogue";
-import { listShops, productsOfShopSlug } from "@/lib/server/repositories/catalogue";
-import { openReportsFor } from "@/lib/server/repositories/content";
-import { findUserById } from "@/lib/server/repositories/people";
+import { shopRatings } from "@/lib/server/catalogue";
+import { listShops } from "@/lib/server/repositories/catalogue";
+import { itemCountsByShop } from "@/lib/server/repositories/catalogue-search";
+import { openReportCounts } from "@/lib/server/repositories/content";
+import { userNamesByIds } from "@/lib/server/repositories/people";
 import { db } from "@/lib/server/db/tx";
 
 export const metadata = { title: "Sellers" };
@@ -19,15 +20,21 @@ async function Sellers({ searchParams }: { searchParams: PageProps<"/admin/selle
   const { status } = await searchParams;
   const current = FILTERS.find((f) => f === status) ?? "ALL";
   const shops = (await listShops(db)).filter((s) => current === "ALL" || s.status === current);
-  const rows = await Promise.all(
-    shops.map(async (s) => ({
-      s,
-      rating: await shopRating(s.slug),
-      ownerName: (await findUserById(db, s.ownerId))?.name ?? "Unknown",
-      reports: (await openReportsFor(db, "SHOP", s.id)).length,
-      itemCount: (await productsOfShopSlug(db, s.slug)).filter((p) => p.status !== "REMOVED").length,
-    })),
-  );
+  // B13: four grouped queries for the whole table, not four per shop.
+  const ids = shops.map((s) => s.id);
+  const [ratings, owners, reportCounts, itemCounts] = await Promise.all([
+    shopRatings(ids),
+    userNamesByIds(db, [...new Set(shops.map((s) => s.ownerId))]),
+    openReportCounts(db, "SHOP", ids),
+    itemCountsByShop(db, ids, ["DRAFT", "PENDING_REVIEW", "ACTIVE", "REJECTED", "ARCHIVED"]),
+  ]);
+  const rows = shops.map((s) => ({
+    s,
+    rating: ratings.get(s.id),
+    ownerName: owners.get(s.ownerId) ?? "Unknown",
+    reports: reportCounts.get(s.id) ?? 0,
+    itemCount: itemCounts.get(s.id) ?? 0,
+  }));
   return (
     <>
       <FilterLinks

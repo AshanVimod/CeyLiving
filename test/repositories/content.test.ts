@@ -142,6 +142,55 @@ for (const [name, backend] of backends) {
       expect((await repo.listAnswers(db)).map((a) => a.id)).toEqual(expect.arrayContaining(["a_early", "a_late"]));
     });
 
+    it("B13 answers of several questions come back together, each question's oldest first, as one by one", async () => {
+      await withTx(async (tx) => {
+        await repo.insertQuestion(tx, f.question("q_a", "user_customer", "2026-10-01T10:00:00.000Z"));
+        await repo.insertQuestion(tx, f.question("q_b", "user_muted", "2026-10-02T10:00:00.000Z"));
+        await repo.insertAnswer(tx, f.answer("a_b1", "q_b", "2026-10-04T10:00:00.000Z"));
+        await repo.insertAnswer(tx, f.answer("a_a2", "q_a", "2026-10-05T10:00:00.000Z"));
+        await repo.insertAnswer(tx, f.answer("a_a1", "q_a", "2026-10-03T10:00:00.000Z"));
+      });
+      const together = await repo.answersOfQuestions(db, ["q_a", "q_b"]);
+      const of = (q: string) => together.filter((a) => a.questionId === q);
+      expect(of("q_a")).toEqual(await repo.answersOf(db, "q_a"));
+      expect(of("q_b")).toEqual(await repo.answersOf(db, "q_b"));
+      expect(of("q_a").map((a) => a.id)).toEqual(["a_a1", "a_a2"]);
+      expect(await repo.answersOfQuestions(db, [])).toEqual([]);
+    });
+
+    it("B13 RULE-R4 RULE-P4 a shop's latest public reviews: visible ones of active items, newest first, at most the limit", async () => {
+      await withTx(async (tx) => {
+        await repo.insertReview(tx, f.review("rev_l1", "user_customer", "2030-01-01T10:00:00.000Z"));
+        await repo.insertReview(tx, f.review("rev_l2", "user_muted", "2030-01-02T10:00:00.000Z"));
+        await repo.insertReview(tx, {
+          ...f.review("rev_l3", "user_admin", "2030-01-03T10:00:00.000Z"),
+          status: "HIDDEN",
+        });
+      });
+      const latest = await repo.latestPublicReviewsOfShop(db, f.shopId, 6);
+      expect(latest.slice(0, 2).map((r) => r.review.id)).toEqual(["rev_l2", "rev_l1"]);
+      expect(latest[0]!.productTitle).toBe(f.product.title);
+      expect(latest.length).toBeLessThanOrEqual(6);
+      expect(latest.every((r) => r.review.status === "VISIBLE" && r.review.shopId === f.shopId)).toBe(true);
+      expect(isNewestFirst(latest.map((r) => r.review))).toBe(true);
+      expect((await repo.latestPublicReviewsOfShop(db, f.shopId, 1)).map((r) => r.review.id)).toEqual(["rev_l2"]);
+      // An item taken off sale takes its reviews off the shop page too.
+      const titlesOnSale = new Set(seed.products.filter((p) => p.status === "ACTIVE").map((p) => p.id));
+      expect(latest.every((r) => titlesOnSale.has(r.review.productId))).toBe(true);
+    });
+
+    it("B13 counts open reports for several targets in one read, leaving out targets without any", async () => {
+      await withTx(async (tx) => {
+        await repo.insertReview(tx, f.review("rev_r", "user_customer", "2026-10-01T10:00:00.000Z"));
+        await repo.insertReport(tx, f.report("rep_1", "user_muted", "rev_r"));
+        await repo.insertReport(tx, f.report("rep_2", "user_admin", "rev_r"));
+      });
+      const counts = await repo.openReportCounts(db, "REVIEW", ["rev_r", "rev_nobody"]);
+      expect(counts.get("rev_r")).toBe((await repo.openReportsFor(db, "REVIEW", "rev_r")).length);
+      expect(counts.has("rev_nobody")).toBe(false);
+      expect(await repo.openReportCounts(db, "REVIEW", [])).toEqual(new Map());
+    });
+
     it("RULE-M1 / RULE-M2 moderation hides and restores a post, and deleting erases its text", async () => {
       await withTx(async (tx) => {
         await repo.insertReview(tx, {

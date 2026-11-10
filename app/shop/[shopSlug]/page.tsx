@@ -2,20 +2,24 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { LoadMore } from "@/components/catalogue/load-more";
 import { ProductGrid } from "@/components/product/product-card";
 import { Rating } from "@/components/product/rating";
 import { BadgeCheckIcon, ClockIcon, PinIcon, ReturnIcon, TruckIcon } from "@/components/ui/icons";
 import { Container } from "@/components/ui/section-heading";
 import { ReviewList } from "@/components/reviews/review-list";
-import { SHIPPING_FEE_PER_SHOP_CENTS } from "@/lib/config";
+import { PAGE_SIZE, SHIPPING_FEE_PER_SHOP_CENTS } from "@/lib/config";
 import { formatLkr, photoUrl } from "@/lib/format";
 import {
   getPublicShop,
+  latestReviewsOfShop,
   publicProductsOfShop,
-  publicReviewsOfShop,
   publicShopRating,
   publicShops,
 } from "@/lib/server/catalogue";
+
+/** Shown under "What customers say". */
+const LATEST_REVIEWS = 6;
 
 export async function generateStaticParams() {
   return (await publicShops()).map((s) => ({ shopSlug: s.slug }));
@@ -30,23 +34,71 @@ export async function generateMetadata(props: PageProps<"/shop/[shopSlug]">): Pr
 export default function ShopPage(props: PageProps<"/shop/[shopSlug]">) {
   return (
     <Suspense fallback={<div className="skeleton h-[320px]" aria-busy="true" />}>
-      <ShopContent params={props.params} />
+      <ShopContent params={props.params} searchParams={props.searchParams} />
     </Suspense>
   );
 }
 
-async function ShopContent({ params }: { params: PageProps<"/shop/[shopSlug]">["params"] }) {
+function ShopLoadMore(props: { shopSlug: string; next: string; shown?: number; total: number }) {
+  return (
+    <LoadMore
+      query={new URLSearchParams({ shop: props.shopSlug }).toString()}
+      next={props.next}
+      shown={props.shown}
+      total={props.total}
+      basePath={`/shop/${props.shopSlug}`}
+    />
+  );
+}
+
+/**
+ * Without JavaScript, "Load more" links to ?after=<cursor>: the items after it, then the next link. With JavaScript
+ * (or no cursor) it is the plain button, as in the prebuilt page.
+ */
+async function ShopNextPage({
+  shopSlug,
+  first,
+  searchParams,
+}: {
+  shopSlug: string;
+  first: { next?: string; total: number; items: unknown[] };
+  searchParams: PageProps<"/shop/[shopSlug]">["searchParams"];
+}) {
+  const raw = (await searchParams).after;
+  const after = typeof raw === "string" ? raw.slice(0, 1000) : undefined;
+  if (!after)
+    return <ShopLoadMore shopSlug={shopSlug} next={first.next!} shown={first.items.length} total={first.total} />;
+  const page = await publicProductsOfShop(shopSlug, PAGE_SIZE, after);
+  return (
+    <>
+      <div className="mt-9 lg:mt-12">
+        <ProductGrid products={page.items} />
+      </div>
+      {page.next ? <ShopLoadMore shopSlug={shopSlug} next={page.next} total={page.total} /> : null}
+    </>
+  );
+}
+
+async function ShopContent({
+  params,
+  searchParams,
+}: {
+  params: PageProps<"/shop/[shopSlug]">["params"];
+  searchParams: PageProps<"/shop/[shopSlug]">["searchParams"];
+}) {
   const { shopSlug } = await params;
   // RULE-S4: suspended and closed shops return 404.
   const shop = await getPublicShop(shopSlug);
   if (!shop) notFound();
-  const items = await publicProductsOfShop(shop.slug);
-  const rating = await publicShopRating(shop.slug);
-  const productTitles = new Map(items.map((p) => [p.id, p.title]));
+  // B13: one page of items (then "Load more"), and only the reviews shown, read in SQL.
+  const [items, rating, latest] = await Promise.all([
+    publicProductsOfShop(shop.slug, PAGE_SIZE),
+    publicShopRating(shop.slug),
+    latestReviewsOfShop(shop.id, LATEST_REVIEWS),
+  ]);
   // Reviews of items still on sale, newest first (D-07: keyed by review ID).
-  const reviews = (await publicReviewsOfShop(shop.id))
-    .filter((r) => r.status === "VISIBLE" && productTitles.has(r.productId))
-    .slice(0, 6);
+  const reviews = latest.map((r) => r.review);
+  const productTitles = new Map(latest.map((r) => [r.review.productId, r.productTitle]));
 
   return (
     <>
@@ -120,10 +172,27 @@ async function ShopContent({ params }: { params: PageProps<"/shop/[shopSlug]">["
         <section aria-labelledby="work-heading" className="mt-16">
           <h2 id="work-heading" className="mb-8 text-[1.85rem]">
             Work by {shop.ownerName.split(" ")[0]}{" "}
-            <span className="font-sans text-lg text-ink-soft">({items.length})</span>
+            <span className="font-sans text-lg text-ink-soft">({items.total})</span>
           </h2>
-          {items.length ? (
-            <ProductGrid products={items} morph />
+          {items.items.length ? (
+            <>
+              <ProductGrid products={items.items} morph />
+              {items.next ? (
+                // The first page is part of the prebuilt page; only this reads the URL, for the no-JavaScript link.
+                <Suspense
+                  fallback={
+                    <ShopLoadMore
+                      shopSlug={shop.slug}
+                      next={items.next}
+                      shown={items.items.length}
+                      total={items.total}
+                    />
+                  }
+                >
+                  <ShopNextPage shopSlug={shop.slug} first={items} searchParams={searchParams} />
+                </Suspense>
+              ) : null}
+            </>
           ) : (
             <p className="text-ink-soft">This shop has no pieces listed right now.</p>
           )}

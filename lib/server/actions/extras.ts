@@ -17,7 +17,7 @@ import {
 } from "@/lib/validation/more";
 import { requireActor } from "../auth";
 import { getAuth } from "../better-auth";
-import { refreshEverything } from "./refresh";
+import { refreshCatalogue, refreshPage } from "./refresh";
 import { requestLogger } from "../observability/logger";
 import { formToObject, parseInput, runAction } from "../run-action";
 import { changeRole, toggleHelpful } from "../services/community-extras";
@@ -70,7 +70,7 @@ export async function quoteRequestAction(_: ActionState, form: FormData): Promis
   return runAction(async () => {
     const actor = await requireActor();
     await quoteCustomRequest(actor, parseInput(quoteSchema, formToObject(form)));
-    refreshEverything();
+    refreshPage();
     return { ok: true, message: "Quote sent." };
   });
 }
@@ -80,7 +80,7 @@ export async function declineRequestAction(_: ActionState, form: FormData): Prom
     const actor = await requireActor();
     const input = parseInput(declineRequestSchema, formToObject(form));
     await declineCustomRequest(actor, input.requestId, input.reason);
-    refreshEverything();
+    refreshPage();
     return { ok: true, message: "Request declined." };
   });
 }
@@ -90,7 +90,7 @@ export async function respondToQuoteAction(_: ActionState, form: FormData): Prom
     const actor = await requireActor();
     const input = parseInput(quoteResponseSchema, formToObject(form));
     await respondToQuote(actor, input.requestId, input.response);
-    refreshEverything();
+    refreshPage();
     return {
       ok: true,
       message:
@@ -112,7 +112,7 @@ export async function toggleHelpfulAction(_: ActionState, form: FormData): Promi
   return runAction(async () => {
     const actor = await requireActor();
     const result = await toggleHelpful(actor, parseInput(voteSchema, formToObject(form)));
-    refreshEverything();
+    refreshPage(); // helpful counts are read fresh on every visit
     return { ok: true, message: result.voted ? "Marked as helpful." : "Vote removed." };
   });
 }
@@ -120,7 +120,7 @@ export async function toggleHelpfulAction(_: ActionState, form: FormData): Promi
 export async function generatePayoutsAction(): Promise<ActionResult> {
   return runAction(async () => {
     const created = await generatePayouts(await requireActor());
-    refreshEverything();
+    refreshPage();
     return {
       ok: true,
       message: created.length ? `${created.length} payout statement(s) created.` : "Nothing is ready to pay out yet.",
@@ -133,7 +133,7 @@ export async function markPayoutPaidAction(_: ActionState, form: FormData): Prom
     const actor = await requireActor();
     const input = parseInput(payoutPaidSchema, formToObject(form));
     await markPayoutPaid(actor, input.payoutId, input.reference);
-    refreshEverything();
+    refreshPage();
     return { ok: true, message: "Marked as paid." };
   });
 }
@@ -144,7 +144,8 @@ export async function deleteAccountAction(_: ActionState, form: FormData): Promi
     const actor = await requireActor();
     parseInput(deleteAccountSchema, formToObject(form));
     await deleteMyAccount(actor);
-    refreshEverything(); // FR-17: the anonymised name shows on the person's reviews and questions
+    // FR-17: the anonymised name shows on the person's reviews wherever they are cached. Rare: refresh everything.
+    refreshCatalogue({ kind: "everything" });
   });
   if (!result.ok) return result;
   // The session rows are already gone (AU-11); this clears the browser's cookie too.

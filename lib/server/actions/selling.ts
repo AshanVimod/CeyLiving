@@ -10,7 +10,7 @@ import { productSchema } from "@/lib/validation/product";
 import { payoutSchema, shopSchema } from "@/lib/validation/shop";
 import { replySchema } from "@/lib/validation/content";
 import { requireActor } from "../auth";
-import { refreshEverything } from "./refresh";
+import { refreshCatalogue, refreshPage } from "./refresh";
 import { ValidationError } from "../errors";
 import { formToObject, parseInput, runAction } from "../run-action";
 import { submitApplication, withdrawApplication } from "../services/applications";
@@ -19,9 +19,6 @@ import { archiveProduct, restoreProduct, saveProduct } from "../services/product
 import { replyToReview } from "../services/reviews";
 import { savePayoutDetails } from "../services/payout-accounts";
 import { updateShop } from "../services/shops";
-
-/** Catalogue-wide changes (shop or item visibility) refresh every page. */
-const refreshCatalogue = refreshEverything;
 
 export async function submitApplicationAction(_: ActionState, form: FormData): Promise<ActionResult> {
   const result = await runAction(async () => {
@@ -69,7 +66,8 @@ export async function updateShopAction(_: ActionState, form: FormData): Promise<
       banner: { id: raw["banner.id"], alt: raw["banner.alt"] },
     });
     const shop = await updateShop(actor, input);
-    refreshCatalogue();
+    // The shop's name and details show on every list and item page: rare enough to refresh the whole catalogue.
+    refreshCatalogue({ kind: "everything" });
     return { ok: true, message: shop.status === "ACTIVE" ? "Shop saved. It’s live on CeyLiving." : "Shop saved." };
   });
 }
@@ -78,7 +76,8 @@ export async function savePayoutAction(_: ActionState, form: FormData): Promise<
   return runAction(async () => {
     const actor = await requireActor();
     await savePayoutDetails(actor, parseInput(payoutSchema, formToObject(form)));
-    refreshCatalogue();
+    // Nothing public changes (a shop going live queues its own catalogue refresh, lib/server/services/shops.ts).
+    refreshPage();
     return { ok: true, message: "Payout details saved. Your account number is stored encrypted." };
   });
 }
@@ -96,7 +95,12 @@ export async function saveProductAction(_: ActionState, form: FormData): Promise
     }
     const productId = form.get("productId") ? parseInput(id, form.get("productId")) : undefined;
     const product = await saveProduct(actor, parseInput(productSchema(intent), payload), intent, productId);
-    refreshCatalogue();
+    refreshCatalogue({
+      kind: "product",
+      productId: product.id,
+      shopSlug: product.shopSlug,
+      categorySlug: product.categorySlug,
+    });
     const messages = {
       DRAFT: "Draft saved.",
       PENDING_REVIEW: "Submitted. We’ll review it shortly; you’ll get a notification.",
@@ -110,9 +114,14 @@ export async function archiveProductAction(_: ActionState, form: FormData): Prom
   return runAction(async () => {
     const actor = await requireActor();
     const productId = parseInput(id, form.get("productId"));
-    if (form.get("restore") === "1") await restoreProduct(actor, productId);
-    else await archiveProduct(actor, productId);
-    refreshCatalogue();
+    const product =
+      form.get("restore") === "1" ? await restoreProduct(actor, productId) : await archiveProduct(actor, productId);
+    refreshCatalogue({
+      kind: "product",
+      productId: product.id,
+      shopSlug: product.shopSlug,
+      categorySlug: product.categorySlug,
+    });
     return { ok: true, message: form.get("restore") === "1" ? "Moved back to drafts." : "Archived." };
   });
 }
@@ -131,8 +140,8 @@ export async function replyToReviewAction(_: ActionState, form: FormData): Promi
   return runAction(async () => {
     const actor = await requireActor();
     const input = parseInput(replySchema, formToObject(form));
-    await replyToReview(actor, input.reviewId, input.body);
-    refreshCatalogue();
+    const review = await replyToReview(actor, input.reviewId, input.body);
+    refreshCatalogue({ kind: "review", productId: review.productId, shopId: review.shopId });
     return { ok: true, message: "Reply posted." };
   });
 }

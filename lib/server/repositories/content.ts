@@ -40,6 +40,24 @@ export async function reviewsOfShop(tx: Tx, shopId: string): Promise<Review[]> {
   return rows.map(toReview);
 }
 
+/**
+ * The shop page's latest reviews (B13): VISIBLE reviews (RULE-R4) of the shop's ACTIVE items (RULE-P4), newest first,
+ * at most `limit`, with each item's title. Reads only what the page shows.
+ */
+export async function latestPublicReviewsOfShop(
+  tx: Tx,
+  shopId: string,
+  limit: number,
+): Promise<{ review: Review; productTitle: string }[]> {
+  const rows = await clientOf(tx).review.findMany({
+    where: { shopId, status: "VISIBLE", product: { status: "ACTIVE" } },
+    orderBy: [...newestFirst],
+    take: Math.max(1, Math.min(limit, 50)),
+    include: { product: { select: { title: true } } },
+  });
+  return rows.map(({ product, ...row }) => ({ review: toReview(row), productTitle: product.title }));
+}
+
 export async function reviewsByAuthor(tx: Tx, authorId: string): Promise<Review[]> {
   const rows = await clientOf(tx).review.findMany({ where: { authorId }, orderBy: [...newestFirst] });
   return rows.map(toReview);
@@ -117,6 +135,16 @@ export async function answersOf(tx: Tx, questionId: string): Promise<ProductAnsw
   return rows.map(toAnswer);
 }
 
+/** Answers to several questions in one query (B13: no query per question), oldest first. */
+export async function answersOfQuestions(tx: Tx, questionIds: string[]): Promise<ProductAnswer[]> {
+  if (!questionIds.length) return [];
+  const rows = await clientOf(tx).productAnswer.findMany({
+    where: { questionId: { in: questionIds } },
+    orderBy: [...oldestFirst],
+  });
+  return rows.map(toAnswer);
+}
+
 export async function listAnswers(tx: Tx): Promise<ProductAnswer[]> {
   const rows = await clientOf(tx).productAnswer.findMany({ orderBy: [...oldestFirst] });
   return rows.map(toAnswer);
@@ -184,6 +212,21 @@ export async function openReportsFor(tx: Tx, targetType: ReportTargetType, targe
     orderBy: [...oldestFirst],
   });
   return rows.map(toReport);
+}
+
+/** Open reports per target for several targets in one grouped query (B13); targets without any are left out. */
+export async function openReportCounts(
+  tx: Tx,
+  targetType: ReportTargetType,
+  targetIds: string[],
+): Promise<Map<string, number>> {
+  if (!targetIds.length) return new Map();
+  const rows = await clientOf(tx).report.groupBy({
+    by: ["targetId"],
+    where: { targetType, targetId: { in: targetIds }, status: "OPEN" },
+    _count: { _all: true },
+  });
+  return new Map(rows.map((row) => [row.targetId, row._count._all]));
 }
 
 export async function reportsByReporter(tx: Tx, reporterId: string): Promise<Report[]> {

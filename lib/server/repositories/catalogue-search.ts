@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import type { CatalogueProduct, ProductQuery, SortValue } from "@/lib/catalogue";
+import type { ProductStatus } from "@/lib/types";
 import { Prisma } from "../db/generated/client";
 import { productInclude, toProduct } from "../db/mappers";
 import { clientOf, type Tx } from "../db/tx";
@@ -212,6 +213,46 @@ export async function shopReviewTotals(tx: Tx, shopId: string): Promise<{ count:
     _sum: { rating: true },
   });
   return { count: totals._count._all, sum: totals._sum.rating ?? 0 };
+}
+
+/** Totals of VISIBLE reviews (RULE-R4) for several shops, one grouped query (B13). Shops without any are left out. */
+export async function reviewTotalsByShop(
+  tx: Tx,
+  shopIds: string[],
+): Promise<Map<string, { count: number; sum: number }>> {
+  if (!shopIds.length) return new Map();
+  const rows = await clientOf(tx).review.groupBy({
+    by: ["shopId"],
+    where: { shopId: { in: shopIds }, status: "VISIBLE" },
+    _count: { _all: true },
+    _sum: { rating: true },
+  });
+  return new Map(rows.map((row) => [row.shopId, { count: row._count._all, sum: row._sum.rating ?? 0 }]));
+}
+
+/** How many items with one of `statuses` each shop has, one grouped query (B13). Shops without any are left out. */
+export async function itemCountsByShop(
+  tx: Tx,
+  shopIds: string[],
+  statuses: ProductStatus[],
+): Promise<Map<string, number>> {
+  if (!shopIds.length) return new Map();
+  const rows = await clientOf(tx).product.groupBy({
+    by: ["shopId"],
+    where: { shopId: { in: shopIds }, status: { in: statuses } },
+    _count: { _all: true },
+  });
+  return new Map(rows.map((row) => [row.shopId, row._count._all]));
+}
+
+/** Public items per category (ACTIVE items of ACTIVE shops, RULE-P4/RULE-S4), one grouped query (B13). */
+export async function publicCountsByCategory(tx: Tx): Promise<Map<string, number>> {
+  const rows = await clientOf(tx).product.groupBy({
+    by: ["categorySlug"],
+    where: { status: "ACTIVE", shop: { status: "ACTIVE" } },
+    _count: { _all: true },
+  });
+  return new Map(rows.map((row) => [row.categorySlug, row._count._all]));
 }
 
 /** Public shops whose name matches every search word (as prefixes), for search suggestions. */

@@ -2,6 +2,8 @@ import "server-only";
 import { createHash, timingSafeEqual } from "node:crypto";
 import type { Logger } from "pino";
 import { getEnv, type Env } from "@/lib/env";
+import type { Tx } from "../db/tx";
+import { enqueue } from "../repositories/jobs";
 
 // B07: the public catalogue (stock included) is cached inside the web app, and only the web app can expire it
 // (revalidateTag works in route handlers and server actions). When a worker job gives stock back, the
@@ -9,6 +11,15 @@ import { getEnv, type Env } from "@/lib/env";
 // fails and pg-boss retries it (JOB-04). Checkout itself always reads stock from the database.
 
 export const CATALOGUE_REFRESH_PATH = "/api/internal/catalogue-refresh";
+
+/**
+ * Queues the whole-catalogue refresh in the caller's transaction (JOB-02: only if the change commits). For changes
+ * made where updateTag can't run (the worker), or ones too wide to tag (a shop going live). One job at a time
+ * (singletonKey), so a burst of changes refreshes once.
+ */
+export async function queueCatalogueRefresh(tx: Tx): Promise<void> {
+  await enqueue(tx, "catalogue.refresh", {}, { singletonKey: "catalogue" });
+}
 
 /** Calls the web app's refresh route. Returns "refreshed", or "skipped" when no secret is set (development only). */
 export async function requestCatalogueRefresh(

@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { updateTag } from "next/cache";
-import { readAll, user, withTestDatabase } from "@/test/db";
+import { refresh, revalidatePath, updateTag } from "next/cache";
+import { freshUser, readAll, user, withTestDatabase } from "@/test/db";
 import type { User } from "@/lib/types";
 
 // The session is the only thing these tests control; everything else runs for real against a test database.
@@ -120,20 +120,30 @@ describe("SEC-A1 / SEC-A2 roles and ownership are checked on the server, not by 
   });
 });
 
-describe("B04a public pages show changes at once", () => {
-  beforeEach(() => vi.mocked(updateTag).mockClear());
+describe("BE-09 a change refreshes only the cached pages it affects", () => {
+  beforeEach(() => {
+    vi.mocked(updateTag).mockClear();
+    vi.mocked(refresh).mockClear();
+    vi.mocked(revalidatePath).mockClear();
+  });
   const naga = async () => (await readAll()).products.find((p) => p.slug.includes("naga") && p.status === "ACTIVE")!;
+  const expired = () => vi.mocked(updateTag).mock.calls.map(([tag]) => tag);
+  /** No action may throw away every page again (the whole-site refresh BE-09 replaced). */
+  const noWholeSiteRefresh = () => expect(revalidatePath).not.toHaveBeenCalledWith("/", "layout");
 
-  it("archiving an item expires the catalogue cache and takes it off the public catalogue", async () => {
+  it("BE-09 archiving an item refreshes only that item, its shop, its category and the site-wide lists", async () => {
     const item = await naga();
     expect(await getPublicProduct(item.slug)).toBeDefined();
     sessionUser = user("user_seller");
     expect(await selling.archiveProductAction(null, form({ productId: item.id }))).toMatchObject({ ok: true });
-    expect(updateTag).toHaveBeenCalledWith("catalogue");
+    expect(expired().sort()).toEqual(
+      [`product:${item.id}`, `shop:${item.shopSlug}`, `category:${item.categorySlug}`, "products"].sort(),
+    );
+    noWholeSiteRefresh();
     expect(await getPublicProduct(item.slug)).toBeUndefined();
   });
 
-  it("suspending a shop expires the catalogue cache and hides the shop", async () => {
+  it("BE-09 suspending a shop refreshes the whole catalogue and hides the shop", async () => {
     const shop = (await readAll()).shops.find((s) => s.slug === "ambalangoda-mask-house")!;
     sessionUser = user("user_admin");
     const result = await admin.decideShopAction(
@@ -141,11 +151,11 @@ describe("B04a public pages show changes at once", () => {
       form({ decision: "suspend", shopId: shop.id, reason: "Checking the photos on these listings." }),
     );
     expect(result).toMatchObject({ ok: true });
-    expect(updateTag).toHaveBeenCalledWith("catalogue");
+    expect(expired()).toEqual(["catalogue"]);
     expect(await getPublicShop(shop.slug)).toBeUndefined();
   });
 
-  it("hiding a review expires the catalogue cache", async () => {
+  it("BE-09 hiding a review refreshes at once its item's reviews, the item and its shop's reviews, nothing else", async () => {
     const review = (await readAll()).reviews.find((r) => r.status === "VISIBLE")!;
     sessionUser = user("user_admin");
     const result = await admin.moderateAction(
@@ -153,12 +163,38 @@ describe("B04a public pages show changes at once", () => {
       form({ targetType: "REVIEW", targetId: review.id, action: "hide", reason: "Contains personal details." }),
     );
     expect(result).toMatchObject({ ok: true });
-    expect(updateTag).toHaveBeenCalledWith("catalogue");
+    expect(expired().sort()).toEqual(
+      [`reviews:${review.productId}`, `product:${review.productId}`, `shop-reviews:${review.shopId}`].sort(),
+    );
+    noWholeSiteRefresh();
+  });
+
+  it("BE-09 a question, a helpful vote, a report or reading notifications refreshes no cached page", async () => {
+    const item = await naga();
+    const review = (await readAll()).reviews.find((r) => r.status === "VISIBLE" && r.authorId !== "user_customer")!;
+    sessionUser = await freshUser("user_customer");
+    const results = [
+      await community.askQuestionAction(
+        null,
+        form({ productId: item.id, body: "Is the paint safe for a child's room?" }),
+      ),
+      await extras.toggleHelpfulAction(null, form({ targetType: "REVIEW", targetId: review.id })),
+      await community.reportAction(
+        null,
+        form({ targetType: "REVIEW", targetId: review.id, reason: "Something else", details: "Checking." }),
+      ),
+      await community.markNotificationsReadAction(),
+    ];
+    expect(results.every((r) => r.ok)).toBe(true);
+    expect(updateTag).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledTimes(results.length);
+    noWholeSiteRefresh();
   });
 
   it("a failed change leaves the cache alone", async () => {
     sessionUser = user("user_customer");
     await admin.decideShopAction(null, form({ decision: "reinstate", shopId: "shop_x" }));
     expect(updateTag).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

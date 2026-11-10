@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { BadgeCheckIcon, PinIcon } from "@/components/ui/icons";
 import { Container } from "@/components/ui/section-heading";
-import { publicProductCountOfShop, publicShops, publicShopRating } from "@/lib/server/catalogue";
+import { publicShops, publicShopStats } from "@/lib/server/catalogue";
 import { photoUrl } from "@/lib/format";
 
 export const metadata: Metadata = {
@@ -12,16 +12,10 @@ export const metadata: Metadata = {
 };
 
 export default async function MakersPage() {
-  const shops = await publicShops();
+  const [shops, allStats] = await Promise.all([publicShops(), publicShopStats()]);
   const [first, ...rest] = shops;
-  const stats = new Map(
-    await Promise.all(
-      rest.map(
-        async (s) =>
-          [s.slug, { count: await publicProductCountOfShop(s.slug), rating: await publicShopRating(s.slug) }] as const,
-      ),
-    ),
-  );
+  // B13: every shop's count and rating from one cached read (a fixed number of queries, not two per shop).
+  const stats = new Map(Object.entries(allStats));
 
   return (
     <>

@@ -25,6 +25,8 @@ export interface PlacedOrder {
   order: Order;
   /** false when this idempotency key had already made the order (a double submit or a retry). */
   created: boolean;
+  /** B13: the items whose stock this call took (empty when it made no order), so their cached pages refresh. */
+  stockTakenFrom: string[];
 }
 
 interface PricedLine {
@@ -44,7 +46,7 @@ interface PricedLine {
 export async function placeOrder(actor: Actor, input: CheckoutInput, now = new Date()): Promise<PlacedOrder> {
   assertEmailVerified(actor);
   const earlier = await findOrderByIdempotencyKey(db, actor.id, input.idempotencyKey);
-  if (earlier) return { order: earlier, created: false };
+  if (earlier) return { order: earlier, created: false, stockTakenFrom: [] };
 
   return withTx(async (tx) => {
     await assertRateLimit(tx, actor.id, "checkout", now);
@@ -71,7 +73,7 @@ export async function placeOrder(actor: Actor, input: CheckoutInput, now = new D
     // then takes nothing from stock.
     if (!(await insertOrderOnce(tx, order, input.idempotencyKey))) {
       const existing = await findOrderByIdempotencyKey(tx, actor.id, input.idempotencyKey);
-      if (existing) return { order: existing, created: false };
+      if (existing) return { order: existing, created: false, stockTakenFrom: [] };
       throw new ConflictError("This checkout was just submitted. Check My account → Orders before trying again.");
     }
 
@@ -109,7 +111,8 @@ export async function placeOrder(actor: Actor, input: CheckoutInput, now = new D
     await insertOrderItems(tx, items);
     // JOB-02: the expiry job exists only if this order does.
     await enqueue(tx, "orders.expireUnpaid", { orderId: order.id }, { startAfter: expiresAt });
-    return { order, created: true };
+    const stockTakenFrom = [...new Set(items.filter((item) => item.stockReserved).map((item) => item.productId))];
+    return { order, created: true, stockTakenFrom };
   });
 }
 

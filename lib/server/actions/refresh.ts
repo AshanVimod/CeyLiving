@@ -1,13 +1,21 @@
 import "server-only";
-import { revalidatePath, updateTag } from "next/cache";
-import { CATALOGUE_TAG } from "../catalogue-tag";
+import { refresh, updateTag } from "next/cache";
+import { tagsFor, type CatalogueChange } from "../catalogue-tag";
 
 /**
- * After a change that public pages show (an item, a shop, a review, a question, a moderation decision or an
- * anonymised author): expires the cached catalogue snapshot (lib/server/catalogue.ts), so the next visit reads
- * fresh rows, and refreshes every page, so the person sees their own change at once.
+ * BE-09 (B13): after a change that public pages show, expires only the cached catalogue reads it affects
+ * (lib/server/catalogue-tag.ts). updateTag is for server actions: the next visit, the person's own included, waits
+ * for fresh rows instead of being served the old ones. Call it after the change is saved: a failed change refreshes
+ * nothing.
  */
-export function refreshEverything(): void {
-  updateTag(CATALOGUE_TAG);
-  revalidatePath("/", "layout");
+export function refreshCatalogue(change: CatalogueChange): void {
+  for (const tag of tagsFor(change)) updateTag(tag);
+}
+
+/**
+ * After a change that no cached read shows (a question, an answer, a vote, a report, a notification, payouts):
+ * re-renders the person's current page so they see it, and leaves every cache alone.
+ */
+export function refreshPage(): void {
+  refresh();
 }

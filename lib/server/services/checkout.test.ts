@@ -208,7 +208,9 @@ describe("idempotency key", () => {
     const first = await placeOrder(customer(), input);
     const second = await placeOrder(customer(), input);
     expect(first.created).toBe(true);
-    expect(second).toEqual({ order: first.order, created: false });
+    expect(second).toEqual({ order: first.order, created: false, stockTakenFrom: [] });
+    // BE-09 (B13): only the first call took stock, so only it names the item whose cached pages refresh.
+    expect(first.stockTakenFrom).toEqual(["prod_macrame-plant-hanger"]);
     expect(await stock("macrame-plant-hanger", "MPH-1")).toBe(10);
     expect(await queuedJobs("orders.expireUnpaid")).toHaveLength(1);
   });
@@ -220,6 +222,11 @@ describe("idempotency key", () => {
     expect([a.created, b.created].sort()).toEqual([false, true]);
     expect((await readAll()).orders.filter((o) => o.paymentStatus === "PENDING")).toHaveLength(1);
     expect(await stock("macrame-plant-hanger", "MPH-1")).toBe(10);
+  });
+
+  it("BE-09 an order names only the stocked items it took from, never a made-to-order one", async () => {
+    const placed = await placeOrder(customer(), checkout([hanger, NAMEPLATE]));
+    expect(placed.stockTakenFrom).toEqual(["prod_macrame-plant-hanger"]);
   });
 
   it("another customer's key never returns someone else's order", async () => {

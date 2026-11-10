@@ -18,6 +18,7 @@ import { hasPayoutAccount } from "../repositories/payout-accounts";
 import { addNotification, updateUser } from "../repositories/people";
 import { assertTransition, audit, staleStatus } from "./shared";
 import { assertPhotosUsable } from "./uploads";
+import { queueCatalogueRefresh } from "./catalogue-refresh";
 
 // Feature spec 8.2: shop status flow.
 const FLOW: Partial<Record<ShopStatus, readonly ShopStatus[]>> = {
@@ -57,6 +58,9 @@ export async function activateIfReady(tx: Tx, shopId: string): Promise<void> {
   const c = await shopChecklist(shop, tx);
   if (c.profileComplete && c.firstItem && c.payoutAdded) {
     await updateShopRow(tx, shop.id, { status: "ACTIVE", updatedAt: new Date().toISOString() }, { from: "DRAFT" });
+    // B13: a shop going live adds it and all its items to every list, wider than any one tag. The worker asks the
+    // web app to refresh the whole catalogue; this runs inside item and payout saves too, which refresh less.
+    await queueCatalogueRefresh(tx);
     await addNotification(tx, shop.ownerId, "shop.active", "Your shop is now live on CeyLiving", `/shop/${shop.slug}`);
   }
 }

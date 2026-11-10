@@ -167,8 +167,8 @@ export async function saveProduct(
   });
 }
 
-async function moveOwnProduct(actor: Actor, productId: string, to: ProductStatus): Promise<void> {
-  await withTx(async (tx) => {
+async function moveOwnProduct(actor: Actor, productId: string, to: ProductStatus): Promise<Product> {
+  return withTx(async (tx) => {
     const product = await ownProduct(await shopOfSeller(actor, tx), productId, tx);
     assertTransition(SELLER_FLOW, product.status, to, "item");
     const updated = await updateProduct(
@@ -178,15 +178,17 @@ async function moveOwnProduct(actor: Actor, productId: string, to: ProductStatus
       { from: product.status },
     );
     if (!updated) throw staleStatus("item");
+    return updated;
   });
 }
 
-export async function archiveProduct(actor: Actor, productId: string): Promise<void> {
-  await moveOwnProduct(actor, productId, "ARCHIVED");
+/** Returns the item as saved (B13: the action refreshes its cached pages). */
+export async function archiveProduct(actor: Actor, productId: string): Promise<Product> {
+  return moveOwnProduct(actor, productId, "ARCHIVED");
 }
 
-export async function restoreProduct(actor: Actor, productId: string): Promise<void> {
-  await moveOwnProduct(actor, productId, "DRAFT");
+export async function restoreProduct(actor: Actor, productId: string): Promise<Product> {
+  return moveOwnProduct(actor, productId, "DRAFT");
 }
 
 /** FR-9: admins approve or reject items waiting for review, or remove rule-breaking items (with a reason). */

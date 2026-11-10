@@ -3,8 +3,8 @@ import { db } from "@/lib/server/db/tx";
 import { formatDate } from "@/lib/format";
 import { currentUser } from "@/lib/server/auth";
 import { canPost } from "@/lib/server/permissions";
-import { answersOf, questionsOfProduct } from "@/lib/server/repositories/content";
-import type { Shop } from "@/lib/types";
+import { answersOfQuestions, questionsOfProduct } from "@/lib/server/repositories/content";
+import type { ProductAnswer, Shop } from "@/lib/types";
 import { byHelpfulness, helpfulCounts } from "@/lib/server/services/community-extras";
 import { ReportButton } from "../moderation/report-button";
 import { HelpfulButton } from "../reviews/helpful-button";
@@ -35,9 +35,13 @@ export async function ProductQuestions({
     user?.id,
   );
   const questions = byHelpfulness(listed, counts); // FR-19: most useful first
-  const answersByQuestion = new Map(
-    await Promise.all(questions.map(async (q) => [q.id, await answersOf(db, q.id)] as const)),
-  );
+  // B13: every answer in one query, not one per question.
+  const answersByQuestion = new Map(questions.map((q) => [q.id, [] as ProductAnswer[]]));
+  for (const answer of await answersOfQuestions(
+    db,
+    questions.map((q) => q.id),
+  ))
+    answersByQuestion.get(answer.questionId)?.push(answer);
 
   return (
     <section id="questions" aria-labelledby="questions-heading" className="mt-20 scroll-mt-40">

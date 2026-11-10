@@ -24,7 +24,8 @@
     "db:seed": "tsx --conditions=react-server --env-file-if-exists=.env.local prisma/seed.ts",
     "db:reset": "prisma migrate reset --force && npm run jobs:migrate && npm run db:seed",
     "payouts:reencrypt": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/payouts-reencrypt.ts",
-    "jobs:migrate": "tsx --env-file-if-exists=.env.local worker/migrate-cli.ts"
+    "jobs:migrate": "tsx --env-file-if-exists=.env.local worker/migrate-cli.ts",
+    "load:k6": "docker run --rm -i -e BASE_URL -e RATE -e DURATION -e SESSION_COOKIE grafana/k6:0.54.0 run - < scripts/load/catalogue.k6.js"
   },
   "engines": {
     "node": ">=22.12 <23",

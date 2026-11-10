@@ -1,6 +1,6 @@
 import "server-only";
 import { AUTO_HIDE_REPORT_THRESHOLD } from "@/lib/config";
-import type { ContentStatus, Report, ReportTargetType, User } from "@/lib/types";
+import type { ContentStatus, Report, ReportTargetType, Review, User } from "@/lib/types";
 import type {
   ModerationInput,
   OfficialReplyInput,
@@ -36,6 +36,7 @@ import {
   updateUser,
 } from "../repositories/people";
 import { assertRateLimit, assertTransition, audit, inBatches, WORKER } from "./shared";
+import { queueCatalogueRefresh } from "./catalogue-refresh";
 import { addAnswer } from "./questions";
 
 // Feature spec 8.4: content status flow.
@@ -98,6 +99,9 @@ export async function autoHideReportedContent(targetType: ContentType, targetId:
     const reason = `Hidden automatically after ${open} reports, waiting for review.`;
     await updateContent(tx, targetType, targetId, { status: "HIDDEN", statusReason: reason });
     await audit(tx, WORKER, "content.auto_hidden", targetType, targetId, { reason: `${reason} (reports.autoHide)` });
+    // B13: reviews feed cached pages (rating, the shop's latest reviews) and the worker can't expire them itself, so
+    // it asks the web app to (seconds, not the cache's hour). Questions and answers are never cached.
+    if (targetType === "REVIEW") await queueCatalogueRefresh(tx);
     await queueEmail(tx, "content.hidden", {
       userId: content.authorId,
       key: `auto:${targetType}:${targetId}:${new Date().toISOString()}`,
@@ -129,9 +133,10 @@ export async function liftExpiredMutesNow(now = new Date()): Promise<number> {
 }
 
 /** RULE-M1 / RULE-M2: admins hide, restore or delete content (with a reason) but never edit it. */
-export async function moderateContent(actor: Actor, input: ModerationInput): Promise<void> {
+/** Returns the post as it was before (B13: a review's item and shop tell the action which cached pages to refresh). */
+export async function moderateContent(actor: Actor, input: ModerationInput): Promise<Content> {
   assertRole(actor, ["ADMIN"]);
-  await withTx(async (tx) => {
+  return withTx(async (tx) => {
     const content = await findContent(tx, input.targetType, input.targetId);
     if (!content) throw new NotFoundError("Content not found.");
     const to: ContentStatus = input.action === "hide" ? "HIDDEN" : input.action === "restore" ? "VISIBLE" : "DELETED";
@@ -171,6 +176,7 @@ export async function moderateContent(actor: Actor, input: ModerationInput): Pro
       before,
       after: to,
     });
+    return content;
   });
 }
 
@@ -181,20 +187,22 @@ function erasedBody(content: Content): Record<string, unknown> {
 }
 
 /** Reply as CeyLiving: an official answer on a question, or an official reply under a review. */
-export async function officialReply(actor: Actor, input: OfficialReplyInput): Promise<void> {
+/** Returns the review replied to, or undefined for a question (B13: only reviews are cached). */
+export async function officialReply(actor: Actor, input: OfficialReplyInput): Promise<Review | undefined> {
   assertRole(actor, ["ADMIN"]);
   if (input.targetType === "QUESTION") {
     await withTx(async (tx) => {
       await addAnswer(tx, actor, { questionId: input.targetId, body: input.body });
       await audit(tx, actor, "content.official_reply", "QUESTION", input.targetId);
     });
-    return;
+    return undefined;
   }
-  await withTx(async (tx) => {
+  return withTx(async (tx) => {
     const review = await findReview(tx, input.targetId);
     if (!review || review.status === "DELETED") throw new NotFoundError("Review not found.");
     await updateReview(tx, review.id, { ceylivingReply: input.body });
     await audit(tx, actor, "content.official_reply", "REVIEW", review.id);
+    return review;
   });
 }
 

@@ -109,6 +109,21 @@ describe("FR-5 / FR-8 reports and moderation", () => {
     expect(await status()).toBe("VISIBLE"); // the report itself doesn't wait for moderation
     await runJobNow("reports.autoHide", { targetType: "QUESTION", targetId: "q_naga_size" });
     expect(await status()).toBe("HIDDEN");
+    expect(await queuedJobs("catalogue.refresh")).toEqual([]); // questions are never cached (BE-09)
+  });
+
+  it("BE-09 RULE-M4 a review hidden by the worker leaves cached pages in seconds: it queues the catalogue refresh", async () => {
+    const review = (await readAll()).reviews.find((r) => r.status === "VISIBLE" && r.authorId !== "user_seller")!;
+    const input = { targetType: "REVIEW" as const, targetId: review.id, reason: "Offensive or abusive" as const };
+    for (const reporter of ["user_muted", "user_applicant", "user_seller"]) await reportContent(user(reporter), input);
+    expect(await queuedJobs("catalogue.refresh")).toEqual([]);
+    await runJobNow("reports.autoHide", { targetType: "REVIEW", targetId: review.id });
+    const [refresh, ...more] = await queuedJobs("catalogue.refresh");
+    expect(refresh).toMatchObject({ singletonKey: "catalogue" });
+    expect(more).toEqual([]);
+    // A second run hides nothing new and queues nothing more (JOB-03).
+    await runJobNow("reports.autoHide", { targetType: "REVIEW", targetId: review.id });
+    expect(await queuedJobs("catalogue.refresh")).toHaveLength(1);
   });
 
   it("RULE-M1 only admins hide content; each action needs a reason and leaves an audit row", async () => {

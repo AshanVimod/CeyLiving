@@ -1,12 +1,12 @@
 "use server";
 
-import { revalidatePath, updateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import type { ActionResult, ActionState } from "@/lib/action-result";
 import { checkoutSchema } from "@/lib/validation/checkout";
 import { requireActor } from "../auth";
-import { CATALOGUE_TAG } from "../catalogue-tag";
 import { formToObject, parseInput, runAction } from "../run-action";
 import { placeOrder } from "../services/checkout";
+import { refreshCatalogue } from "./refresh";
 
 /** What the checkout form gets back: the order number to open once the order exists. */
 export type CheckoutResult = ActionResult & { orderNumber?: string };
@@ -33,8 +33,9 @@ export async function placeOrderAction(_: ActionState, form: FormData): Promise<
         phone: field("phone"),
       },
     });
-    const { order, created } = await placeOrder(actor, input);
-    if (created) updateTag(CATALOGUE_TAG); // stock went down
+    const { order, stockTakenFrom } = await placeOrder(actor, input);
+    // BE-09 (B13): stock went down; only those items' pages and the lists showing them refresh.
+    if (stockTakenFrom.length) refreshCatalogue({ kind: "stock", productIds: stockTakenFrom });
     revalidatePath("/account/orders");
     return { ok: true, orderNumber: order.orderNumber };
   });
