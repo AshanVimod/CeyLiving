@@ -1,0 +1,11 @@
+# B14 (17.4): nightly at 01:30 Sri Lankan time (20:00 UTC), before the 02:00 payment reconciliation.
+[Unit]
+Description=Nightly CeyLiving %i database backup
+
+[Timer]
+OnCalendar=*-*-* 20:00:00 UTC
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -14,6 +14,15 @@ export async function register() {
       console.error(error.message);
       process.exit(1);
     }
+    // B14 (BE-09): drop the catalogue pages prerendered at build time once the server listens (not during the build,
+    // and not awaited: register must finish before the server starts listening). Exits if it never succeeds.
+    if (process.env.NODE_ENV === "production" && process.env.NEXT_PHASE !== "phase-production-build") {
+      const { expireBuildCatalogue } = await import("./lib/server/services/catalogue-refresh");
+      const { logger } = await import("./lib/server/observability/logger");
+      void expireBuildCatalogue(logger).then((result) => {
+        if (result === "failed") process.exit(1);
+      });
+    }
   }
 }
 

@@ -1,0 +1,112 @@
+# B14 (backend plan 17.1–17.2): CeyLiving on one server. Staging and production are two compose projects on the same
+# VPS (COMPOSE_PROJECT_NAME), each with its own env/ folder, database, buckets and Cloudflare tunnel.
+#
+#   migrate      one-off: Prisma migrations + the job queue, as the schema owner (DB-10). web and worker wait for it.
+#   web          the Next.js app (one process: see "web" below).
+#   worker       background jobs (pg-boss).
+#   cloudflared  the only way in: an outbound tunnel to Cloudflare. No service publishes a port on the host.
+#   backup       nightly encrypted database dump (profile "ops"; run by the systemd timer, never by `up`).
+#
+# The image comes from CEYLIVING_IMAGE (deploy.sh sets it; locally `npm run docker:build` makes ceyliving:local).
+# Settings come from env/*.env, one file per service so each holds only the secrets it needs (infra/env/*.example,
+# docs/runbook.md). Never commit those files.
+
+x-hardened: &hardened
+  init: true # forwards SIGTERM so jobs and requests finish (JOB-07)
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+services:
+  migrate:
+    <<: *hardened
+    image: ${CEYLIVING_IMAGE:?set CEYLIVING_IMAGE to the image to run}
+    user: node
+    working_dir: /app/ops
+    command: ["sh", "/app/ops/migrate.sh"]
+    env_file: [env/migrate.env] # DATABASE_MIGRATION_URL only
+    restart: "no"
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 512m }
+
+  web:
+    <<: *hardened
+    image: ${CEYLIVING_IMAGE:?set CEYLIVING_IMAGE to the image to run}
+    user: node
+    # B14 decision D-d: Next writes regenerated pages under .next/server/app and .next/cache, the only paths the image
+    # lets `node` write. The rest of the image belongs to root and can't be changed.
+    read_only: false
+    working_dir: /app/web
+    command: ["node", "server.js"]
+    env_file: [env/common.env, env/web.env]
+    environment:
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+      NODE_OPTIONS: "--max-old-space-size=${WEB_HEAP_MB:-768}"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    # OPS-05: ready = the database answers and this build's migration is applied.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    stop_grace_period: 20s
+    # One web process (B14 decision D-a). Its "use cache" entries and page cache live in memory, and a cache refresh
+    # reaches only the process that ran it. A second process needs shared cache tags first (docs/runbook.md, "Scaling").
+    scale: 1
+    deploy:
+      resources:
+        limits: { cpus: "${WEB_CPUS:-1.5}", memory: "${WEB_MEMORY:-1g}" }
+
+  worker:
+    <<: *hardened
+    image: ${CEYLIVING_IMAGE:?set CEYLIVING_IMAGE to the image to run}
+    user: node
+    working_dir: /app/ops
+    command: ["node", "--conditions=react-server", "--enable-source-maps", "dist/worker.mjs"]
+    env_file: [env/common.env, env/worker.env]
+    environment:
+      INTERNAL_APP_URL: http://web:3000
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    # JOB-07: running jobs get 30 seconds to finish.
+    stop_grace_period: 40s
+    deploy:
+      resources:
+        limits: { cpus: "${WORKER_CPUS:-1}", memory: "${WORKER_MEMORY:-768m}" }
+
+  cloudflared:
+    <<: *hardened
+    image: cloudflare/cloudflared:2026.10.7
+    command: ["tunnel", "--no-autoupdate", "--metrics", "127.0.0.1:2000", "run"]
+    env_file: [env/tunnel.env] # TUNNEL_TOKEN only
+    depends_on:
+      web: { condition: service_started }
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 128m }
+
+  backup:
+    <<: *hardened
+    profiles: [ops]
+    image: ${CEYLIVING_BACKUP_IMAGE:-ceyliving-backup:local}
+    env_file: [env/backup.env]
+    environment:
+      BACKUP_ENVIRONMENT: ${COMPOSE_PROJECT_NAME:-ceyliving}
+    restart: "no"
+    tmpfs: ["/tmp:size=2g,mode=1777"] # the dump is written here before upload
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 512m }

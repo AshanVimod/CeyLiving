@@ -1,0 +1,57 @@
+# B14 (backend plan 17.3): build and deploy. After CI passes on main: build the staging image, deploy it to staging
+# (migrations first), smoke test; then the production job waits for your approval (GitHub environment `production`
+# with you as required reviewer), builds the production image from the same commit, deploys and smoke tests it.
+# Run it by hand (Actions > Deploy > Run workflow) to redeploy a commit to one environment, or to roll back.
+# Set-up (environments, variables, secrets, the VPS): docs/runbook.md, "Deploy workflow".
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Where
+        type: choice
+        options: [staging, production]
+      action:
+        description: deploy (build if needed, migrate, switch) or rollback (previous version, no migration)
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    if: >-
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      environment: staging
+      action: ${{ github.event_name == 'workflow_dispatch' && inputs.action || 'deploy' }}
+      commit: ${{ github.event.workflow_run.head_sha || github.sha }}
+    permissions:
+      contents: read
+      packages: write
+    secrets: inherit
+
+  production:
+    needs: staging
+    if: >-
+      always() &&
+      ((github.event_name == 'workflow_run' && needs.staging.result == 'success') ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'production'))
+    uses: ./.github/workflows/deploy-environment.yml
+    with:
+      environment: production
+      action: ${{ github.event_name == 'workflow_dispatch' && inputs.action || 'deploy' }}
+      commit: ${{ github.event.workflow_run.head_sha || github.sha }}
+    permissions:
+      contents: read
+      packages: write
+    secrets: inherit

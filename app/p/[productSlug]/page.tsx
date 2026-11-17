@@ -26,10 +26,11 @@ import {
   publicProductSlugs,
   publicReviewsOfProduct,
   relatedProducts,
+  staticSlugParams,
 } from "@/lib/server/catalogue";
 
 export async function generateStaticParams() {
-  return (await publicProductSlugs()).map((p) => ({ productSlug: p.slug }));
+  return staticSlugParams("productSlug", await publicProductSlugs());
 }
 
 export async function generateMetadata(props: PageProps<"/p/[productSlug]">): Promise<Metadata> {

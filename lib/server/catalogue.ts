@@ -148,6 +148,19 @@ export async function productCountByCategory(slug: string): Promise<number> {
 }
 
 /** Every public item's address and last change: for the sitemap and the pages built ahead of time. */
+/**
+ * B14: images are built from a database with an empty catalogue, so no item or shop is ever baked into an image (after
+ * every start, Next serves a page prerendered at build time once more before rendering it fresh). Cache Components
+ * still needs one parameter per dynamic route: this one, which matches nothing, so its page is a 404.
+ */
+export const BUILD_PLACEHOLDER_SLUG = "build-placeholder";
+
+/** generateStaticParams for the item and shop routes: the public slugs, or the placeholder when there are none. */
+export function staticSlugParams<K extends string>(key: K, slugs: { slug: string }[]): Record<K, string>[] {
+  const values = slugs.length ? slugs.map((s) => s.slug) : [BUILD_PLACEHOLDER_SLUG];
+  return values.map((slug) => ({ [key]: slug }) as Record<K, string>);
+}
+
 export async function publicProductSlugs(): Promise<{ slug: string; updatedAt: string }[]> {
   "use cache";
   cached(PRODUCTS_TAG);

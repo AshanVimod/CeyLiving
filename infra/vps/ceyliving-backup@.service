@@ -1,0 +1,12 @@
+# B14 (17.4): one backup of the environment named after the @ (staging or production). Started by the timer.
+# Install: docs/runbook.md, "Backups".
+[Unit]
+Description=CeyLiving %i database backup
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=deploy
+ExecStart=/opt/ceyliving/bin/run-backup.sh %i
+TimeoutStartSec=1h

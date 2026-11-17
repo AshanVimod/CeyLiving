@@ -4,6 +4,8 @@ export const SHIPPING_FEE_PER_SHOP_CENTS = 45000;
 export const FREE_SHIPPING_THRESHOLD_CENTS = 1500000;
 export const COMMISSION_RATE_BPS = 1000;
 export const PAGE_SIZE = 12;
+/** FR-2c: the public pages without a parameter, in the sitemap. B14: the web app also requests them once at start-up. */
+export const PUBLIC_PAGES = ["/", "/shop", "/makers", "/heritage", "/custom", "/about", "/sell", "/help"] as const;
 export const MAX_CART_QUANTITY = 20;
 /** BR-06: an unpaid order is cancelled and its stock returned this long after checkout. */
 export const PAYMENT_WINDOW_MINUTES = 30;

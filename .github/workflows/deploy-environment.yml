@@ -1,0 +1,172 @@
+# B14 (17.3): build (if needed), deploy and smoke test one environment. Called by deploy.yml. One job, so the
+# production environment's approval is asked once, before anything is built or deployed.
+#
+# Per environment (Settings > Environments > staging / production):
+#   variables  SITE_URL, PAYHERE_MODE, R2_ACCOUNT_ID, NEXT_PUBLIC_IMAGE_BASE_URL (fixed into the image at build time),
+#              DEPLOY_SSH_HOST (the tunnel's SSH hostname), DEPLOY_SSH_USER
+#   secrets    DEPLOY_SSH_KEY (the forced-command deploy key), DEPLOY_KNOWN_HOSTS (the VPS's host key line),
+#              CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET (a Cloudflare Access service token for SSH and smoke tests)
+# The image goes to GitHub's registry as ghcr.io/<owner>/ceyliving:<commit>-<environment>; no other secret is used.
+name: Deploy one environment
+
+on:
+  workflow_call:
+    inputs:
+      environment: { type: string, required: true }
+      action: { type: string, required: true }
+      commit: { type: string, required: true }
+
+permissions:
+  contents: read
+
+env:
+  CLOUDFLARED_VERSION: 2026.10.7
+  CLOUDFLARED_SHA256: 1f99fb518b83dec2ba8d870a7cc991d82a77e6196295a3d2754ba17ab9f91872
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ vars.SITE_URL }}
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: write
+    # The build prerenders from a database: a throwaway one, migrated and deliberately EMPTY (no seed). Next serves a
+    # page prerendered at build time once more after every start, so no item, shop or demo data is baked into an image.
+    services:
+      postgres:
+        image: postgres:17.11-alpine
+        env:
+          POSTGRES_USER: ceyliving_migrator
+          POSTGRES_PASSWORD: ci_migrator
+          POSTGRES_DB: ceyliving
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ceyliving_migrator -d ceyliving"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+      ACTION: ${{ inputs.action }}
+      COMMIT: ${{ inputs.commit }}
+      DATABASE_MIGRATION_URL: postgresql://ceyliving_migrator:ci_migrator@localhost:5432/ceyliving
+      DATABASE_URL: postgresql://ceyliving_app:ci_app@localhost:5432/ceyliving
+    steps:
+      - name: Check the inputs
+        run: |
+          [[ "$ENVIRONMENT" =~ ^(staging|production)$ ]] || exit 1
+          [[ "$ACTION" =~ ^(deploy|rollback)$ ]] || exit 1
+          [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || exit 1
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "IMAGE=ghcr.io/$owner/ceyliving:$COMMIT-$ENVIRONMENT" >> "$GITHUB_ENV"
+          echo "BACKUP_IMAGE=ghcr.io/$owner/ceyliving-backup:$COMMIT" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+
+      - name: Sign in to the registry
+        if: inputs.action == 'deploy'
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # A redeploy of a commit that was already built for this environment reuses its image.
+      - name: Is the image already built?
+        if: inputs.action == 'deploy'
+        id: exists
+        run: |
+          echo "app=$(docker manifest inspect "$IMAGE" >/dev/null 2>&1 && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+          echo "backup=$(docker manifest inspect "$BACKUP_IMAGE" >/dev/null 2>&1 && echo yes || echo no)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: inputs.action == 'deploy' && steps.exists.outputs.app == 'no'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Prepare the build database
+        if: inputs.action == 'deploy' && steps.exists.outputs.app == 'no'
+        run: |
+          npm ci
+          psql "$DATABASE_MIGRATION_URL" -c "CREATE ROLE ceyliving_app LOGIN PASSWORD 'ci_app'"
+          npx prisma migrate deploy
+          npm run jobs:migrate
+
+      # Build-only placeholders for the secrets `next build` checks; the four public settings are the environment's
+      # own (they are fixed into the image). The file is a BuildKit secret: it never enters an image layer.
+      - name: Build and push the image
+        if: inputs.action == 'deploy' && steps.exists.outputs.app == 'no'
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          PAYHERE_MODE: ${{ vars.PAYHERE_MODE }}
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID }}
+          NEXT_PUBLIC_IMAGE_BASE_URL: ${{ vars.NEXT_PUBLIC_IMAGE_BASE_URL }}
+        run: |
+          mkdir -p env
+          placeholder="build-only-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-not-a-secret"
+          {
+            echo "DATABASE_URL=$DATABASE_URL"
+            echo "SITE_URL=$SITE_URL"
+            echo "PAYHERE_MODE=$PAYHERE_MODE"
+            echo "STORAGE_DRIVER=r2"
+            echo "R2_ACCOUNT_ID=$R2_ACCOUNT_ID"
+            echo "NEXT_PUBLIC_IMAGE_BASE_URL=$NEXT_PUBLIC_IMAGE_BASE_URL"
+            echo "BETTER_AUTH_SECRET=$placeholder"
+            echo "CACHE_REFRESH_SECRET=$placeholder"
+            echo "TURNSTILE_SITE_KEY=build-only-site-key"
+            echo "TURNSTILE_SECRET_KEY=build-only-not-a-secret"
+            echo "PAYHERE_MERCHANT_ID=1000000"
+            echo "PAYHERE_MERCHANT_SECRET=build-only-not-a-secret"
+            echo "R2_ACCESS_KEY_ID=build-only-access-key"
+            echo "R2_SECRET_ACCESS_KEY=build-only-not-a-secret"
+            echo "R2_UPLOAD_BUCKET=build-uploads"
+            echo "R2_PUBLIC_BUCKET=build-images"
+          } > env/build.env
+          docker build --network host --secret id=build_env,src=env/build.env \
+            --build-arg NEXT_DEPLOYMENT_ID="$COMMIT" -t "$IMAGE" .
+          docker push "$IMAGE"
+          rm -f env/build.env
+
+      - name: Build and push the backup image
+        if: inputs.action == 'deploy' && steps.exists.outputs.backup == 'no'
+        run: |
+          docker build -t "$BACKUP_IMAGE" infra/backup
+          docker push "$BACKUP_IMAGE"
+
+      - name: Install cloudflared
+        run: |
+          curl -sSfL -o cloudflared "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-amd64"
+          echo "${CLOUDFLARED_SHA256}  cloudflared" | sha256sum --check
+          sudo install -m 0755 cloudflared /usr/local/bin/cloudflared
+
+      # The deploy key can only run infra/deploy/deploy.sh for this environment (forced command on the VPS). The
+      # script migrates with the new image before switching (DB-11), and switches back if it isn't ready.
+      - name: Deploy on the server
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          SSH_HOST: ${{ vars.DEPLOY_SSH_HOST }}
+          SSH_USER: ${{ vars.DEPLOY_SSH_USER }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy && chmod 600 ~/.ssh/deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          if [[ "$ACTION" == deploy ]]; then remote="deploy $COMMIT-$ENVIRONMENT"; else remote="rollback"; fi
+          ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o ProxyCommand="cloudflared access ssh --hostname %h --service-token-id $CF_ACCESS_CLIENT_ID --service-token-secret $CF_ACCESS_CLIENT_SECRET" \
+            "$SSH_USER@$SSH_HOST" "$remote"
+
+      - name: Smoke test
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: bash infra/deploy/smoke.sh "$SITE_URL"

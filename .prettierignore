@@ -2,6 +2,7 @@
 .next/
 .data/
 coverage/
+dist/
 public/
 docs/
 package-lock.json

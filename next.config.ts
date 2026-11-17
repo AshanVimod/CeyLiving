@@ -48,6 +48,11 @@ const securityHeaders = [
 const siteHost = new URL(process.env.SITE_URL || "http://localhost:3000").host;
 
 const nextConfig: NextConfig = {
+  // B14 (17.2): the Docker image runs .next/standalone/server.js with only the traced files, not all of node_modules.
+  output: "standalone",
+  // B14: the commit the image was built from (Dockerfile build argument). A browser still holding an older version
+  // does a full reload instead of calling Server Actions this version no longer has. Unset locally: Next's default.
+  deploymentId: process.env.NEXT_DEPLOYMENT_ID || undefined,
   cacheComponents: true,
   experimental: {
     serverActions: { allowedOrigins: [siteHost], bodySizeLimit: "1mb" },

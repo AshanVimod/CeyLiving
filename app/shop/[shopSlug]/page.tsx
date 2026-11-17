@@ -16,13 +16,14 @@ import {
   publicProductsOfShop,
   publicShopRating,
   publicShops,
+  staticSlugParams,
 } from "@/lib/server/catalogue";
 
 /** Shown under "What customers say". */
 const LATEST_REVIEWS = 6;
 
 export async function generateStaticParams() {
-  return (await publicShops()).map((s) => ({ shopSlug: s.slug }));
+  return staticSlugParams("shopSlug", await publicShops());
 }
 
 export async function generateMetadata(props: PageProps<"/shop/[shopSlug]">): Promise<Metadata> {

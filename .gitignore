@@ -19,6 +19,10 @@
 
 # production
 /build
+# B14: the worker bundle for the Docker image (npm run build:worker)
+/dist/
+# B14: per-service settings for docker compose (templates: infra/env/*.example)
+/env/
 
 # misc
 .DS_Store
